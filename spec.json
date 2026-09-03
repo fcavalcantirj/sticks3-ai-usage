@@ -294,7 +294,7 @@
       "Create `firmware/platformio.ini` exactly as described in the context (single env `[env:m5stack-sticks3]`, `default_envs = m5stack-sticks3`), plus `extra_scripts = pre:scripts/build_id.py` where `firmware/scripts/build_id.py` is lifted from /Users/fcavalcanti/dev/Colibrino/sticks3/scripts/build_id.py (read it) with the macro renamed to `USAGED_BUILD_ID` (git short sha + `+dirty`). Create `firmware/include/secrets.h.example` with `#define WIFI_SSID \"…\"`, `#define WIFI_PASS \"…\"`, `#define USAGED_HOST \"192.168.0.150\"`, `#define USAGED_PORT 8765`, `#define USAGED_DEVICE_TOKEN \"…\"` and a comment: `copy to secrets.h (git-ignored); the device token is the LAN token from the repo .env — NEVER a provider key`. Create `firmware/src/main.cpp` that for now only does M5 bring-up (`auto cfg = M5.config(); cfg.internal_imu=false; cfg.internal_spk=false; cfg.internal_mic=false; cfg.output_power=false; M5.begin(cfg);`), `Serial.begin(115200)`, prints `[BOOT] board=<int> psram=<ESP.getPsramSize()> build=<USAGED_BUILD_ID> fw=0.1.0` once, sets rotation 1 and brightness 80, draws `AI USAGE` centred, and loops with `M5.update(); delay(10);` (the delay is allowed only in this placeholder main). Add a `firmware/README.md` stub with the build/flash/monitor commands.",
       "Verify: `cd firmware && pio run -e m5stack-sticks3 2>&1 | tail -n 5` ends with `SUCCESS` and the build log contains `RAM:` and `Flash:` lines; `test -f firmware/include/secrets.h.example`; `git check-ignore -q firmware/.pio firmware/include/secrets.h` exits 0. No upload."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "firmware",
