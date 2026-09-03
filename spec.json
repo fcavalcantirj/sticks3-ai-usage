@@ -19,7 +19,7 @@
       "Run `go mod init usaged` (go directive 1.26). Create `cmd/usaged/main.go` with subcommands parsed from os.Args[1]: `serve` (default), `once`, `version`; each subcommand uses its own `flag.NewFlagSet`. For now `version` prints `usaged <version> (<commit>)` where version and commit are `var` strings set via `-ldflags \"-X main.version=... -X main.commit=...\"` (default `dev`/`none`); `serve` and `once` print `not implemented` and exit 2. Create `Makefile` with targets: `build` (`go build -ldflags ... -o bin/usaged ./cmd/usaged`, commit from `git rev-parse --short HEAD`), `fmt` (`gofmt -l . | tee /dev/stderr | test -z \"$$(cat)\"` style check that FAILS if any file is unformatted), `vet` (`go vet ./...`), `lint` (`test -x $(HOME)/go/bin/staticcheck && $(HOME)/go/bin/staticcheck ./... || echo 'staticcheck missing, skipped'`), `test` (`go test -count=1 ./...`), `verify` (fmt vet lint test build), `clean`. Add a `go test` smoke test in `cmd/usaged/main_test.go` that runs the subcommand dispatcher in-process for `version` and checks the output prefix.",
       "Verify: `make verify` exits 0; `./bin/usaged version` prints a line starting with `usaged`; `go list -m all | wc -l` prints 1 (no dependencies)."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "setup",

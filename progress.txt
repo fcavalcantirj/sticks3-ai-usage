@@ -1,1 +1,2 @@
 2026-09-03T01:55:05Z task 1 done — .gitignore (14 rules), git init -b main, AGENTS.md (3x NEVER, tree, rules, provenance), docs/GROUND_RULES.md; verify: git status shows files, grep -c NEVER=3, all 3 check-ignore paths ignored, GROUND_RULES.md exists
+2026-09-03T02:03:19Z task 2 done — go mod init usaged (go 1.26), cmd/usaged/main.go (serve/once/version subcommands), Makefile (build/fmt/vet/lint/test/verify/clean); verify: make verify=0, ./bin/usaged version='usaged dev (e97036c)', go list -m all | wc -l=1
