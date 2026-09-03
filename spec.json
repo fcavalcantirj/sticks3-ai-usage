@@ -54,7 +54,7 @@
       "Tests: golden encode/decode round-trip of the example snapshot from the contract (store it as `testdata/snapshots/example.json`, keep it byte-stable with `json.MarshalIndent` two-space); Validate rejects a 12-char label, an unknown tier, duplicate ids; nil pct encodes as `null`.",
       "Verify: `go test ./internal/snapshot -run 'Types|Golden|Validate' -v 2>&1 | grep -c '^--- PASS'` ≥ 4; `make verify` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "host",

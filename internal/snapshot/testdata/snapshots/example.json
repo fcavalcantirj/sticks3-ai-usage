@@ -1,0 +1,78 @@
+{
+  "v": 1,
+  "seq": 1,
+  "rev": "a1b2c3d4",
+  "generated_at": 1788414949,
+  "checked_at": 1788414949,
+  "next_sec": 900,
+  "providers": [
+    {
+      "id": "claude",
+      "label": "Claude",
+      "plan": "max_20x",
+      "status": "ok",
+      "msg": "",
+      "fetched_at": 0,
+      "rows": [
+        {
+          "k": "5h",
+          "label": "CLAUDE 5h",
+          "pct": 19,
+          "txt": "05:09",
+          "tier": "ok",
+          "reset_at": 1788411000
+        },
+        {
+          "k": "7d",
+          "label": "CLAUDE 7d",
+          "pct": 30,
+          "txt": "Mon",
+          "tier": "ok",
+          "reset_at": 1788768000
+        },
+        {
+          "k": "7d:Fable",
+          "label": "FABLE 7d",
+          "pct": 20,
+          "txt": "Mon",
+          "tier": "ok",
+          "reset_at": 1788768000
+        }
+      ]
+    },
+    {
+      "id": "codex",
+      "label": "ChatGPT",
+      "plan": "plus",
+      "status": "ok",
+      "msg": "",
+      "fetched_at": 0,
+      "rows": [
+        {
+          "k": "5h",
+          "label": "GPT 5h",
+          "pct": 100,
+          "txt": "23:13",
+          "tier": "crit",
+          "reset_at": 1788401621
+        },
+        {
+          "k": "7d",
+          "label": "GPT 7d",
+          "pct": 31,
+          "txt": "Tue",
+          "tier": "ok",
+          "reset_at": 1788969665
+        },
+        {
+          "k": "bal",
+          "label": "GPT bal",
+          "pct": null,
+          "txt": "$178.10",
+          "tier": "ok",
+          "reset_at": null
+        }
+      ]
+    }
+  ]
+}
