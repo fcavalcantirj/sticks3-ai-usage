@@ -284,7 +284,7 @@
       "With OPENROUTER_API_KEY, OPENROUTER_API_KEY_FALLBACK and GROQ_API_KEY set to dummy values in fixtures mode, the snapshot must list providers in the order claude, codex, openrouter:main, openrouter:fallback, groq; the web page must render 5 cards with the OpenRouter cards showing `$0.07 left` style balance text (txt) and the Groq card `key ok`; `once` prints all rows. Regenerate `testdata/snapshots/example_full.json` from `once --json` in fixtures mode with all keys set and add a golden test that re-running produces the same rev (fixed clock in the test: 2026-09-02T21:00:00-03:00 → the test must inject `Clock`). Extend scripts/smoke.sh to export the three dummy keys and assert `openrouter:main` and `groq` appear in /v1/usage.",
       "Verify: `make smoke` exits 0; `go test ./... -run Golden -v 2>&1 | grep -c '^--- PASS'` ≥ 2; `make verify` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "firmware",

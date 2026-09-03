@@ -11,6 +11,12 @@ STATE_FILE="/tmp/usaged-smoke-state.json"
 pkill -f "usaged serve --fixtures" 2>/dev/null || true
 rm -f "$STATE_FILE"
 
+# Dummy keys so OpenRouter and Groq render as real (ok) providers in fixtures
+# mode, exercising the full 5-provider snapshot.
+export OPENROUTER_API_KEY=x
+export OPENROUTER_API_KEY_FALLBACK=fx
+export GROQ_API_KEY=gx
+
 # Start the server in the background.
 bin/usaged serve --fixtures testdata/fixtures --listen "127.0.0.1:${PORT}" --state "$STATE_FILE" &
 SERVER_PID=$!
@@ -41,6 +47,19 @@ if ! echo "$USAGE_RESP" | grep -qi 'ETag: "'; then
     echo "$USAGE_RESP"
     exit 1
 fi
+
+# With dummy keys exported, /v1/usage must include openrouter:main and groq.
+USAGE_BODY=$(curl -s "${BASE}/v1/usage")
+echo "$USAGE_BODY" | grep -q '"id":"openrouter:main"' || {
+    echo "FAIL: /v1/usage missing openrouter:main"
+    echo "$USAGE_BODY"
+    exit 1
+}
+echo "$USAGE_BODY" | grep -q '"id":"groq"' || {
+    echo "FAIL: /v1/usage missing groq"
+    echo "$USAGE_BODY"
+    exit 1
+}
 
 # Extract ETag and test 304: same ETag, empty body (no Content-Length assertion).
 ETAG=$(echo "$USAGE_RESP" | grep -i '^ETag:' | sed 's/^ETag: //I' | tr -d '\r')

@@ -111,6 +111,152 @@ func TestOnceStateTempByDefault(t *testing.T) {
 	}
 }
 
+// --- Golden tests (Task 26: providers integration) ---
+
+var goldenFullProviders = []string{"claude", "codex", "openrouter:main", "openrouter:fallback", "groq"}
+
+// providerIDsFrom returns the id of each provider in order.
+func providerIDsFrom(ps []snapshot.Provider) []string {
+	ids := make([]string, len(ps))
+	for i, p := range ps {
+		ids[i] = p.ID
+	}
+	return ids
+}
+
+// findProvider returns a pointer to the provider with the given id, or nil.
+func findProvider(ps []snapshot.Provider, id string) *snapshot.Provider {
+	for i := range ps {
+		if ps[i].ID == id {
+			return &ps[i]
+		}
+	}
+	return nil
+}
+
+// findRow returns a pointer to the row with the given key, or nil.
+func findRow(p *snapshot.Provider, k string) *snapshot.Row {
+	if p == nil {
+		return nil
+	}
+	for i := range p.Rows {
+		if p.Rows[i].K == k {
+			return &p.Rows[i]
+		}
+	}
+	return nil
+}
+
+func sameStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func setDummyKeys(t *testing.T) {
+	t.Helper()
+	t.Setenv("OPENROUTER_API_KEY", "x")
+	t.Setenv("OPENROUTER_API_KEY_FALLBACK", "fx")
+	t.Setenv("GROQ_API_KEY", "gx")
+}
+
+// TestGoldenFullSnapshot generates (on first run) and then verifies a golden
+// snapshot file produced by `once --json` in fixtures mode with all dummy keys
+// set. The clock is fixed by captureOnce so output is deterministic.
+func TestGoldenFullSnapshot(t *testing.T) {
+	setDummyKeys(t)
+
+	out, _ := captureOnce(t, onceTestArgs("--json")...)
+
+	goldenPath := "../../testdata/snapshots/example_full.json"
+	golden, err := os.ReadFile(goldenPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			t.Fatalf("read golden: %v", err)
+		}
+		// First run: create the golden file and skip.
+		if err := os.MkdirAll(filepath.Dir(goldenPath), 0o755); err != nil {
+			t.Fatalf("mkdir golden dir: %v", err)
+		}
+		if err := os.WriteFile(goldenPath, []byte(out), 0o644); err != nil {
+			t.Fatalf("write golden: %v", err)
+		}
+		t.Skipf("created %s; re-run to compare", goldenPath)
+	}
+
+	var snap, goldenSnap snapshot.Snapshot
+	if err := json.Unmarshal([]byte(out), &snap); err != nil {
+		t.Fatalf("unmarshal current output: %v\n%s", err, out)
+	}
+	if err := json.Unmarshal(golden, &goldenSnap); err != nil {
+		t.Fatalf("unmarshal golden: %v\n%s", err, golden)
+	}
+
+	// Rev must be stable (excludes timestamps by design).
+	if snap.Rev != goldenSnap.Rev {
+		t.Errorf("rev changed: got %s, want %s", snap.Rev, goldenSnap.Rev)
+	}
+
+	// Canonical provider order.
+	gotIDs := providerIDsFrom(snap.Providers)
+	if !sameStrings(gotIDs, goldenFullProviders) {
+		t.Errorf("provider order = %v, want %v", gotIDs, goldenFullProviders)
+	}
+
+	// openrouter:main has a bal row with txt "$0.07" (balance from fixtures).
+	orMain := findProvider(snap.Providers, "openrouter:main")
+	if orMain == nil {
+		t.Fatal("provider openrouter:main not found")
+	}
+	bal := findRow(orMain, "bal")
+	if bal == nil {
+		t.Fatal("openrouter:main missing bal row")
+	}
+	if bal.Txt != "$0.07" {
+		t.Errorf("openrouter:main bal txt = %q, want %q", bal.Txt, "$0.07")
+	}
+
+	// groq has a key row with txt "ok" (default mode, key valid).
+	grq := findProvider(snap.Providers, "groq")
+	if grq == nil {
+		t.Fatal("provider groq not found")
+	}
+	key := findRow(grq, "key")
+	if key == nil {
+		t.Fatal("groq missing key row")
+	}
+	if key.Txt != "ok" {
+		t.Errorf("groq key txt = %q, want %q", key.Txt, "ok")
+	}
+}
+
+// TestGoldenRevStable asserts that running `once --json` twice with the same
+// fixed clock and dummy keys yields the same rev.
+func TestGoldenRevStable(t *testing.T) {
+	setDummyKeys(t)
+
+	out1, _ := captureOnce(t, onceTestArgs("--json")...)
+	out2, _ := captureOnce(t, onceTestArgs("--json")...)
+
+	var s1, s2 snapshot.Snapshot
+	if err := json.Unmarshal([]byte(out1), &s1); err != nil {
+		t.Fatalf("unmarshal first: %v", err)
+	}
+	if err := json.Unmarshal([]byte(out2), &s2); err != nil {
+		t.Fatalf("unmarshal second: %v", err)
+	}
+
+	if s1.Rev != s2.Rev {
+		t.Errorf("rev not stable across runs: first %s, second %s", s1.Rev, s2.Rev)
+	}
+}
+
 // helpers
 
 func containsLine(s, want string) bool {
