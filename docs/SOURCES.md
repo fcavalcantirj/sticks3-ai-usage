@@ -1,0 +1,13 @@
+# Sources & Endpoint Provenance
+
+All endpoints verified live on 2026-09-02 with the founder's real accounts.
+Every fetcher is exercised through the fixture transport in `testdata/fixtures`;
+live calls only happen behind `USAGED_LIVE=1` and only the founder runs them.
+
+| Provider | Endpoint | Official? | Credential source | Refresh owner | Known risks |
+|---|---|---|---|---|---|
+| Claude | `GET https://api.anthropic.com/api/oauth/usage` (headers: `Authorization: Bearer <token>`, `anthropic-beta: oauth-2025-04-20`, `Accept: application/json`) | Unofficial | macOS Keychain item "Claude Code-credentials" (read via `security find-generic-password -s "Claude Code-credentials" -a <username> -w`), JSON `claudeAiOauth` block | Claude Code rotates the access token (~every 8 h) | 429 lockouts (~24 h) if polled too often; poll at most every 300 s, honor Retry-After; Feb-2026 credential policy requires `anthropic-beta: oauth-2025-04-20`; read-only, single-user only |
+| Codex | `GET https://chatgpt.com/backend-api/wham/usage` (headers: `Authorization: Bearer <token>`, `ChatGPT-Account-Id: <account_id>`, `Accept: application/json`, `User-Agent: codex-cli`) | Unofficial | `~/.codex/auth.json` (JSON: `auth_mode`, `tokens.access_token`, `tokens.account_id`), access token is a 10-day-life JWT with `exp` claim | Codex CLI rotates the refresh token on each use | refresh-token rotation invalidates any manually-copied token → never refresh; windows identified by `limit_window_seconds` (18000 = 5h, 604800 = 7d), never by primary/secondary position; `used_percent` is USED; never POST to /wham/rate-limit-reset-credits/consume |
+| OpenRouter | `GET https://openrouter.ai/api/v1/credits` → `data.total_credits` / `data.total_usage` and `GET https://openrouter.ai/api/v1/key` → `data.usage_daily`/`weekly`/`monthly`, `data.limit`, `data.limit_remaining` | Official (200 on regular keys despite docs saying management key) | `OPENROUTER_API_KEY` (main) + `OPENROUTER_API_KEY_FALLBACK` (fallback), in `.env` | n/a (static API keys) | /credits may return 401/403 → fall back to /key figures only; balance computed as `total_credits - total_usage` |
+| Groq | No usage/billing API exists (7 candidate endpoints → 404). Only `x-ratelimit-*` headers on inference POSTs (`x-ratelimit-limit-requests`, `x-ratelimit-remaining-requests`, etc.); `GET https://api.groq.com/openai/v1/models` proves the key is valid | Official | `GROQ_API_KEY` in `.env` | n/a (static API key) | key-valid check is the ceiling; rate-limit headroom probe optional behind `USAGED_GROQ_PROBE=1`; duration format parsing (`172ms`, `2m59.56s`, `7.66s`) |
+| Anthropic/OpenAI Admin | Admin usage/cost APIs | OUT OF SCOPE | n/a | n/a | No admin keys available; founder decision not to pursue. |

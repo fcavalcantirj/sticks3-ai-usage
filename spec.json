@@ -32,7 +32,7 @@
       "Write `docs/SOURCES.md`: a table with columns Provider | Endpoint | Official? | Credential source | Refresh owner | Known risks, one row each for Claude (oauth/usage, unofficial, Keychain item, Claude Code owns refresh, 429 lockouts + Feb-2026 credential policy → read-only single-user), Codex (wham/usage, unofficial, ~/.codex/auth.json, Codex CLI owns refresh, refresh-token rotation → never refresh), OpenRouter (`GET https://openrouter.ai/api/v1/credits` → data.total_credits/total_usage and `GET https://openrouter.ai/api/v1/key` → data.usage_daily/weekly/monthly/limit/limit_remaining; official; API key; n/a; docs say /credits needs a management key but regular keys returned 200 on 2026-09-02 → fall back to /key on 401/403), Groq (no usage API; only x-ratelimit-* headers on inference POSTs; `GET https://api.groq.com/openai/v1/models` proves the key), and a final row for Anthropic/OpenAI Admin usage/cost APIs marked OUT OF SCOPE (no admin keys; founder decision).",
       "Verify: `for f in claude_usage codex_usage keychain openrouter_key openrouter_credits claude_usage_401 claude_usage_429; do python3 -c \"import json,sys; json.load(open('testdata/fixtures/$f.json'))\" || exit 1; done` exits 0; `grep -c 'x-ratelimit' testdata/fixtures/groq_headers.txt` prints 6; `grep -c '|' docs/SOURCES.md` is at least 6."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "setup",

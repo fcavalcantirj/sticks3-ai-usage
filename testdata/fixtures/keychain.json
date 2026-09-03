@@ -1,0 +1,1 @@
+{"claudeAiOauth":{"accessToken":"sk-ant-oat01-FIXTURE-NOT-A-REAL-TOKEN","refreshToken":"sk-ant-ort01-FIXTURE","expiresAt":4102444800000,"refreshTokenExpiresAt":4102444800000,"scopes":["user:file_upload","user:inference","user:mcp_servers","user:profile","user:sessions:claude_code"],"subscriptionType":"max","rateLimitTier":"default_claude_max_20x"}}

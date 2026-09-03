@@ -1,0 +1,6 @@
+x-ratelimit-limit-requests: 500000
+x-ratelimit-remaining-requests: 499999
+x-ratelimit-limit-tokens: 250000
+x-ratelimit-remaining-tokens: 249927
+x-ratelimit-reset-requests: 172ms
+x-ratelimit-reset-tokens: 17ms
