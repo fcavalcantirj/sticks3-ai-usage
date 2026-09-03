@@ -121,7 +121,7 @@
       "Tests with fixed times: 2026-09-02T21:00:00-03:00 now, reset 2026-09-03T02:09:59Z → `23:09`; reset 2026-09-07T07:59:59Z → `Mon`; reset in the past → `now`; tier boundaries 49/50/79/80; Money(7) → `$0.07`, Money(17810) → `$178.10`; Cents(9.929127902) → 993.",
       "Verify: `go test ./internal/format -v 2>&1 | grep -c '^--- PASS'` ≥ 8; `make verify` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "host",
