@@ -133,7 +133,7 @@
       "Tests (fixture transport + FakeRunner): happy path yields exactly 3 rows with pct 19/30/20, labels `CLAUDE 5h`/`CLAUDE 7d`/`FABLE 7d`, plan `max_20x`, txt computed with a fixed now; expired creds → auth without any HTTP call (assert the transport was not hit); 401 fixture → auth; 429 fixture with Retry-After 120 → error + cooldown = now+120 s; limits-less body → fallback rows; the Authorization header value never appears in logs (capture slog output in a buffer).",
       "Verify: `go test ./internal/providers -run Claude -v 2>&1 | grep -c '^--- PASS'` ≥ 6; `make verify` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "host",
