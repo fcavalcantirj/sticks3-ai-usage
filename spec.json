@@ -304,7 +304,7 @@
       "Vendor ArduinoJson as ONE header: download `https://github.com/bblanchon/ArduinoJson/releases/download/v7.4.2/ArduinoJson-v7.4.2.h` to `firmware/third_party/ArduinoJson.h` (keep its MIT licence header; add `firmware/third_party/LICENSE-ArduinoJson.txt`). Create `firmware/CMakeLists.txt` (C++17, `include_directories(src third_party test/host)`, `file(GLOB_RECURSE ... src/usage/*.cpp)`, `file(GLOB ... test/host/*.cpp)`, target `usage_tests`, `-Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer`, `add_test`). Create `firmware/test/host/framework.h`: a ~100-line header-only harness modelled on /Users/fcavalcanti/dev/pense-bem-cardputer-adv/test/host/framework.h (read it): `TEST(name)` registration, `ASSERT_TRUE/ASSERT_EQ/ASSERT_STREQ`, a failing assertion throws, `main` prints `PASS <name>` per test and a summary ending in `Failed N`. Add `firmware/test/host/test_smoke.cpp` with one test that parses `{\"v\":1}` with ArduinoJson on the host (`#define ARDUINOJSON_ENABLE_ARDUINO_STRING 0` etc. as needed) and asserts `doc[\"v\"] == 1`. Add Makefile targets at the repo root: `fw-test` (`cmake -S firmware -B firmware/build && cmake --build firmware/build && ./firmware/build/usage_tests`) and `fw-build` (`cd firmware && pio run`); keep `make verify` Go-only (the fast standing gate) and add `make verify-all` = verify + fw-test + fw-build.",
       "Verify: `make fw-test` exits 0, output contains `PASS smoke` and ends in `Failed 0`; `make fw-build` ends with `SUCCESS`; `grep -c 'ARDUINOJSON_VERSION \"7.4.2\"' firmware/third_party/ArduinoJson.h` prints 1."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "firmware",
