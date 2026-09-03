@@ -18,7 +18,7 @@ vet:
 	go vet ./...
 
 lint:
-	test -x $(HOME)/go/bin/staticcheck && $(HOME)/go/bin/staticcheck ./... || echo 'staticcheck missing, skipped'
+	@scripts/lint.sh
 
 test:
 	go test -count=1 ./...

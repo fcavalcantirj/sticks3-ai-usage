@@ -88,7 +88,7 @@
       "Tests: FakeRunner happy path parses token and expiresAt (ms → time); missing item → ErrNotLoggedIn; expired → ErrExpired; UA parse for `2.1.259 (Claude Code)` → `claude-code/2.1.259`, garbage → fallback; FixtureRunner reads testdata/fixtures/keychain.json; the token value never appears in any error string (assert with strings.Contains on err.Error()).",
       "Verify: `go test ./internal/creds -run Claude -v 2>&1 | grep -c '^--- PASS'` ≥ 6; `make verify` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "host",
