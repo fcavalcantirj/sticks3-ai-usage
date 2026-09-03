@@ -316,7 +316,7 @@
       "Tests `test_model.cpp`: example parses → 2 providers, claude has 3 rows, `FABLE 7d` pct 20 tier 0, codex row `GPT 5h` pct 100 tier 2, rev is 8 chars, seq matches; example_full → 5 providers in canonical order; malformed JSON → false with a non-empty err; a 12-char label is truncated to 10 without overflow (ASan clean); `v:2` rejected.",
       "Verify: `make fw-test` prints `PASS model_parses_example`, `PASS model_rejects_bad_version` (name the tests so) and ends in `Failed 0`; `make fw-build` still `SUCCESS` (compile the core into the firmware even if unused yet)."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "firmware",

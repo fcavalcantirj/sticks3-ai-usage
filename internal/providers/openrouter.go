@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
+	"strings"
 	"time"
 
 	"usaged/internal/format"
@@ -25,7 +26,7 @@ const (
 type openRouterProvider struct {
 	client *httpx.Client
 	id     string // "openrouter:main" | "openrouter:fallback"
-	label  string // "OR main" | "OR fbk"
+	label  string // "OpenRouter main" | "OpenRouter fallback"
 	key    string
 }
 
@@ -41,6 +42,17 @@ func NewOpenRouter(client *httpx.Client, id string, label string, key string) Fe
 }
 
 func (p *openRouterProvider) ID() string { return p.id }
+
+// orPrefix derives the ≤6-char row-label prefix from the provider id so the
+// two OpenRouter accounts are distinguishable on the StickS3 screen (where
+// rows appear without the provider name): "openrouter:main" → "ORmain",
+// "openrouter:fallback" → "ORfbk".
+func orPrefix(id string) string {
+	if strings.HasSuffix(id, "main") {
+		return "ORmain"
+	}
+	return "ORfbk"
+}
 
 func (p *openRouterProvider) block(status, msg, plan string, rows []snapshot.Row, fetchedAt int64) snapshot.Provider {
 	return snapshot.Provider{
@@ -80,7 +92,7 @@ func (p *openRouterProvider) Fetch(ctx context.Context, now time.Time) (snapshot
 			pct := int(math.Round(100 * cr.Data.TotalUsage / cr.Data.TotalCredits))
 			rows = append(rows, snapshot.Row{
 				K:       "bal",
-				Label:   "OR bal",
+				Label:   orPrefix(p.id) + " bal",
 				Pct:     &pct,
 				Txt:     format.Money(format.Cents(balLeft)),
 				Tier:    format.Tier(&pct, "ok"),
@@ -122,7 +134,7 @@ func (p *openRouterProvider) Fetch(ctx context.Context, now time.Time) (snapshot
 	dayCents := format.Cents(kr.Data.UsageDaily)
 	rows = append(rows, snapshot.Row{
 		K:       "day",
-		Label:   "OR day",
+		Label:   orPrefix(p.id) + " day",
 		Pct:     nil,
 		Txt:     format.Money(dayCents),
 		Tier:    "ok",
@@ -139,7 +151,7 @@ func (p *openRouterProvider) Fetch(ctx context.Context, now time.Time) (snapshot
 		}
 		rows = append(rows, snapshot.Row{
 			K:       "lim",
-			Label:   "OR lim",
+			Label:   orPrefix(p.id) + " lim",
 			Pct:     &limPct,
 			Txt:     format.Money(format.Cents(remaining)),
 			Tier:    format.Tier(&limPct, "ok"),

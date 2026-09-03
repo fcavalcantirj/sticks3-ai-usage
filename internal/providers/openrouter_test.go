@@ -31,8 +31,8 @@ func TestOpenRouterProviderHappyPath(t *testing.T) {
 
 	// Row 0: bal pct 99 txt $0.07
 	r0 := result.Rows[0]
-	if r0.K != "bal" || r0.Label != "OR bal" {
-		t.Errorf("Row 0 = {K:%q Label:%q}, want bal / OR bal", r0.K, r0.Label)
+	if r0.K != "bal" || r0.Label != "ORmain bal" {
+		t.Errorf("Row 0 = {K:%q Label:%q}, want bal / ORmain bal", r0.K, r0.Label)
 	}
 	if r0.Pct == nil || *r0.Pct != 99 {
 		t.Errorf("Row 0 Pct = %v, want 99", r0.Pct)
@@ -43,8 +43,8 @@ func TestOpenRouterProviderHappyPath(t *testing.T) {
 
 	// Row 1: day pct nil txt $0.00
 	r1 := result.Rows[1]
-	if r1.K != "day" || r1.Label != "OR day" {
-		t.Errorf("Row 1 = {K:%q Label:%q}, want day / OR day", r1.K, r1.Label)
+	if r1.K != "day" || r1.Label != "ORmain day" {
+		t.Errorf("Row 1 = {K:%q Label:%q}, want day / ORmain day", r1.K, r1.Label)
 	}
 	if r1.Pct != nil {
 		t.Errorf("Row 1 Pct = %v, want nil", r1.Pct)
@@ -138,11 +138,11 @@ func TestOpenRouterProviderFallbackLabel(t *testing.T) {
 	if len(result.Rows) != 2 {
 		t.Fatalf("len(Rows) = %d, want 2", len(result.Rows))
 	}
-	if result.Rows[0].Label != "OR bal" {
-		t.Errorf("bal Label = %q, want OR bal", result.Rows[0].Label)
+	if result.Rows[0].Label != "ORfbk bal" {
+		t.Errorf("bal Label = %q, want ORfbk bal", result.Rows[0].Label)
 	}
-	if result.Rows[1].Label != "OR day" {
-		t.Errorf("day Label = %q, want OR day", result.Rows[1].Label)
+	if result.Rows[1].Label != "ORfbk day" {
+		t.Errorf("day Label = %q, want ORfbk day", result.Rows[1].Label)
 	}
 }
 
