@@ -1,0 +1,202 @@
+package providers
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"sort"
+	"strconv"
+	"time"
+
+	"usaged/internal/creds"
+	"usaged/internal/format"
+	"usaged/internal/httpx"
+	"usaged/internal/snapshot"
+)
+
+const (
+	codexID    = "codex"
+	codexLabel = "ChatGPT"
+	codexURL   = "https://chatgpt.com/backend-api/wham/usage"
+)
+
+type codexProvider struct {
+	client   *httpx.Client
+	authPath string
+	loc      *time.Location
+}
+
+func NewCodex(client *httpx.Client, authPath string, loc *time.Location) Fetcher {
+	return &codexProvider{
+		client:   client,
+		authPath: authPath,
+		loc:      loc,
+	}
+}
+
+func (p *codexProvider) ID() string { return codexID }
+
+func (p *codexProvider) block(status, msg, plan string, rows []snapshot.Row, fetchedAt int64) snapshot.Provider {
+	return snapshot.Provider{
+		ID:        codexID,
+		Label:     codexLabel,
+		Plan:      plan,
+		Status:    status,
+		Msg:       msg,
+		FetchedAt: fetchedAt,
+		Rows:      rows,
+	}
+}
+
+func (p *codexProvider) Fetch(ctx context.Context, now time.Time) (snapshot.Provider, Outcome) {
+	c, err := creds.ReadCodex(p.authPath)
+
+	if errors.Is(err, creds.ErrNotLoggedIn) {
+		slog.Debug("codex: not logged in")
+		return p.block("auth", "run codex", c.PlanType, nil, now.Unix()), Outcome{}
+	}
+	if errors.Is(err, creds.ErrExpired) {
+		slog.Debug("codex: token expired")
+		return p.block("auth", "run codex", c.PlanType, nil, now.Unix()), Outcome{}
+	}
+	if err != nil {
+		slog.Debug("codex: cred read error", "err", err)
+		return p.block("error", "offline", "", nil, now.Unix()), Outcome{}
+	}
+
+	plan := c.PlanType
+
+	headers := map[string]string{
+		"Authorization":      "Bearer " + c.AccessToken,
+		"ChatGPT-Account-Id": c.AccountID,
+		"User-Agent":         "codex-cli",
+	}
+
+	slog.Debug("codex: fetching usage")
+	resp, err := p.client.Do(ctx, "GET", codexURL, headers, nil)
+	if err != nil {
+		slog.Debug("codex: network error", "err", err)
+		return p.block("error", "offline", plan, nil, now.Unix()), Outcome{}
+	}
+
+	slog.Debug("codex: response", "status", resp.Status)
+
+	switch {
+	case resp.Status == http.StatusUnauthorized || resp.Status == http.StatusForbidden:
+		return p.block("auth", "run codex", plan, nil, now.Unix()), Outcome{}
+	case resp.Status == http.StatusTooManyRequests:
+		cooldown, ok := httpx.RetryAfter(resp.Header, now)
+		if !ok {
+			cooldown = 300 * time.Second
+		}
+		until := now.Add(cooldown)
+		return p.block("error", fmt.Sprintf("429 until %s", until.In(p.loc).Format("15:04")), plan, nil, now.Unix()),
+			Outcome{CooldownUntil: until}
+	case resp.Status != http.StatusOK:
+		return p.block("error", fmt.Sprintf("http %d", resp.Status), plan, nil, now.Unix()), Outcome{}
+	}
+
+	var body codexUsageResponse
+	if err := json.Unmarshal(resp.Body, &body); err != nil {
+		slog.Debug("codex: parse error", "err", err)
+		return p.block("error", fmt.Sprintf("http %d", resp.Status), plan, nil, now.Unix()), Outcome{}
+	}
+
+	rows := parseCodexRows(body, now, p.loc)
+	return p.block("ok", "", body.PlanType, rows, now.Unix()), Outcome{}
+}
+
+// --- response parsing ---
+
+type codexUsageResponse struct {
+	PlanType  string         `json:"plan_type"`
+	RateLimit codexRateLimit `json:"rate_limit"`
+	Credits   codexCredits   `json:"credits"`
+}
+
+type codexRateLimit struct {
+	PrimaryWindow   codexWindow `json:"primary_window"`
+	SecondaryWindow codexWindow `json:"secondary_window"`
+}
+
+type codexWindow struct {
+	UsedPercent        int   `json:"used_percent"`
+	LimitWindowSeconds int   `json:"limit_window_seconds"`
+	ResetAt            int64 `json:"reset_at"`
+}
+
+type codexCredits struct {
+	HasCredits bool   `json:"has_credits"`
+	Unlimited  bool   `json:"unlimited"`
+	Balance    string `json:"balance"`
+}
+
+// parseCodexRows converts the wham/usage response into snapshot rows.
+func parseCodexRows(body codexUsageResponse, now time.Time, loc *time.Location) []snapshot.Row {
+	var rows []snapshot.Row
+
+	// Collect both windows; identification is by limit_window_seconds,
+	// never by primary/secondary position. Sort by seconds so 5h always
+	// precedes 7d regardless of which window is primary.
+	windows := []codexWindow{body.RateLimit.PrimaryWindow, body.RateLimit.SecondaryWindow}
+	sort.Slice(windows, func(i, j int) bool {
+		return windows[i].LimitWindowSeconds < windows[j].LimitWindowSeconds
+	})
+
+	for _, w := range windows {
+		if w.LimitWindowSeconds == 0 {
+			continue
+		}
+
+		var k, label string
+		switch w.LimitWindowSeconds {
+		case 18000:
+			k = "5h"
+			label = "GPT 5h"
+		case 604800:
+			k = "7d"
+			label = "GPT 7d"
+		default:
+			k = fmt.Sprintf("%ds", w.LimitWindowSeconds)
+			label = fmt.Sprintf("GPT %dh", w.LimitWindowSeconds/3600)
+		}
+
+		pct := w.UsedPercent
+		resetAt := w.ResetAt
+		resetTime := time.Unix(resetAt, 0)
+		txt := format.ResetTxt(resetTime, now, loc)
+		tier := format.Tier(&pct, "ok")
+
+		rows = append(rows, snapshot.Row{
+			K:       k,
+			Label:   label,
+			Pct:     &pct,
+			Txt:     txt,
+			Tier:    tier,
+			ResetAt: &resetAt,
+		})
+	}
+
+	// Credits balance row.
+	if body.Credits.HasCredits && !body.Credits.Unlimited {
+		balance, err := strconv.ParseFloat(body.Credits.Balance, 64)
+		if err != nil {
+			slog.Debug("codex: parse balance error", "err", err)
+			balance = 0
+		}
+		cents := format.Cents(balance)
+		rows = append(rows, snapshot.Row{
+			K:       "bal",
+			Label:   "GPT bal",
+			Pct:     nil,
+			Txt:     format.Money(cents),
+			Tier:    "ok",
+			ResetAt: nil,
+		})
+	}
+
+	return rows
+}

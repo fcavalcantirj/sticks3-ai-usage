@@ -145,7 +145,7 @@
       "Tests: happy path → rows GPT 5h pct 100 tier crit, GPT 7d pct 31 tier ok, GPT bal `$178.10`; expired JWT fixture (generate with MakeJWT exp=now−1) → auth with no HTTP call; window identification by seconds even when primary/secondary are swapped in a modified fixture; 401 → auth.",
       "Verify: `go test ./internal/providers -run Codex -v 2>&1 | grep -c '^--- PASS'` ≥ 4; `make verify` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "host",
