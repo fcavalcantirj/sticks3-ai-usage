@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.fcavalcanti.usaged</string>
+
+  <!-- run.sh sources the repo .env (USAGED_* env vars + API keys), then
+       execs ./bin/usaged serve in the FOREGROUND — supervised by launchd. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>-lc</string>
+    <string>exec /Users/fcavalcanti/dev/m5/sticks3-ai-usage/scripts/run.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/fcavalcanti/dev/m5/sticks3-ai-usage</string>
+
+  <!-- Start on login, restart on crash. A clean exit stays stopped. -->
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+    <key>Crashed</key>
+    <true/>
+  </dict>
+  <!-- Don't thrash if it keeps dying. -->
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+
+  <key>StandardOutPath</key>
+  <string>/Users/fcavalcanti/Library/Logs/usaged/usaged.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/fcavalcanti/Library/Logs/usaged/usaged.err.log</string>
+
+  <!-- PATH so claude / codex CLIs (~/.local/bin) and `security` (/usr/bin) resolve
+       under launchd's minimal environment. No reliance on ~/.zshrc. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Users/fcavalcanti/.local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+</dict>
+</plist>

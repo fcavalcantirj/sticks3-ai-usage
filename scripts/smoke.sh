@@ -11,7 +11,7 @@ pkill -f 'usaged serve' || true
 rm -f "$STATE_FILE"
 
 # Start the server in the background.
-bin/usaged serve --fixtures testdata/fixtures --listen 127.0.0.1:${PORT} --state "$STATE_FILE" &
+bin/usaged serve --fixtures testdata/fixtures --listen "127.0.0.1:${PORT}" --state "$STATE_FILE" &
 SERVER_PID=$!
 
 cleanup() {
@@ -21,7 +21,7 @@ cleanup() {
 trap cleanup EXIT
 
 # Wait for /healthz (20 × 0.25 s).
-for i in $(seq 1 20); do
+for _ in $(seq 1 20); do
     if curl -sf "${BASE}/healthz" >/dev/null 2>&1; then
         break
     fi
@@ -80,45 +80,11 @@ wait "$SERVER_PID" 2>/dev/null || true
 
 # Scenario loop: start the server per scenario on port 18766 and assert the
 # expected provider status string appears in /v1/usage.
-SCENARIO_PORT=18766
+SCENARIO_PORT=18767
 SCENARIO_BASE="http://127.0.0.1:${SCENARIO_PORT}"
 
-run_scenario() {
-    local name="$1"
-    local expect="$2"
-    local state="/tmp/usaged-smoke-${name}.json"
-    rm -f "$state"
-
-    bin/usaged serve --fixtures testdata/fixtures --scenario "$name" \
-        --listen 127.0.0.1:${SCENARIO_PORT} --state "$state" &
-    local pid=$!
-
-    # Wait for /healthz.
-    for i in $(seq 1 20); do
-        if curl -sf "${SCENARIO_BASE}/healthz" >/dev/null 2>&1; then
-            break
-        fi
-        sleep 0.25
-    done
-
-    local body
-    body=$(curl -s "${SCENARIO_BASE}/v1/usage")
-    if ! echo "$body" | grep -q "\"status\":\"$expect\""; then
-        echo "FAIL: scenario $name expected status \"$expect\", got:"
-        echo "$body"
-        kill "$pid" 2>/dev/null || true
-        wait "$pid" 2>/dev/null || true
-        return 1
-    fi
-
-    kill "$pid" 2>/dev/null || true
-    wait "$pid" 2>/dev/null || true
-    rm -f "$state"
-    echo "OK: scenario $name ($expect)"
-}
-
 # run_scenario starts the server with the given scenario and asserts that the
-# expected status string appears in the /v1/usage JSON.
+# expected grep pattern appears in the /v1/usage JSON.
 run_scenario() {
     local name="$1"
     local expect="$2"
@@ -126,11 +92,11 @@ run_scenario() {
     rm -f "$state"
 
     bin/usaged serve --fixtures testdata/fixtures --scenario "$name" \
-        --listen 127.0.0.1:${SCENARIO_PORT} --state "$state" &
+        --listen "127.0.0.1:${SCENARIO_PORT}" --state "$state" &
     local pid=$!
 
     # Wait for /healthz.
-    for i in $(seq 1 20); do
+    for _ in $(seq 1 20); do
         if curl -sf "${SCENARIO_BASE}/healthz" >/dev/null 2>&1; then
             break
         fi

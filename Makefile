@@ -1,6 +1,6 @@
 VERSION ?= dev
 
-.PHONY: build fmt vet lint test verify clean smoke
+.PHONY: build fmt vet lint test verify clean smoke install uninstall
 
 build:
 	@commit=$$(git rev-parse --short HEAD 2>/dev/null || echo none); \
@@ -30,3 +30,9 @@ clean:
 
 smoke: build
 	@scripts/smoke.sh
+
+install: build
+	@scripts/install.sh
+
+uninstall:
+	@scripts/uninstall.sh
