@@ -252,7 +252,7 @@
       "Add `internal/providers/live_test.go` with `func TestLiveClaude/TestLiveCodex` that `t.Skip` unless `os.Getenv(\"USAGED_LIVE\") == \"1\"`; they use the real ExecRunner / real auth.json / real transport, assert status ok and 2–3 rows with 0 ≤ pct ≤ 100, and print the table. Never run them in `make verify`. Write `docs/SOAK.md`: how to read the logs after 24 h (`grep -c '\"status\":\"ok\"' ~/Library/Logs/usaged/usaged.err.log`, zero lines containing `429`, zero `panic`), how to confirm the Keychain prompt did not return after Claude Code rotated the token (compare `security find-generic-password -s \"Claude Code-credentials\" | grep mdat` with the log's last ok time), and what to do on `auth` (run `claude` / `codex` once; the poller recovers on the next tick or via `POST /v1/refresh`).",
       "Verify: `go test ./internal/providers -run Live -v 2>&1 | grep -c SKIP` prints 2 (skipped without the env var); `USAGED_LIVE=1 go test ./internal/providers -run Live -v` is run ONCE by the builder on this Mac (the founder is logged in) and must print `--- PASS` for both, else the task is not passed; `make verify` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "providers",
