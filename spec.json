@@ -156,7 +156,7 @@
       "Tests with fake fetchers and a fake clock: first poll seq=1; identical second poll → seq stays 1, checked_at moves; a fetcher flipping to error with LastGood → status stale, rows kept, seq increments (status is hashed); cooldown respected (fetcher not called); Refresh coalescing; state file written after each poll (read it back); no goroutine leak (`runtime.NumGoroutine` before/after within +2).",
       "Verify: `go test ./internal/sched -v 2>&1 | grep -c '^--- PASS'` ≥ 6; `go test -race ./internal/sched` exits 0; `make verify` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "host",
