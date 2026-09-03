@@ -242,7 +242,7 @@
       "Record in progress.txt: the seq/rev shown, the percentages, whether the Keychain dialog appeared, and the LAN URL `http://192.168.0.150:8765/?token=<token>` (do NOT write the token into progress.txt — write `<token from .env>`).",
       "Verify: `launchctl print gui/$(id -u)/com.fcavalcanti.usaged | grep -E 'state = running'` matches; `curl -s http://127.0.0.1:8765/healthz | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d[\"ok\"] and d[\"seq\"]>=1'`; `curl -s -o /dev/null -w '%{http_code}' http://192.168.0.150:8765/v1/usage` prints 401 (LAN without token) and with `-H \"X-Device-Token: $(grep ^USAGED_DEVICE_TOKEN .env | cut -d= -f2-)\"` prints 200."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "ops",
