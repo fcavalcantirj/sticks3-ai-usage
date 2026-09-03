@@ -10,12 +10,12 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
 	"usaged/internal/config"
 	"usaged/internal/creds"
+	"usaged/internal/format"
 	"usaged/internal/httpx"
 	"usaged/internal/providers"
 	"usaged/internal/sched"
@@ -65,7 +65,7 @@ func runOnce(args []string, stdout io.Writer) int {
 	if cfg.JSONOutput {
 		return renderJSON(snap, stdout, logger)
 	}
-	renderTable(snap, stdout, cfg.TZ)
+	format.RenderTable(snap, stdout, cfg.TZ)
 	return exitCode(snap)
 }
 
@@ -166,22 +166,6 @@ func statePathForOnce(cfg config.Config, args []string) string {
 	return path
 }
 
-// renderTable writes the human-readable usage table.
-func renderTable(snap snapshot.Snapshot, w io.Writer, loc *time.Location) {
-	fmt.Fprintln(w, "PROVIDER   ROW        USED   RESETS   STATUS")
-	for _, p := range snap.Providers {
-		for _, r := range p.Rows {
-			pct := "--"
-			if r.Pct != nil {
-				pct = strconv.Itoa(*r.Pct)
-			}
-			fmt.Fprintf(w, "%-10s %-10s %4s%%  %-8s %s\n", p.Label, r.Label, pct, r.Txt, p.Status)
-		}
-	}
-	asOf := time.Unix(snap.CheckedAt, 0).In(loc).Format("15:04")
-	fmt.Fprintf(w, "rev=%s seq=%d as of %s\n", snap.Rev, snap.Seq, asOf)
-}
-
 // renderJSON writes the snapshot as indented JSON.
 func renderJSON(snap snapshot.Snapshot, stdout io.Writer, logger *slog.Logger) int {
 	data, err := json.MarshalIndent(snap, "", "  ")
@@ -194,11 +178,12 @@ func renderJSON(snap snapshot.Snapshot, stdout io.Writer, logger *slog.Logger) i
 	return 0
 }
 
-// exitCode is 0 when every provider is ok/stale, 3 when any is auth/error/off.
+// exitCode is 0 when every provider is ok/stale/off (off = not configured,
+// normal), 3 when any is auth or error so a cron can alert.
 func exitCode(snap snapshot.Snapshot) int {
 	for _, p := range snap.Providers {
 		switch p.Status {
-		case "auth", "error", "off":
+		case "auth", "error":
 			return 3
 		}
 	}

@@ -1,0 +1,175 @@
+package api
+
+import (
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"usaged/internal/config"
+	"usaged/internal/format"
+	"usaged/internal/sched"
+	"usaged/internal/snapshot"
+)
+
+// Server hosts the usage HTTP API backed by a scheduler.
+type Server struct {
+	sched  *sched.Scheduler
+	cfg    config.Config
+	logger *slog.Logger
+	start  time.Time
+}
+
+// New builds the HTTP API server around a scheduler and config.
+func New(s *sched.Scheduler, cfg config.Config, logger *slog.Logger) *http.Server {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	srv := &Server{
+		sched:  s,
+		cfg:    cfg,
+		logger: logger,
+		start:  time.Now(),
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", srv.handleHealthz)
+	mux.HandleFunc("GET /v1/usage", srv.handleUsage)
+	mux.HandleFunc("GET /v1/usage.txt", srv.handleUsageTxt)
+	mux.HandleFunc("/", srv.handleNotFound)
+
+	return &http.Server{
+		Addr:              cfg.Listen,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       30 * time.Second,
+	}
+}
+
+// withNextSec returns a snapshot copy with next_sec set to the poll interval,
+// as required by the v1 contract.
+func (s *Server) withNextSec(snap snapshot.Snapshot) snapshot.Snapshot {
+	snap.NextSec = int(s.cfg.Interval.Seconds())
+	return snap
+}
+
+// handleHealthz returns service health without secrets.
+func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
+	snap := s.sched.Current()
+	resp := healthzResponse{
+		OK:        true,
+		Seq:       snap.Seq,
+		Rev:       snap.Rev,
+		CheckedAt: snap.CheckedAt,
+		UptimeSec: int(time.Since(s.start).Seconds()),
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// handleUsage serves the current snapshot as compact JSON with an ETag.
+// Matching If-None-Match (quoted, bare, or weak) yields 304 with Content-Length: 0
+// and NO body. Go's net/http server strips Content-Length from 304 responses
+// (RFC 7230), but the ESP32 HTTPClient needs it to avoid stalling on keep-alive
+// connections, so the 304 is written directly via Hijack.
+func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
+	snap := s.withNextSec(s.sched.Current())
+	rev := snap.Rev
+	etag := `"` + rev + `"`
+
+	if etagMatch(r.Header.Get("If-None-Match"), rev) {
+		writeNotModified(w, etag)
+		return
+	}
+
+	body, err := json.Marshal(snap)
+	if err != nil {
+		s.logger.Error("marshal snapshot", "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"ok": "false", "error": "internal"})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("ETag", etag)
+	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+	w.WriteHeader(http.StatusOK)
+	w.Write(body)
+}
+
+// writeNotModified sends a 304 response with Content-Length: 0 and no body.
+// It hijacks the connection to bypass Go's net/http suppression of
+// Content-Length on 304 responses.
+func writeNotModified(w http.ResponseWriter, etag string) {
+	if hj, ok := w.(http.Hijacker); ok {
+		conn, buf, err := hj.Hijack()
+		if err == nil {
+			defer conn.Close()
+			buf.WriteString("HTTP/1.1 304 Not Modified\r\n")
+			buf.WriteString("Content-Length: 0\r\n")
+			buf.WriteString("ETag: " + etag + "\r\n")
+			buf.WriteString("Cache-Control: no-store\r\n")
+			buf.WriteString("Connection: close\r\n")
+			buf.WriteString("\r\n")
+			buf.Flush()
+			return
+		}
+	}
+	// Fallback: standard 304 (Content-Length may be absent).
+	w.Header().Set("ETag", etag)
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Length", "0")
+	w.WriteHeader(http.StatusNotModified)
+}
+
+// handleUsageTxt serves the same table as `usaged once` as text/plain.
+func (s *Server) handleUsageTxt(w http.ResponseWriter, _ *http.Request) {
+	snap := s.withNextSec(s.sched.Current())
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	format.RenderTable(snap, w, s.cfg.TZ)
+}
+
+// handleNotFound returns a JSON 404 for unknown paths/methods.
+func (s *Server) handleNotFound(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": "not found"})
+}
+
+// etagMatch reports whether the If-None-Match header matches the current rev.
+// It accepts quoted ("<rev>"), bare (<rev>), and weak (W/<rev> or W/"<rev>")
+// forms, and tolerates a comma-separated list of etags.
+func etagMatch(inm, rev string) bool {
+	for _, part := range strings.Split(inm, ",") {
+		p := strings.TrimSpace(part)
+		if strings.HasPrefix(p, "W/") {
+			p = p[2:]
+		}
+		if p == `"`+rev+`"` || p == rev {
+			return true
+		}
+	}
+	return false
+}
+
+type healthzResponse struct {
+	OK        bool   `json:"ok"`
+	Seq       int64  `json:"seq"`
+	Rev       string `json:"rev"`
+	CheckedAt int64  `json:"checked_at"`
+	UptimeSec int    `json:"uptime_sec"`
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	data, err := json.Marshal(v)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, `{"ok":false,"error":"internal"}`)
+		return
+	}
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	w.WriteHeader(status)
+	w.Write(data)
+}

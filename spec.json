@@ -178,7 +178,7 @@
       "Tests with `httptest` and a scheduler fed by fixtures: 200 + ETag; 304 with matching If-None-Match and empty body; 200 after the underlying rev changes (mutate the routes.json to the 401 fixture and Refresh → new rev); /healthz shape; /v1/usage.txt contains `CLAUDE 5h`.",
       "Verify: `go test ./internal/api -run 'Usage|Health' -v 2>&1 | grep -c '^--- PASS'` ≥ 5; `make verify` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "api",

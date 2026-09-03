@@ -38,10 +38,10 @@ func captureOnce(t *testing.T, args ...string) (string, int) {
 func TestOnceTableFixtures(t *testing.T) {
 	out, code := captureOnce(t, onceTestArgs()...)
 
-	// All providers present in fixtures are ok; placeholders are off, so the
-	// process exits 3 per the cron alerting contract.
-	if code != 3 {
-		t.Errorf("exit code = %d, want 3 (off providers present)", code)
+	// All providers present in fixtures are ok; placeholders are off (not
+	// configured), which is normal and exits 0 (only auth/error exit 3).
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0 (off is normal)", code)
 	}
 
 	wantClaude := "Claude     CLAUDE 5h    19%  02:09    ok"
@@ -99,8 +99,8 @@ func TestOnceStateTempByDefault(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	code := run(onceTestArgs(), &buf)
-	if code != 3 {
-		t.Errorf("exit code = %d, want 3", code)
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0", code)
 	}
 
 	// The production state file under $HOME must not exist; once uses a temp
