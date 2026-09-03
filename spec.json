@@ -43,7 +43,7 @@
       "Tests `internal/config/config_test.go`: defaults; env overrides; flag overrides env; interval below 300 s rejected; `$HOME` expansion; Redacted never contains a key value (table-driven, use `t.Setenv` style via the injected getenv).",
       "Verify: `make verify` exits 0 and `go test ./internal/config -v 2>&1 | grep -c '^--- PASS'` prints at least 5; `test -f .env.example`; `git check-ignore -q .env`."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "host",
