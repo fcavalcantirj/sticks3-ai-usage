@@ -35,6 +35,11 @@ func runServe(args []string, stdout io.Writer) int {
 
 	logger.Info("usaged serve", "cfg", cfg.Redacted())
 
+	// Scenario overlay: copy base fixtures + scenario files into a temp dir.
+	fixturesDir, cleanup := resolveFixturesDir(cfg)
+	defer cleanup()
+	cfg.FixturesDir = fixturesDir
+
 	fetchers := buildFetchers(cfg)
 	clock := time.Now
 	s := sched.NewScheduler(fetchers, cfg.Interval, cfg.StatePath, clock, logger)

@@ -31,6 +31,7 @@ type Config struct {
 	GroqKey        string
 	GroqProbe      bool   // probe rate-limit headroom on Groq
 	FixturesDir    string // offline mode: serve everything from here
+	Scenario       string // fixture scenario overlay (from testdata/scenarios/)
 	LogLevel       slog.Level
 	JSONOutput     bool // once command: emit snapshot as indented JSON
 }
@@ -111,6 +112,7 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 	flagInterval := fs.Int("interval", 0, "poll interval in seconds")
 	flagState := fs.String("state", "", "state file path")
 	flagFixtures := fs.String("fixtures", "", "fixtures directory for offline mode")
+	flagScenario := fs.String("scenario", "", "fixture scenario overlay (from testdata/scenarios/)")
 	flagTZ := fs.String("tz", "", "timezone for display (e.g. America/Sao_Paulo)")
 	flagJSON := fs.Bool("json", false, "once only: emit the snapshot as indented JSON")
 
@@ -136,6 +138,9 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 	}
 	if setFlags["fixtures"] {
 		cfg.FixturesDir = *flagFixtures
+	}
+	if setFlags["scenario"] {
+		cfg.Scenario = *flagScenario
 	}
 	if setFlags["tz"] {
 		loc, err := time.LoadLocation(*flagTZ)
@@ -180,6 +185,7 @@ func (c Config) Redacted() map[string]any {
 		"groq_probe":   c.GroqProbe,
 		"log_level":    c.LogLevel.String(),
 		"fixtures_dir": c.FixturesDir,
+		"scenario":     c.Scenario,
 	}
 	if c.OpenRouterKeys != nil {
 		keys := make(map[string]string, len(c.OpenRouterKeys))

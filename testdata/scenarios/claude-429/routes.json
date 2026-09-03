@@ -1,0 +1,9 @@
+{
+  "GET api.anthropic.com/api/oauth/usage": {
+    "file": "claude_usage_429.json",
+    "status": 429,
+    "headers": {
+      "Retry-After": "120"
+    }
+  }
+}

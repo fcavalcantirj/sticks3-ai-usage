@@ -51,6 +51,11 @@ func runOnce(args []string, stdout io.Writer) int {
 		"json", cfg.JSONOutput,
 	)
 
+	// Scenario overlay: copy base fixtures + scenario files into a temp dir.
+	fixturesDir, cleanup := resolveFixturesDir(cfg)
+	defer cleanup()
+	cfg.FixturesDir = fixturesDir
+
 	fetchers := buildFetchers(cfg)
 	statePath := statePathForOnce(cfg, args)
 
@@ -105,6 +110,64 @@ func buildFetchers(cfg config.Config) []providers.Fetcher {
 	}
 
 	return fetchers
+}
+
+// resolveFixturesDir resolves the fixtures directory, applying a scenario
+// overlay when cfg.Scenario is set. The overlay copies base fixtures into a
+// temp directory, then copies scenario files from testdata/scenarios/<name>/
+// on top — so routes.json, codex_auth.json, etc. can be overridden without
+// touching the base fixtures. Returns the resolved dir and a cleanup func.
+func resolveFixturesDir(cfg config.Config) (string, func()) {
+	if cfg.FixturesDir == "" || cfg.Scenario == "" {
+		return cfg.FixturesDir, func() {}
+	}
+	scenarioDir := filepath.Join("testdata", "scenarios", cfg.Scenario)
+	tmpDir, err := os.MkdirTemp("", "usaged-scenario-*")
+	if err != nil {
+		slog.Warn("scenario overlay failed, using base fixtures", "err", err)
+		return cfg.FixturesDir, func() {}
+	}
+
+	// CopyFS returns an error when the target file already exists, so we copy
+	// files one-by-one using os.CopyFS into the root for a fresh temp dir, then
+	// use copyFile (which overwrites) for the scenario overlay to replace
+	// routes.json, codex_auth.json, etc.
+	if err := os.CopyFS(tmpDir, os.DirFS(cfg.FixturesDir)); err != nil {
+		slog.Warn("scenario base copy failed, using base fixtures", "err", err)
+		os.RemoveAll(tmpDir)
+		return cfg.FixturesDir, func() {}
+	}
+	if _, err := os.Stat(scenarioDir); err == nil {
+		if err := overwriteCopyDir(tmpDir, scenarioDir); err != nil {
+			slog.Warn("scenario overlay copy failed, using base+scenario", "err", err)
+			// Don't fail — keep what we have (base + partial overlay)
+		}
+	}
+	return tmpDir, func() { os.RemoveAll(tmpDir) }
+}
+
+// overwriteCopyDir copies all regular files from srcDir into dstDir,
+// overwriting any existing files with the same name.
+func overwriteCopyDir(dstDir, srcDir string) error {
+	entries, err := os.ReadDir(srcDir)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		src := filepath.Join(srcDir, e.Name())
+		dst := filepath.Join(dstDir, e.Name())
+		data, err := os.ReadFile(src)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(dst, data, 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // staticFetcher returns a fixed provider block without any I/O. Used for

@@ -3,6 +3,7 @@
 !.env.example
 bin/
 build/
+/usaged
 firmware/.pio/
 firmware/build/
 firmware/include/secrets.h

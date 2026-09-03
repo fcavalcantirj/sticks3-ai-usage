@@ -221,7 +221,7 @@
       "Tests: scheduler+api test per scenario asserting provider statuses (`claude` auth for claude-401; `claude` error + cooldown for claude-429; `codex` auth for codex-expired; every provider error or stale for all-down when no last-good exists).",
       "Verify: `go test ./... -run Scenario -v 2>&1 | grep -c '^--- PASS'` ≥ 4; `make smoke` exits 0 (base + 4 scenarios); `make verify` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "ops",

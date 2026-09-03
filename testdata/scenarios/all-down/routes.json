@@ -1,0 +1,22 @@
+{
+  "GET api.anthropic.com/api/oauth/usage": {
+    "status": 503,
+    "inline": "{}"
+  },
+  "GET chatgpt.com/backend-api/wham/usage": {
+    "status": 503,
+    "inline": "{}"
+  },
+  "GET openrouter.ai/api/v1/credits": {
+    "status": 503,
+    "inline": "{}"
+  },
+  "GET openrouter.ai/api/v1/key": {
+    "status": 503,
+    "inline": "{}"
+  },
+  "GET api.groq.com/openai/v1/models": {
+    "status": 503,
+    "inline": "{}"
+  }
+}

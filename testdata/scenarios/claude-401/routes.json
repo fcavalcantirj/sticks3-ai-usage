@@ -1,0 +1,6 @@
+{
+  "GET api.anthropic.com/api/oauth/usage": {
+    "file": "claude_usage_401.json",
+    "status": 401
+  }
+}
