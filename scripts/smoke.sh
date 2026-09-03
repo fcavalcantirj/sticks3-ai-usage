@@ -41,7 +41,7 @@ if ! echo "$USAGE_RESP" | grep -qi 'ETag: "'; then
     exit 1
 fi
 
-# Extract ETag and test 304: same ETag, Content-Length: 0, empty body.
+# Extract ETag and test 304: same ETag, empty body (no Content-Length assertion).
 ETAG=$(echo "$USAGE_RESP" | grep -i '^ETag:' | sed 's/^ETag: //I' | tr -d '\r')
 NOT_MOD_RESP=$(curl -si -H "If-None-Match: ${ETAG}" "${BASE}/v1/usage")
 if ! echo "$NOT_MOD_RESP" | grep -q "HTTP/1.1 304"; then
@@ -51,11 +51,6 @@ if ! echo "$NOT_MOD_RESP" | grep -q "HTTP/1.1 304"; then
 fi
 if ! echo "$NOT_MOD_RESP" | grep -qi "ETag:"; then
     echo "FAIL: 304 response missing ETag header"
-    echo "$NOT_MOD_RESP"
-    exit 1
-fi
-if ! echo "$NOT_MOD_RESP" | grep -qi "Content-Length: 0"; then
-    echo "FAIL: 304 response missing Content-Length: 0"
     echo "$NOT_MOD_RESP"
     exit 1
 fi

@@ -144,7 +144,7 @@ func TestUsageNotModified(t *testing.T) {
 		t.Fatal("no ETag on initial request")
 	}
 
-	// Quoted If-None-Match → 304, empty body, Content-Length: 0.
+	// Quoted If-None-Match → 304, same ETag, empty body (no Content-Length assertion).
 	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
 	req.Header.Set("If-None-Match", etag)
 	resp2, err := http.DefaultClient.Do(req)
@@ -155,8 +155,8 @@ func TestUsageNotModified(t *testing.T) {
 	if resp2.StatusCode != http.StatusNotModified {
 		t.Errorf("status = %d, want 304", resp2.StatusCode)
 	}
-	if cl := resp2.Header.Get("Content-Length"); cl != "0" {
-		t.Errorf("304 Content-Length = %q, want 0", cl)
+	if et2 := resp2.Header.Get("ETag"); et2 != etag {
+		t.Errorf("304 ETag = %q, want %q", et2, etag)
 	}
 	body, _ := io.ReadAll(resp2.Body)
 	if len(body) != 0 {

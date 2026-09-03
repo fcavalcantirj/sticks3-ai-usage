@@ -81,10 +81,10 @@ func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 }
 
 // handleUsage serves the current snapshot as compact JSON with an ETag.
-// Matching If-None-Match (quoted, bare, or weak) yields 304 with Content-Length: 0
-// and NO body. Go's net/http server strips Content-Length from 304 responses
-// (RFC 7230), but the ESP32 HTTPClient needs it to avoid stalling on keep-alive
-// connections, so the 304 is written directly via Hijack.
+// Matching If-None-Match (quoted, bare, or weak) yields 304 Not Modified with
+// an empty body. Go's net/http omits the body and Content-Length on 304
+// responses (RFC 9110); client robustness (no 304 body, no connection reuse)
+// is the firmware's responsibility.
 func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
 	snap := s.withNextSec(s.sched.Current())
 	rev := snap.Rev
@@ -110,28 +110,12 @@ func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
 	w.Write(body)
 }
 
-// writeNotModified sends a 304 response with Content-Length: 0 and no body.
-// It hijacks the connection to bypass Go's net/http suppression of
-// Content-Length on 304 responses.
+// writeNotModified sends a standard 304 Not Modified with ETag and
+// Cache-Control: no-store. Go's net/http omits the body and Content-Length;
+// that is correct per RFC 9110.
 func writeNotModified(w http.ResponseWriter, etag string) {
-	if hj, ok := w.(http.Hijacker); ok {
-		conn, buf, err := hj.Hijack()
-		if err == nil {
-			defer conn.Close()
-			buf.WriteString("HTTP/1.1 304 Not Modified\r\n")
-			buf.WriteString("Content-Length: 0\r\n")
-			buf.WriteString("ETag: " + etag + "\r\n")
-			buf.WriteString("Cache-Control: no-store\r\n")
-			buf.WriteString("Connection: close\r\n")
-			buf.WriteString("\r\n")
-			buf.Flush()
-			return
-		}
-	}
-	// Fallback: standard 304 (Content-Length may be absent).
 	w.Header().Set("ETag", etag)
 	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Content-Length", "0")
 	w.WriteHeader(http.StatusNotModified)
 }
 
