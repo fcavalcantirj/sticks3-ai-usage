@@ -195,13 +195,15 @@ func recomputeTiers(rows []snapshot.Row) {
 }
 
 // Refresh triggers an immediate poll. If a poll is already running, this
-// call is coalesced (dropped) to avoid overlapping polls.
-func (s *Scheduler) Refresh() {
+// call is coalesced (dropped) to avoid overlapping polls and returns false.
+// Otherwise it runs the poll synchronously and returns true.
+func (s *Scheduler) Refresh() bool {
 	if !s.pollMu.TryLock() {
-		return
+		return false
 	}
 	defer s.pollMu.Unlock()
 	s.pollOnce(context.Background())
+	return true
 }
 
 // Run polls immediately, then on an Interval ticker with ±10% jitter until

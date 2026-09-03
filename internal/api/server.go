@@ -23,11 +23,18 @@ type Server struct {
 	start  time.Time
 }
 
-// New builds the HTTP API server around a scheduler and config.
-func New(s *sched.Scheduler, cfg config.Config, logger *slog.Logger) *http.Server {
+// New builds the HTTP API server around a scheduler and config. It returns an
+// error if the listen address is not loopback and no DeviceToken is configured
+// (never expose the LAN port without a token).
+func New(s *sched.Scheduler, cfg config.Config, logger *slog.Logger) (*http.Server, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
+
+	if cfg.DeviceToken == "" && !isLoopbackListen(cfg.Listen) {
+		return nil, refuseStartError(cfg.Listen)
+	}
+
 	srv := &Server{
 		sched:  s,
 		cfg:    cfg,
@@ -39,15 +46,18 @@ func New(s *sched.Scheduler, cfg config.Config, logger *slog.Logger) *http.Serve
 	mux.HandleFunc("GET /healthz", srv.handleHealthz)
 	mux.HandleFunc("GET /v1/usage", srv.handleUsage)
 	mux.HandleFunc("GET /v1/usage.txt", srv.handleUsageTxt)
+	mux.HandleFunc("POST /v1/refresh", srv.handleRefresh)
 	mux.HandleFunc("/", srv.handleNotFound)
+
+	handler := newAuth(cfg, logger).middleware(mux)
 
 	return &http.Server{
 		Addr:              cfg.Listen,
-		Handler:           mux,
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		WriteTimeout:      10 * time.Second,
 		IdleTimeout:       30 * time.Second,
-	}
+	}, nil
 }
 
 // withNextSec returns a snapshot copy with next_sec set to the poll interval,

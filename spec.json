@@ -189,7 +189,7 @@
       "Tests: loopback request without token → 200; simulated LAN RemoteAddr (`192.168.0.77:5000`, set on the httptest request via `req.RemoteAddr`) without token → 401; with correct token → 200; wrong token → 401; refresh → seq unchanged when data unchanged, seq+1 after a fixture route override; empty token + LAN listen → New returns an error.",
       "Verify: `go test ./internal/api -run 'Auth|Refresh' -v 2>&1 | grep -c '^--- PASS'` ≥ 5; `make verify` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "api",

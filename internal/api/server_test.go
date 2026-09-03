@@ -56,10 +56,9 @@ func setupFixtures(t *testing.T) string {
 	return dir
 }
 
-// newFixtureServer builds a scheduler fed by the fixture transport, runs one
-// poll, and returns a test HTTP server plus the scheduler and shared client
-// (the client is returned so tests can swap its transport for rev-change tests).
-func newFixtureServer(t *testing.T, dir string) (*httptest.Server, *sched.Scheduler, *httpx.Client) {
+// newFixtureHandlerCfg builds the auth-wrapped HTTP handler from a custom
+// config. It runs one PollOnce so the scheduler has a snapshot available.
+func newFixtureHandlerCfg(t *testing.T, dir string, cfg config.Config) (http.Handler, *sched.Scheduler, *httpx.Client) {
 	t.Helper()
 	client := &httpx.Client{HTTP: &http.Client{Transport: httpx.NewFixtureTransport(dir)}}
 	runner := creds.FixtureRunner(dir)
@@ -67,17 +66,30 @@ func newFixtureServer(t *testing.T, dir string) (*httptest.Server, *sched.Schedu
 		providers.NewClaude(client, runner, "testuser", testLoc),
 		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc),
 	}
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
+	s.PollOnce(context.Background())
+	srv, err := New(s, cfg, logger)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return srv.Handler, s, client
+}
+
+func newFixtureHandler(t *testing.T, dir string) (http.Handler, *sched.Scheduler, *httpx.Client) {
 	cfg := config.Config{
 		Listen:      "127.0.0.1:0",
 		Interval:    900 * time.Second,
 		TZ:          testLoc,
 		DeviceToken: "x",
 	}
-	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
-	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
-	s.PollOnce(context.Background())
-	srv := New(s, cfg, logger)
-	ts := httptest.NewServer(srv.Handler)
+	return newFixtureHandlerCfg(t, dir, cfg)
+}
+
+func newFixtureServer(t *testing.T, dir string) (*httptest.Server, *sched.Scheduler, *httpx.Client) {
+	t.Helper()
+	handler, s, client := newFixtureHandler(t, dir)
+	ts := httptest.NewServer(handler)
 	t.Cleanup(ts.Close)
 	return ts, s, client
 }
@@ -296,4 +308,165 @@ func TestUsageTXT(t *testing.T) {
 	if !strings.Contains(string(body), "rev=") {
 		t.Errorf("/v1/usage.txt missing rev= footer:\n%s", body)
 	}
+}
+
+// --- Auth middleware tests ---
+
+func TestAuthLoopbackNoToken(t *testing.T) {
+	dir := setupFixtures(t)
+	handler, _, _ := newFixtureHandler(t, dir)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/usage", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("loopback no token: status = %d, want 200", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Errorf("loopback no token: Content-Type = %q, want application/json", ct)
+	}
+}
+
+func TestAuthLANNoToken(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "0.0.0.0:8765", Interval: 900 * time.Second, TZ: testLoc, DeviceToken: "x",
+	}
+	handler, _, _ := newFixtureHandlerCfg(t, dir, cfg)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/usage", nil)
+	req.RemoteAddr = "192.168.0.77:5000"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("LAN no token: status = %d, want 401", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "unauthorized") {
+		t.Errorf("LAN no token: body = %q, want unauthorized", rec.Body.String())
+	}
+}
+
+func TestAuthCorrectToken(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "0.0.0.0:8765", Interval: 900 * time.Second, TZ: testLoc, DeviceToken: "x",
+	}
+	handler, _, _ := newFixtureHandlerCfg(t, dir, cfg)
+
+	// Header token
+	req := httptest.NewRequest(http.MethodGet, "/v1/usage", nil)
+	req.RemoteAddr = "192.168.0.77:5000"
+	req.Header.Set("X-Device-Token", "x")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("LAN with header token: status = %d, want 200", rec.Code)
+	}
+
+	// Query token
+	req2 := httptest.NewRequest(http.MethodGet, "/v1/usage?token=x", nil)
+	req2.RemoteAddr = "192.168.0.77:5000"
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusOK {
+		t.Errorf("LAN with query token: status = %d, want 200", rec2.Code)
+	}
+}
+
+func TestAuthWrongToken(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "0.0.0.0:8765", Interval: 900 * time.Second, TZ: testLoc, DeviceToken: "x",
+	}
+	handler, _, _ := newFixtureHandlerCfg(t, dir, cfg)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/usage", nil)
+	req.RemoteAddr = "192.168.0.77:5000"
+	req.Header.Set("X-Device-Token", "wrong")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("LAN wrong token: status = %d, want 401", rec.Code)
+	}
+}
+
+func TestAuthEmptyTokenLAN(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "0.0.0.0:8765", Interval: 900 * time.Second, TZ: testLoc, DeviceToken: "",
+	}
+	client := &httpx.Client{HTTP: &http.Client{Transport: httpx.NewFixtureTransport(dir)}}
+	runner := creds.FixtureRunner(dir)
+	fetchers := []providers.Fetcher{
+		providers.NewClaude(client, runner, "testuser", testLoc),
+		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc),
+	}
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
+	_, err := New(s, cfg, logger)
+	if err == nil {
+		t.Error("New with empty DeviceToken + non-loopback listen should return an error")
+	}
+}
+
+// --- Refresh endpoint tests ---
+
+func TestRefreshUnchanged(t *testing.T) {
+	dir := setupFixtures(t)
+	handler, _, _ := newFixtureHandler(t, dir)
+
+	// Baseline seq after initial PollOnce.
+	snap0 := getRefresh(t, handler)
+
+	// Refresh with unchanged data — seq must not move.
+	snap1 := getRefresh(t, handler)
+	if snap1.Seq != snap0.Seq {
+		t.Errorf("seq changed on identical refresh: %d -> %d", snap0.Seq, snap1.Seq)
+	}
+}
+
+func TestRefreshSeqIncrement(t *testing.T) {
+	dir := setupFixtures(t)
+	handler, _, client := newFixtureHandler(t, dir)
+
+	// Baseline.
+	snap0 := getRefresh(t, handler)
+
+	// Mutate routes.json so Claude returns 401 (auth), then swap the transport
+	// so the cached fixture table picks up the new routes.
+	routes := `{"GET api.anthropic.com/api/oauth/usage": {"status": 401}}`
+	if err := os.WriteFile(filepath.Join(dir, "routes.json"), []byte(routes), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	client.HTTP.Transport = httpx.NewFixtureTransport(dir)
+
+	// Refresh → data changed → seq should increment.
+	snap1 := getRefresh(t, handler)
+	if snap1.Seq != snap0.Seq+1 {
+		t.Errorf("seq after fixture change = %d, want %d", snap1.Seq, snap0.Seq+1)
+	}
+	if snap0.Rev == snap1.Rev {
+		t.Error("rev did not change after fixture override")
+	}
+}
+
+// getRefresh POSTs /v1/refresh (from loopback) and returns the decoded snapshot.
+func getRefresh(t *testing.T, handler http.Handler) snapshot.Snapshot {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/v1/refresh", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /v1/refresh: status = %d, want 200", rec.Code)
+	}
+	var snap snapshot.Snapshot
+	if err := json.NewDecoder(rec.Body).Decode(&snap); err != nil {
+		t.Fatalf("decode refresh response: %v\n%s", err, rec.Body.String())
+	}
+	return snap
 }
