@@ -9,7 +9,7 @@ import (
 
 func TestOpenRouterProviderHappyPath(t *testing.T) {
 	client := newFixtureClient("../../testdata/fixtures")
-	p := NewOpenRouter(client, "openrouter:main", "OR main", "test-key")
+	p := NewOpenRouter(client, "openrouter:main", "OpenRouter main", "test-key")
 
 	result, outcome := p.Fetch(context.Background(), testNow())
 
@@ -22,8 +22,8 @@ func TestOpenRouterProviderHappyPath(t *testing.T) {
 	if result.ID != "openrouter:main" {
 		t.Errorf("ID = %q, want openrouter:main", result.ID)
 	}
-	if result.Label != "OR main" {
-		t.Errorf("Label = %q, want OR main", result.Label)
+	if result.Label != "OpenRouter main" {
+		t.Errorf("Label = %q, want OpenRouter main", result.Label)
 	}
 	if len(result.Rows) != 2 {
 		t.Fatalf("len(Rows) = %d, want 2", len(result.Rows))
@@ -31,8 +31,8 @@ func TestOpenRouterProviderHappyPath(t *testing.T) {
 
 	// Row 0: bal pct 99 txt $0.07
 	r0 := result.Rows[0]
-	if r0.K != "bal" || r0.Label != "OR main bal" {
-		t.Errorf("Row 0 = {K:%q Label:%q}, want bal / OR main bal", r0.K, r0.Label)
+	if r0.K != "bal" || r0.Label != "OR bal" {
+		t.Errorf("Row 0 = {K:%q Label:%q}, want bal / OR bal", r0.K, r0.Label)
 	}
 	if r0.Pct == nil || *r0.Pct != 99 {
 		t.Errorf("Row 0 Pct = %v, want 99", r0.Pct)
@@ -43,8 +43,8 @@ func TestOpenRouterProviderHappyPath(t *testing.T) {
 
 	// Row 1: day pct nil txt $0.00
 	r1 := result.Rows[1]
-	if r1.K != "day" || r1.Label != "OR main day" {
-		t.Errorf("Row 1 = {K:%q Label:%q}, want day / OR main day", r1.K, r1.Label)
+	if r1.K != "day" || r1.Label != "OR day" {
+		t.Errorf("Row 1 = {K:%q Label:%q}, want day / OR day", r1.K, r1.Label)
 	}
 	if r1.Pct != nil {
 		t.Errorf("Row 1 Pct = %v, want nil", r1.Pct)
@@ -69,7 +69,7 @@ func TestOpenRouterProviderCredits403(t *testing.T) {
 	copyFixture(t, dir, "openrouter_key.json")
 
 	client := newFixtureClient(dir)
-	p := NewOpenRouter(client, "openrouter:main", "OR main", "test-key")
+	p := NewOpenRouter(client, "openrouter:main", "OpenRouter main", "test-key")
 
 	result, _ := p.Fetch(context.Background(), testNow())
 
@@ -79,8 +79,8 @@ func TestOpenRouterProviderCredits403(t *testing.T) {
 	if result.Plan != "paid" {
 		t.Errorf("Plan = %q, want paid", result.Plan)
 	}
-	if result.Label != "OR main" {
-		t.Errorf("Label = %q, want OR main", result.Label)
+	if result.Label != "OpenRouter main" {
+		t.Errorf("Label = %q, want OpenRouter main", result.Label)
 	}
 
 	// bal row absent, day row present.
@@ -105,7 +105,7 @@ func TestOpenRouterProviderKey401(t *testing.T) {
 	copyFixture(t, dir, "openrouter_credits.json")
 
 	client := newFixtureClient(dir)
-	p := NewOpenRouter(client, "openrouter:main", "OR main", "test-key")
+	p := NewOpenRouter(client, "openrouter:main", "OpenRouter main", "test-key")
 
 	result, _ := p.Fetch(context.Background(), testNow())
 
@@ -119,7 +119,7 @@ func TestOpenRouterProviderKey401(t *testing.T) {
 
 func TestOpenRouterProviderFallbackLabel(t *testing.T) {
 	client := newFixtureClient("../../testdata/fixtures")
-	p := NewOpenRouter(client, "openrouter:fallback", "OR fbk", "fbk-key")
+	p := NewOpenRouter(client, "openrouter:fallback", "OpenRouter fallback", "fbk-key")
 
 	result, _ := p.Fetch(context.Background(), testNow())
 
@@ -129,8 +129,8 @@ func TestOpenRouterProviderFallbackLabel(t *testing.T) {
 	if result.ID != "openrouter:fallback" {
 		t.Errorf("ID = %q, want openrouter:fallback", result.ID)
 	}
-	if result.Label != "OR fbk" {
-		t.Errorf("Label = %q, want OR fbk", result.Label)
+	if result.Label != "OpenRouter fallback" {
+		t.Errorf("Label = %q, want OpenRouter fallback", result.Label)
 	}
 	if result.Plan != "paid" {
 		t.Errorf("Plan = %q, want paid", result.Plan)
@@ -138,11 +138,11 @@ func TestOpenRouterProviderFallbackLabel(t *testing.T) {
 	if len(result.Rows) != 2 {
 		t.Fatalf("len(Rows) = %d, want 2", len(result.Rows))
 	}
-	if result.Rows[0].Label != "OR fbk bal" {
-		t.Errorf("bal Label = %q, want OR fbk bal", result.Rows[0].Label)
+	if result.Rows[0].Label != "OR bal" {
+		t.Errorf("bal Label = %q, want OR bal", result.Rows[0].Label)
 	}
-	if result.Rows[1].Label != "OR fbk day" {
-		t.Errorf("day Label = %q, want OR fbk day", result.Rows[1].Label)
+	if result.Rows[1].Label != "OR day" {
+		t.Errorf("day Label = %q, want OR day", result.Rows[1].Label)
 	}
 }
 

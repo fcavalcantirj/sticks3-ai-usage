@@ -17,16 +17,12 @@
   <key>WorkingDirectory</key>
   <string>/Users/fcavalcanti/dev/m5/sticks3-ai-usage</string>
 
-  <!-- Start on login, restart on crash. A clean exit stays stopped. -->
+  <!-- Start on login, always restart (even after a clean exit, a graceful
+       kill must never leave the agent dead). -->
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
-  <dict>
-    <key>SuccessfulExit</key>
-    <false/>
-    <key>Crashed</key>
-    <true/>
-  </dict>
+  <true/>
   <!-- Don't thrash if it keeps dying. -->
   <key>ThrottleInterval</key>
   <integer>30</integer>

@@ -103,8 +103,8 @@ func buildFetchers(cfg config.Config) []providers.Fetcher {
 
 	// OpenRouter fetchers: real when keys are set, static off blocks when not.
 	for _, b := range []struct{ id, label, key string }{
-		{"openrouter:main", "OR main", cfg.OpenRouterKeys["main"]},
-		{"openrouter:fallback", "OR fbk", cfg.OpenRouterKeys["fallback"]},
+		{"openrouter:main", "OpenRouter main", cfg.OpenRouterKeys["main"]},
+		{"openrouter:fallback", "OpenRouter fallback", cfg.OpenRouterKeys["fallback"]},
 	} {
 		if b.key != "" {
 			fetchers = append(fetchers, providers.NewOpenRouter(client, b.id, b.label, b.key))

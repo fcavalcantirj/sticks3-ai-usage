@@ -80,7 +80,7 @@ func (p *openRouterProvider) Fetch(ctx context.Context, now time.Time) (snapshot
 			pct := int(math.Round(100 * cr.Data.TotalUsage / cr.Data.TotalCredits))
 			rows = append(rows, snapshot.Row{
 				K:       "bal",
-				Label:   p.label + " bal",
+				Label:   "OR bal",
 				Pct:     &pct,
 				Txt:     format.Money(format.Cents(balLeft)),
 				Tier:    format.Tier(&pct, "ok"),
@@ -122,7 +122,7 @@ func (p *openRouterProvider) Fetch(ctx context.Context, now time.Time) (snapshot
 	dayCents := format.Cents(kr.Data.UsageDaily)
 	rows = append(rows, snapshot.Row{
 		K:       "day",
-		Label:   p.label + " day",
+		Label:   "OR day",
 		Pct:     nil,
 		Txt:     format.Money(dayCents),
 		Tier:    "ok",
@@ -139,7 +139,7 @@ func (p *openRouterProvider) Fetch(ctx context.Context, now time.Time) (snapshot
 		}
 		rows = append(rows, snapshot.Row{
 			K:       "lim",
-			Label:   p.label + " lim",
+			Label:   "OR lim",
 			Pct:     &limPct,
 			Txt:     format.Money(format.Cents(remaining)),
 			Tier:    format.Tier(&limPct, "ok"),

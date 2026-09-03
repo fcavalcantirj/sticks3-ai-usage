@@ -76,7 +76,7 @@
     },
     {
       "id": "openrouter:main",
-      "label": "OR main",
+      "label": "OpenRouter main",
       "plan": "paid",
       "status": "ok",
       "msg": "",
@@ -84,7 +84,7 @@
       "rows": [
         {
           "k": "bal",
-          "label": "OR main bal",
+          "label": "OR bal",
           "pct": 99,
           "txt": "$0.07",
           "tier": "crit",
@@ -92,7 +92,7 @@
         },
         {
           "k": "day",
-          "label": "OR main day",
+          "label": "OR day",
           "pct": null,
           "txt": "$0.00",
           "tier": "ok",
@@ -102,7 +102,7 @@
     },
     {
       "id": "openrouter:fallback",
-      "label": "OR fbk",
+      "label": "OpenRouter fallback",
       "plan": "paid",
       "status": "ok",
       "msg": "",
@@ -110,7 +110,7 @@
       "rows": [
         {
           "k": "bal",
-          "label": "OR fbk bal",
+          "label": "OR bal",
           "pct": 99,
           "txt": "$0.07",
           "tier": "crit",
@@ -118,7 +118,7 @@
         },
         {
           "k": "day",
-          "label": "OR fbk day",
+          "label": "OR day",
           "pct": null,
           "txt": "$0.00",
           "tier": "ok",

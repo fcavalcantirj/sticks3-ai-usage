@@ -124,6 +124,7 @@ function fmtTime(unixSec) {
 }
 
 // Reset text from reset_at (unix seconds) or fallback to txt.
+// When pct is null the caller passes empty so the reset column stays blank.
 // > 24 h remaining \u2192 "Resets Mon 05:00" (browser locale).
 // \u2264 24 h remaining \u2192 "Resets in Xh Ym".
 // past or null  \u2192 fallbackTxt.
@@ -249,13 +250,16 @@ function renderRow(row, isStale) {
   } else {
     bar = '<div class="bar-wrap"></div>';
   }
+  // null-pct rows (bal/key/day): txt shows once in the usage column; the reset
+  // column is empty (no countdown, no duplicate txt).
+  var resetTxt = hasPct ? resetText(row.reset_at, row.txt) : "";
   return '<div class="row' + (isStale ? " stale" : "") + '">' +
     '<div class="row-inner">' +
     '<span class="label">' + esc(row.label) + '</span>' +
     bar +
     '<span class="usage">' + esc(pctText(row.pct, row.txt)) + '</span>' +
     '<span class="reset" data-reset-at="' + (row.reset_at || "") + '" data-fallback="' +
-    esc(row.txt || "") + '">' + esc(resetText(row.reset_at, row.txt)) + '</span>' +
+    esc(hasPct ? row.txt : "") + '">' + esc(resetTxt) + '</span>' +
     '</div></div>';
 }
 
