@@ -76,7 +76,7 @@
       "Tests: round-trip in `t.TempDir()`; missing file → empty state, nil error; corrupt file → error + empty state; parent dir created; a Save interrupted (simulate by writing garbage to the .tmp path first) still ends with a valid file.",
       "Verify: `go test ./internal/snapshot -run State -v 2>&1 | grep -c '^--- PASS'` ≥ 4; `make verify` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "host",
