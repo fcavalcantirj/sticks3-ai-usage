@@ -6,8 +6,9 @@ PORT=18765
 BASE="http://127.0.0.1:${PORT}"
 STATE_FILE="/tmp/usaged-smoke-state.json"
 
-# Kill any previous instance.
-pkill -f 'usaged serve' || true
+# Kill any previous *test* instance on our port. Never touch
+# com.fcavalcanti.usaged — Felipe's status line and dashboard depend on it.
+pkill -f "usaged serve --fixtures" 2>/dev/null || true
 rm -f "$STATE_FILE"
 
 # Start the server in the background.

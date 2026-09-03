@@ -75,8 +75,9 @@ func runOnce(args []string, stdout io.Writer) int {
 }
 
 // buildFetchers assembles the provider fetcher list from config. Claude and
-// Codex are always present; OpenRouter/Groq have not arrived yet, so they are
-// registered as placeholder off blocks to keep the canonical provider order.
+// Codex are always present; OpenRouter fetchers are registered when keys are
+// set, otherwise static off blocks keep the canonical provider order. Groq
+// arrives in a later task — keep its placeholder.
 func buildFetchers(cfg config.Config) []providers.Fetcher {
 	client := &httpx.Client{UserAgent: "usaged/0.1"}
 
@@ -100,13 +101,18 @@ func buildFetchers(cfg config.Config) []providers.Fetcher {
 	fetchers = append(fetchers, providers.NewClaude(client, runner, claudeUsername(), loc))
 	fetchers = append(fetchers, providers.NewCodex(client, authPath, loc))
 
-	// Placeholder off blocks for providers with no fetcher yet.
-	for _, b := range []struct{ id, label string }{
-		{"openrouter:main", "OpenRouter"},
-		{"openrouter:fallback", "OpenRouter"},
-		{"groq", "Groq"},
+	// OpenRouter fetchers: real when keys are set, static off blocks when not.
+	// Groq arrives in a later task — keep its placeholder.
+	for _, b := range []struct{ id, label, key string }{
+		{"openrouter:main", "OR main", cfg.OpenRouterKeys["main"]},
+		{"openrouter:fallback", "OR fbk", cfg.OpenRouterKeys["fallback"]},
+		{"groq", "Groq", cfg.GroqKey},
 	} {
-		fetchers = append(fetchers, newStaticFetcher(b.id, b.label, "no key"))
+		if b.key != "" && b.id != "groq" {
+			fetchers = append(fetchers, providers.NewOpenRouter(client, b.id, b.label, b.key))
+		} else {
+			fetchers = append(fetchers, newStaticFetcher(b.id, b.label, "no key"))
+		}
 	}
 
 	return fetchers

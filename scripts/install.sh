@@ -48,6 +48,14 @@ esac
 # --- Prepare directories ---
 mkdir -p "$LOG_DIR"
 
+# --- Defensive cleanup: remove the temporary com.fcavalcanti.usaged-once job
+#     (ORDER #6). This job was created during task 22 as a one-shot; it must
+#     not survive a real install. Never bootout com.fcavalcanti.usaged itself
+#     — Felipe's status line and dashboard depend on it.
+USAGED_ONCE_PLIST="$HOME/Library/LaunchAgents/com.fcavalcanti.usaged-once.plist"
+launchctl bootout "gui/${GID}/com.fcavalcanti.usaged-once" 2>/dev/null || true
+rm -f "$USAGED_ONCE_PLIST"
+
 # --- Install LaunchAgent ---
 echo "Installing LaunchAgent..."
 launchctl bootout "gui/${GID}/${PLIST_NAME}" 2>/dev/null || true
