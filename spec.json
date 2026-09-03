@@ -99,7 +99,7 @@
       "Tests: MakeJWT with exp = now+1h → valid; exp = now-1s → ErrExpired; auth_mode `apikey` → ErrNotLoggedIn; account_id fallback from the claim; malformed JWT → error. Commit `testdata/fixtures/codex_auth.json` once: build it in this task with a throwaway `go run` snippet that calls MakeJWT (claims: exp = 4102444800 i.e. 2100-01-01, `https://api.openai.com/auth` = {chatgpt_plan_type: plus, chatgpt_account_id: 00000000-0000-4000-8000-000000000000}) and writes the auth.json shape from the context with that token, tokens.account_id = the same placeholder UUID, refresh_token `rt.1.FIXTURE`; a test asserts the committed file parses with plan `plus` and is not expired.",
       "Verify: `go test ./internal/creds -run Codex -v 2>&1 | grep -c '^--- PASS'` ≥ 5; `python3 -c \"import json;d=json.load(open('testdata/fixtures/codex_auth.json'));assert d['auth_mode']=='chatgpt' and d['tokens']['access_token'].count('.')==2\"`; `make verify` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "host",

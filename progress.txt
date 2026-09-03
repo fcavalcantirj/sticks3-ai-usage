@@ -6,3 +6,4 @@
 2026-09-03T02:39:55Z task 6 done — internal/snapshot/hash.go (Rev: 8-hex sha256 over [[id,status,plan,[[k,pct,txt,tier]]],...]; Apply: seq++ only on rev change, checked_at always); hash_test.go (7 tests incl golden db2b7d8f); verify: 7 PASS >=5, make verify=0
 2026-09-03T02:45:48Z task 7 done — internal/snapshot/state.go (State, Load, Save with atomic temp+rename, 0700 dirs, 0600 file); state_test.go (6 tests); verify: 6 PASS >=4, make verify=0
 2026-09-03T10:34:50Z task 8 done — 7 PASS, make verify=0, ORDER #2 Makefile lint fix applied
+2026-09-03T10:47:51Z task 9 done — 6 Codex tests PASS (MakeJWT valid/expired, wrong auth_mode, account_id fallback, malformed JWT, fixture file), python3 check OK, make verify=0
