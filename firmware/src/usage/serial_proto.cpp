@@ -1,0 +1,73 @@
+// firmware/src/usage/serial_proto.cpp — bounded serial-line formatters.
+//
+// Pure C++17, no Arduino/M5 headers.  Every function writes into the
+// caller-provided buffer (size n) and returns the number of characters that
+// *would* have been written (excluding the NUL terminator), exactly like
+// snprintf — so a caller can detect truncation by comparing the return value
+// against n.
+#include "usage/serial_proto.h"
+
+#include <cstdio>
+
+namespace usage {
+
+// fmtBoot formats the boot banner:
+//   [BOOT] board=26 psram=8388608 build=abc123
+int fmtBoot(char* out, size_t n, int board, uint32_t psram, const char* build) {
+    return std::snprintf(out, n, "[BOOT] board=%d psram=%u build=%s",
+                         board, static_cast<unsigned int>(psram),
+                         build != nullptr ? build : "");
+}
+
+// fmtNet formats a network state transition:
+//   [NET] state=connected ip=192.168.0.77
+//   [NET] state=connecting
+//   [NET] state=lost
+// The ip field is omitted when ip is null or empty.
+int fmtNet(char* out, size_t n, const char* state, const char* ip) {
+    const char* s = state != nullptr ? state : "";
+    if (ip != nullptr && ip[0] != '\0') {
+        return std::snprintf(out, n, "[NET] state=%s ip=%s", s, ip);
+    }
+    return std::snprintf(out, n, "[NET] state=%s", s);
+}
+
+// fmtFetch formats a fetch result:
+//   304 (no body):    [FETCH] code=304 rev=abcd1234 ms=120
+//   200 (has body):   [FETCH] code=200 rev=abcd1234 seq=43 ms=310
+//   <0  (error):      [FETCH] code=-1 err=timeout ms=8000
+//  (rev is reused as the error description when code < 0.)
+int fmtFetch(char* out, size_t n, int code, const char* rev,
+             uint32_t seq, uint32_t ms) {
+    const char* desc = rev != nullptr ? rev : "";
+    if (code < 0) {
+        return std::snprintf(out, n, "[FETCH] code=%d err=%s ms=%u",
+                             code, desc, static_cast<unsigned int>(ms));
+    }
+    if (code == 304) {
+        return std::snprintf(out, n, "[FETCH] code=%d rev=%s ms=%u",
+                             code, desc, static_cast<unsigned int>(ms));
+    }
+    return std::snprintf(out, n, "[FETCH] code=%d rev=%s seq=%u ms=%u",
+                         code, desc, static_cast<unsigned int>(seq),
+                         static_cast<unsigned int>(ms));
+}
+
+// fmtRender formats a screen redraw:
+//   [RENDER] page=1 lines=5 rev=abcd1234
+int fmtRender(char* out, size_t n, uint8_t page, uint8_t lines,
+              const char* rev) {
+    return std::snprintf(out, n, "[RENDER] page=%u lines=%u rev=%s",
+                         static_cast<unsigned int>(page),
+                         static_cast<unsigned int>(lines),
+                         rev != nullptr ? rev : "");
+}
+
+// fmtErr formats an error line:
+//   [ERR] <what>
+int fmtErr(char* out, size_t n, const char* what) {
+    return std::snprintf(out, n, "[ERR] %s",
+                         what != nullptr ? what : "");
+}
+
+} // namespace usage

@@ -1,0 +1,102 @@
+// firmware/test/host/test_serial_proto.cpp — tests for the serial protocol
+// formatters (fmtBoot, fmtNet, fmtFetch, fmtRender, fmtErr).
+//
+// This file does NOT define TEST_FRAMEWORK_MAIN — test_smoke.cpp owns the
+// entry point.
+#include "framework.h"
+#include "usage/serial_proto.h"
+
+#include <cstdio>
+#include <cstring>
+
+// --- fmtBoot ---------------------------------------------------------------
+
+TEST(serial_boot_basic) {
+    char buf[64];
+    int r = usage::fmtBoot(buf, sizeof(buf), 26, 8388608, "abc123");
+    ASSERT_STREQ("[BOOT] board=26 psram=8388608 build=abc123", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+TEST(serial_boot_null_build) {
+    char buf[64];
+    int r = usage::fmtBoot(buf, sizeof(buf), 26, 8388608, nullptr);
+    ASSERT_STREQ("[BOOT] board=26 psram=8388608 build=", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+// --- fmtNet ----------------------------------------------------------------
+
+TEST(serial_net_connected) {
+    char buf[64];
+    int r = usage::fmtNet(buf, sizeof(buf), "connected", "192.168.0.77");
+    ASSERT_STREQ("[NET] state=connected ip=192.168.0.77", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+TEST(serial_net_connecting) {
+    char buf[64];
+    int r = usage::fmtNet(buf, sizeof(buf), "connecting", nullptr);
+    ASSERT_STREQ("[NET] state=connecting", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+TEST(serial_net_empty_ip) {
+    char buf[64];
+    int r = usage::fmtNet(buf, sizeof(buf), "lost", "");
+    ASSERT_STREQ("[NET] state=lost", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+// --- fmtFetch --------------------------------------------------------------
+
+TEST(serial_fetch_304) {
+    char buf[64];
+    int r = usage::fmtFetch(buf, sizeof(buf), 304, "abcd1234", 0, 120);
+    ASSERT_STREQ("[FETCH] code=304 rev=abcd1234 ms=120", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+TEST(serial_fetch_200) {
+    char buf[64];
+    int r = usage::fmtFetch(buf, sizeof(buf), 200, "abcd1234", 43, 310);
+    ASSERT_STREQ("[FETCH] code=200 rev=abcd1234 seq=43 ms=310", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+TEST(serial_fetch_error) {
+    char buf[64];
+    int r = usage::fmtFetch(buf, sizeof(buf), -1, "timeout", 0, 8000);
+    ASSERT_STREQ("[FETCH] code=-1 err=timeout ms=8000", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+// --- fmtRender -------------------------------------------------------------
+
+TEST(serial_render_basic) {
+    char buf[64];
+    int r = usage::fmtRender(buf, sizeof(buf), 1, 5, "abcd1234");
+    ASSERT_STREQ("[RENDER] page=1 lines=5 rev=abcd1234", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+// --- fmtErr ----------------------------------------------------------------
+
+TEST(serial_err_basic) {
+    char buf[64];
+    int r = usage::fmtErr(buf, sizeof(buf), "oom");
+    ASSERT_STREQ("[ERR] oom", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+// --- truncation ------------------------------------------------------------
+
+TEST(serial_trunc_4byte) {
+    // A 4-byte buffer: snprintf writes 3 chars + NUL and returns the full
+    // would-be length.
+    char buf[4];
+    int r = usage::fmtBoot(buf, sizeof(buf), 26, 8388608, "abc123");
+    ASSERT_STREQ("[BO", buf);             // only 3 chars fit (4th byte is NUL)
+    ASSERT_EQ(3, (int)std::strlen(buf));
+    ASSERT_TRUE(r > 3);                    // return value is the full length
+}
