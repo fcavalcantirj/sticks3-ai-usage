@@ -274,7 +274,7 @@
       "Tests: default mode ok row; 401 → auth; probe mode rows rpd pct 0 txt `500k`, tpm pct 0 txt `250k`; duration parsing table (`172ms`, `2m59.56s`, `7.66s`).",
       "Verify: `go test ./internal/providers -run Groq -v 2>&1 | grep -c '^--- PASS'` ≥ 4; `GROQ_API_KEY=x go run ./cmd/usaged once --fixtures testdata/fixtures | grep -c 'GROQ key'` ≥ 1; `make verify` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "providers",

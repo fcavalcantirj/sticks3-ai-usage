@@ -131,6 +131,17 @@ func defaultFixtureTable() map[string]fixtureEntry {
 		"GET openrouter.ai/api/v1/credits":       {File: "openrouter_credits.json"},
 		"GET openrouter.ai/api/v1/key":           {File: "openrouter_key.json"},
 		"GET api.groq.com/openai/v1/models":      {Inline: `{"data":[]}`},
+		"POST api.groq.com/openai/v1/chat/completions": {
+			Inline: `{"usage":{"total_tokens":73}}`,
+			Headers: map[string]string{
+				"x-ratelimit-limit-requests":     "500000",
+				"x-ratelimit-remaining-requests": "499999",
+				"x-ratelimit-limit-tokens":       "250000",
+				"x-ratelimit-remaining-tokens":   "249927",
+				"x-ratelimit-reset-requests":     "172ms",
+				"x-ratelimit-reset-tokens":       "17ms",
+			},
+		},
 	}
 }
 

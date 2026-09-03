@@ -102,17 +102,22 @@ func buildFetchers(cfg config.Config) []providers.Fetcher {
 	fetchers = append(fetchers, providers.NewCodex(client, authPath, loc))
 
 	// OpenRouter fetchers: real when keys are set, static off blocks when not.
-	// Groq arrives in a later task — keep its placeholder.
 	for _, b := range []struct{ id, label, key string }{
 		{"openrouter:main", "OR main", cfg.OpenRouterKeys["main"]},
 		{"openrouter:fallback", "OR fbk", cfg.OpenRouterKeys["fallback"]},
-		{"groq", "Groq", cfg.GroqKey},
 	} {
-		if b.key != "" && b.id != "groq" {
+		if b.key != "" {
 			fetchers = append(fetchers, providers.NewOpenRouter(client, b.id, b.label, b.key))
 		} else {
 			fetchers = append(fetchers, newStaticFetcher(b.id, b.label, "no key"))
 		}
+	}
+
+	// Groq: real fetcher when key set, static off when not.
+	if cfg.GroqKey != "" {
+		fetchers = append(fetchers, providers.NewGroq(client, cfg.GroqKey, cfg.GroqProbe))
+	} else {
+		fetchers = append(fetchers, newStaticFetcher("groq", "Groq", "no key"))
 	}
 
 	return fetchers
