@@ -1,0 +1,1 @@
+2026-09-03T01:55:05Z task 1 done — .gitignore (14 rules), git init -b main, AGENTS.md (3x NEVER, tree, rules, provenance), docs/GROUND_RULES.md; verify: git status shows files, grep -c NEVER=3, all 3 check-ignore paths ignored, GROUND_RULES.md exists

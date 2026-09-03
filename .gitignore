@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+bin/
+build/
+firmware/.pio/
+firmware/build/
+firmware/include/secrets.h
+*.bin
+*.elf
+*.map
+.DS_Store
+*.log
+state.json
