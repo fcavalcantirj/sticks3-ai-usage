@@ -110,7 +110,7 @@
       "Tests `client_test.go` with `httptest.NewServer`: UA header sent; body cap enforced; ctx timeout returns error; RetryAfter seconds and HTTP-date; fixture transport returns the Claude fixture with 200 and the routes.json override returns 429 with Retry-After.",
       "Verify: `go test ./internal/httpx -v 2>&1 | grep -c '^--- PASS'` ≥ 6; `make verify` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "host",
