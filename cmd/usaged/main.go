@@ -39,14 +39,7 @@ func run(args []string, stdout io.Writer) int {
 		return 0
 
 	case "serve":
-		fs := flag.NewFlagSet("serve", flag.ContinueOnError)
-		fs.SetOutput(stdout)
-		// flags will be added by later tasks
-		if err := fs.Parse(rest); err != nil {
-			return 2
-		}
-		fmt.Fprintln(stdout, "serve: not implemented")
-		return 2
+		return runServe(rest, stdout)
 
 	case "once":
 		return runOnce(rest, stdout)

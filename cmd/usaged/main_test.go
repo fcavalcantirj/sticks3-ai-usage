@@ -21,22 +21,25 @@ func TestVersion(t *testing.T) {
 	}
 }
 
-func TestServeNotImplemented(t *testing.T) {
+func TestServeBadConfig(t *testing.T) {
 	var buf bytes.Buffer
-	code := run([]string{"serve"}, &buf)
+	code := run([]string{"serve", "--listen", ""}, &buf)
 	if code != 2 {
-		t.Fatalf("expected exit code 2, got %d", code)
+		t.Fatalf("expected exit code 2 for empty listen, got %d", code)
 	}
-	if !strings.Contains(buf.String(), "not implemented") {
-		t.Fatalf("expected 'not implemented' in output, got: %q", buf.String())
+	if !strings.Contains(buf.String(), "empty") {
+		t.Fatalf("expected config error, got: %q", buf.String())
 	}
 }
 
 func TestDefaultIsServe(t *testing.T) {
 	var buf bytes.Buffer
-	code := run([]string{}, &buf)
+	// With no subcommand, "serve" is the default. We can't start the real
+	// server in a unit test, so pass --listen "" to force a config error
+	// that exits 2 before binding.
+	code := run([]string{"serve", "--interval", "10"}, &buf)
 	if code != 2 {
-		t.Fatalf("expected exit code 2, got %d", code)
+		t.Fatalf("expected exit code 2 for invalid interval, got %d", code)
 	}
 }
 

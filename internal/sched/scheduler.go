@@ -206,6 +206,16 @@ func (s *Scheduler) Refresh() bool {
 	return true
 }
 
+// LoadState replaces the scheduler's in-memory state with the provided one.
+// Called once at startup (before Run begins) to restore cooldowns and
+// last-good blocks from the on-disk state file.
+func (s *Scheduler) LoadState(state snapshot.State) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.State = state
+	s.ensureMaps()
+}
+
 // Run polls immediately, then on an Interval ticker with ±10% jitter until
 // ctx is cancelled.
 func (s *Scheduler) Run(ctx context.Context) {

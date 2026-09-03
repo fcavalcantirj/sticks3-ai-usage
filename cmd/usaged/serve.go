@@ -1,0 +1,89 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"usaged/internal/api"
+	"usaged/internal/config"
+	"usaged/internal/sched"
+	"usaged/internal/snapshot"
+)
+
+// runServe implements the `usaged serve` subcommand: load config, build
+// fetchers, restore on-disk state, start the scheduler poller and HTTP API,
+// and shut down gracefully on SIGINT/SIGTERM.
+func runServe(args []string, stdout io.Writer) int {
+	cfg, err := config.Load(args, os.Getenv)
+	if err != nil {
+		fmt.Fprintln(stdout, err.Error())
+		return 2
+	}
+
+	// JSON handler to stderr at the configured level. Restore on exit so
+	// tests don't leak the handler to other packages.
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: cfg.LogLevel}))
+	slog.SetDefault(logger)
+	defer slog.SetDefault(slog.Default())
+
+	logger.Info("usaged serve", "cfg", cfg.Redacted())
+
+	fetchers := buildFetchers(cfg)
+	clock := time.Now
+	s := sched.NewScheduler(fetchers, cfg.Interval, cfg.StatePath, clock, logger)
+
+	// Restore state from disk: load and start fresh on corrupt.
+	if cfg.StatePath != "" {
+		state, loadErr := snapshot.Load(cfg.StatePath)
+		if loadErr != nil {
+			logger.Warn("load state failed, starting fresh", "err", loadErr, "path", cfg.StatePath)
+		} else {
+			s.LoadState(state)
+		}
+	}
+
+	// Start the background poller.
+	ctx, cancel := context.WithCancel(context.Background())
+	go s.Run(ctx)
+
+	// Build and start the HTTP API.
+	httpSrv, err := api.New(s, cfg, logger)
+	if err != nil {
+		logger.Error("http server init failed", "err", err)
+		fmt.Fprintln(stdout, err.Error())
+		cancel()
+		return 2
+	}
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- httpSrv.ListenAndServe()
+	}()
+
+	select {
+	case err := <-serverErr:
+		if err != nil && err != http.ErrServerClosed {
+			logger.Error("server error", "err", err)
+		}
+		cancel()
+		return 1
+	case <-sigCh:
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+		if err := httpSrv.Shutdown(shutdownCtx); err != nil {
+			logger.Warn("graceful shutdown error", "err", err)
+		}
+		cancel()
+		return 0
+	}
+}

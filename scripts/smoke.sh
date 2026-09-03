@@ -1,0 +1,75 @@
+#!/bin/bash
+# scripts/smoke.sh — out-of-process smoke test for `usaged serve` against fixtures.
+set -euo pipefail
+
+PORT=18765
+BASE="http://127.0.0.1:${PORT}"
+STATE_FILE="/tmp/usaged-smoke-state.json"
+
+# Kill any previous instance.
+pkill -f 'usaged serve' || true
+rm -f "$STATE_FILE"
+
+# Start the server in the background.
+bin/usaged serve --fixtures testdata/fixtures --listen 127.0.0.1:${PORT} --state "$STATE_FILE" &
+SERVER_PID=$!
+
+cleanup() {
+    kill "$SERVER_PID" 2>/dev/null || true
+    wait "$SERVER_PID" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+# Wait for /healthz (20 × 0.25 s).
+for i in $(seq 1 20); do
+    if curl -sf "${BASE}/healthz" >/dev/null 2>&1; then
+        break
+    fi
+    sleep 0.25
+done
+
+# /v1/usage → 200 with ETag.
+USAGE_RESP=$(curl -si "${BASE}/v1/usage")
+if ! echo "$USAGE_RESP" | grep -q "HTTP/1.1 200"; then
+    echo "FAIL: /v1/usage did not return 200"
+    echo "$USAGE_RESP"
+    exit 1
+fi
+if ! echo "$USAGE_RESP" | grep -qi 'ETag: "'; then
+    echo "FAIL: /v1/usage missing ETag header"
+    echo "$USAGE_RESP"
+    exit 1
+fi
+
+# Extract ETag and test 304: same ETag, Content-Length: 0, empty body.
+ETAG=$(echo "$USAGE_RESP" | grep -i '^ETag:' | sed 's/^ETag: //I' | tr -d '\r')
+NOT_MOD_RESP=$(curl -si -H "If-None-Match: ${ETAG}" "${BASE}/v1/usage")
+if ! echo "$NOT_MOD_RESP" | grep -q "HTTP/1.1 304"; then
+    echo "FAIL: If-None-Match did not return 304"
+    echo "$NOT_MOD_RESP"
+    exit 1
+fi
+if ! echo "$NOT_MOD_RESP" | grep -qi "ETag:"; then
+    echo "FAIL: 304 response missing ETag header"
+    echo "$NOT_MOD_RESP"
+    exit 1
+fi
+if ! echo "$NOT_MOD_RESP" | grep -qi "Content-Length: 0"; then
+    echo "FAIL: 304 response missing Content-Length: 0"
+    echo "$NOT_MOD_RESP"
+    exit 1
+fi
+BODY_SIZE=$(curl -s -o /dev/null -w '%{size_download}' -H "If-None-Match: ${ETAG}" "${BASE}/v1/usage")
+if [ "$BODY_SIZE" != "0" ]; then
+    echo "FAIL: 304 response body is not empty (size=$BODY_SIZE)"
+    exit 1
+fi
+
+# POST /v1/refresh → 200.
+REFRESH_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${BASE}/v1/refresh")
+if [ "$REFRESH_CODE" != "200" ]; then
+    echo "FAIL: POST /v1/refresh returned $REFRESH_CODE, want 200"
+    exit 1
+fi
+
+echo "SMOKE OK"
