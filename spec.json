@@ -327,7 +327,7 @@
       "Tests `test_render_plan.cpp`: example → page 1 has exactly 5 lines in the order above; example_full → pageCount 2 and page 2 begins with `OR main bal`; onSnapshot with the same rev twice → needsRedraw false the second time; nextPage wraps; stale provider → dim=1 and the footer carries its msg.",
       "Verify: `make fw-test` prints `PASS plan_page1_order`, `PASS plan_no_redraw_same_rev` and ends in `Failed 0`."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "firmware",
