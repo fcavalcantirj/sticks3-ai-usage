@@ -65,7 +65,7 @@
       "Tests `hash_test.go`: identical content → identical rev; changing only `reset_at`, `msg`, `label`, `fetched_at` or `checked_at` → SAME rev; changing `pct`, `txt`, `tier`, `status` or `plan` → different rev; Apply increments seq only on change and updates generated_at only on change; rev is exactly 8 lowercase hex chars; an explicit golden: rev of the contract example snapshot is recorded in the test as a constant so future refactors cannot silently change the hashing (compute it once, paste it).",
       "Verify: `go test ./internal/snapshot -run 'Rev|Apply' -v 2>&1 | grep -c '^--- PASS'` ≥ 5; `make verify` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "host",
