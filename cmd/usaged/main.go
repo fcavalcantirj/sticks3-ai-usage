@@ -49,14 +49,7 @@ func run(args []string, stdout io.Writer) int {
 		return 2
 
 	case "once":
-		fs := flag.NewFlagSet("once", flag.ContinueOnError)
-		fs.SetOutput(stdout)
-		// flags will be added by later tasks
-		if err := fs.Parse(rest); err != nil {
-			return 2
-		}
-		fmt.Fprintln(stdout, "once: not implemented")
-		return 2
+		return runOnce(rest, stdout)
 
 	default:
 		fmt.Fprintf(stdout, "unknown subcommand: %s\n", name)

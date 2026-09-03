@@ -32,17 +32,6 @@ func TestServeNotImplemented(t *testing.T) {
 	}
 }
 
-func TestOnceNotImplemented(t *testing.T) {
-	var buf bytes.Buffer
-	code := run([]string{"once"}, &buf)
-	if code != 2 {
-		t.Fatalf("expected exit code 2, got %d", code)
-	}
-	if !strings.Contains(buf.String(), "not implemented") {
-		t.Fatalf("expected 'not implemented' in output, got: %q", buf.String())
-	}
-}
-
 func TestDefaultIsServe(t *testing.T) {
 	var buf bytes.Buffer
 	code := run([]string{}, &buf)

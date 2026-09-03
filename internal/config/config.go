@@ -32,6 +32,7 @@ type Config struct {
 	GroqProbe      bool   // probe rate-limit headroom on Groq
 	FixturesDir    string // offline mode: serve everything from here
 	LogLevel       slog.Level
+	JSONOutput     bool // once command: emit snapshot as indented JSON
 }
 
 // Load reads environment variables (via getenv), then overrides with flags
@@ -111,6 +112,7 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 	flagState := fs.String("state", "", "state file path")
 	flagFixtures := fs.String("fixtures", "", "fixtures directory for offline mode")
 	flagTZ := fs.String("tz", "", "timezone for display (e.g. America/Sao_Paulo)")
+	flagJSON := fs.Bool("json", false, "once only: emit the snapshot as indented JSON")
 
 	if err := fs.Parse(args); err != nil {
 		return cfg, err
@@ -141,6 +143,9 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 			return cfg, fmt.Errorf("--tz %q: %w", *flagTZ, err)
 		}
 		cfg.TZ = loc
+	}
+	if setFlags["json"] {
+		cfg.JSONOutput = *flagJSON
 	}
 
 	// Expand $HOME

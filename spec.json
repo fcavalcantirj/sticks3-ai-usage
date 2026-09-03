@@ -167,7 +167,7 @@
       "Test `cmd/usaged/once_test.go` running the in-process dispatcher with `once --fixtures testdata/fixtures --tz America/Sao_Paulo` and asserting the exact table lines for `Claude/CLAUDE 5h/19` and `ChatGPT/GPT 5h/100`, and that `--json` parses into snapshot.Snapshot with rev of 8 hex chars.",
       "Verify: `go run ./cmd/usaged once --fixtures testdata/fixtures` prints a table containing `CLAUDE 5h`, `FABLE 7d`, `GPT 7d` and a footer starting with `rev=`; `go run ./cmd/usaged once --fixtures testdata/fixtures --json | python3 -c 'import json,sys; s=json.load(sys.stdin); assert s[\"v\"]==1 and len(s[\"rev\"])==8 and s[\"providers\"][0][\"id\"]==\"claude\"'`; `make verify` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "api",
