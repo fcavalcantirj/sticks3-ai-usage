@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Usage</title>
+  <style>
+    :root {
+      --bg: #0f172a; --card: #1e293b; --border: #33415e;
+      --text: #e2e8f0; --muted: #94a3b8;
+      --ok: #3b82f6; --warn: #f59e0b; --crit: #ef4444; --off: #6b7280;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 24px; min-height: 100vh;
+    }
+    h1 { font-size: 20px; font-weight: 600; margin-bottom: 16px; }
+    .cards { display: flex; flex-direction: column; gap: 16px; max-width: 720px; }
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px;
+    }
+    .card.stale { opacity: 0.7; }
+    .card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .card-title { font-size: 15px; font-weight: 600; }
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em;
+    }
+    .badge-plan { background: #33415e; color: var(--muted); }
+    .badge-status { border-radius: 4px; }
+    .badge-stale { background: rgba(100,116,140,0.15); color: var(--muted); }
+    .badge-auth  { background: rgba(245,158,11,0.15);  color: var(--warn); }
+    .badge-error { background: rgba(239,68,68,0.15);   color: var(--crit); }
+    .badge-off   { background: rgba(100,116,140,0.15); color: var(--muted); }
+    .row { margin-bottom: 10px; }
+    .row:last-child { margin-bottom: 0; }
+    .row-inner { display: flex; align-items: center; gap: 10px; }
+    .row.stale .bar-fill { opacity: 0.5; }
+    .label { min-width: 110px; font-size: 13px; color: var(--text); }
+    .bar-wrap { flex: 1; }
+    .bar { height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 4px; }
+    .usage { min-width: 90px; font-size: 12px; color: var(--muted); text-align: right; }
+    .reset { min-width: 150px; font-size: 12px; color: var(--muted); text-align: right; }
+    .footer-bar { margin-top: 20px; display: flex; justify-content: space-between; align-items: center; max-width: 720px; }
+    .footer-bar .info { font-size: 12px; color: var(--muted); }
+    button {
+      background: var(--card); border: 1px solid var(--border); color: var(--text);
+      padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;
+    }
+    button:hover { background: var(--border); }
+    .msg-error {
+      display: none; background: rgba(239,68,68,0.1); border: 1px solid var(--crit);
+      border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; font-size: 13px; color: var(--crit);
+    }
+    .token-row { display: none; gap: 8px; margin-bottom: 12px; }
+    .token-row input {
+      flex: 1; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); font-size: 13px;
+    }
+    .token-row button { background: var(--ok); color: var(--bg); border: none; }
+  </style>
+</head>
+<body>
+  <h1>AI Usage</h1>
+  <div id="auth-error" class="msg-error"></div>
+  <div id="token-input" class="token-row">
+    <input type="password" id="token-field" placeholder="Enter device token" autocomplete="off">
+    <button id="token-save">Save</button>
+  </div>
+  <div id="cards" class="cards"></div>
+  <div class="footer-bar">
+    <span id="footer-text" class="info">Data as of \u2014 \u00b7 checked \u2014 \u00b7 rev \u2014 \u00b7 seq \u2014</span>
+    <button id="refresh-btn">Refresh now</button>
+  </div>
+
+<script>
+/*
+ * AI Usage dashboard \u2014 vanilla JS, no build step, one file.
+ * Pure helpers (tierColor, resetText, fmtTime, pctText) are named and side-effect
+ * free so a future test harness could import them.
+ *
+ * Protocol: poll /v1/usage every 60 s with If-None-Match; on 304 update the
+ * "checked" time from /healthz; on 200 re-render only the provider cards whose
+ * JSON block changed. Reset texts tick every 30 s client-side. Token is read
+ * from ?token= (\u2192 localStorage usaged_token), sent as X-Device-Token on
+ * every /v1/* call; 401 surfaces an inline token input. No inline event
+ * handlers (\u2717 \u2713) for CSP-friendliness.
+ */
+
+// ---- Pure helpers ----
+
+function tierColor(tier) {
+  var m = { ok: "#3b82f6", warn: "#f59e0b", crit: "#ef4444", off: "#6b7280" };
+  return m[tier] || "#6b7280";
+}
+
+function planLabel(plan) {
+  if (plan === "max_20x") return "Max (20x)";
+  if (plan === "plus")    return "Plus";
+  return plan || "";
+}
+
+function statusBadge(status, msg) {
+  if (status === "ok") return "";
+  if (status === "off") return badge("off", "no key");
+  if (status === "stale") return badge("stale", "stale \u00b7 " + msg);
+  if (status === "auth")  return badge("auth",  msg);
+  if (status === "error") return badge("error", msg);
+  return "";
+}
+
+function badge(cls, text) {
+  return '<span class="badge badge-status badge-' + cls + '">' + esc(text) + '</span>';
+}
+
+function fmtTime(unixSec) {
+  if (!unixSec) return "\u2014";
+  var d = new Date(unixSec * 1000);
+  return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
+// Reset text from reset_at (unix seconds) or fallback to txt.
+// > 24 h remaining \u2192 "Resets Mon 05:00" (browser locale).
+// \u2264 24 h remaining \u2192 "Resets in Xh Ym".
+// past or null  \u2192 fallbackTxt.
+function resetText(resetAt, fallbackTxt) {
+  if (!resetAt) return fallbackTxt || "";
+  var now = Math.floor(Date.now() / 1000);
+  var diff = resetAt - now;
+  if (diff <= 0) return fallbackTxt || "";
+  if (diff > 86400) {
+    var d = new Date(resetAt * 1000);
+    return "Resets " + d.toLocaleDateString(undefined, { weekday: "short" }) +
+           " " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  }
+  var h = Math.floor(diff / 3600);
+  var m = Math.floor((diff % 3600) / 60);
+  return "Resets in " + h + "h " + m + "m";
+}
+
+function pctText(pct, txt) {
+  return pct != null ? (pct + "% used") : (txt || "");
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return { "&": "&#38;", "<": "&#60;", ">": "&#62;", '"': "&#34;", "'": "&#39;" }[c];
+  });
+}
+
+// ---- Token handling ----
+
+function getToken() {
+  return localStorage.getItem("usaged_token") || "";
+}
+
+function authHeaders() {
+  var h = {};
+  var t = getToken();
+  if (t) h["X-Device-Token"] = t;
+  return h;
+}
+
+function stripTokenFromUrl() {
+  var params = new URLSearchParams(window.location.search);
+  var t = params.get("token");
+  if (t) {
+    localStorage.setItem("usaged_token", t);
+    params.delete("token");
+    var u = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
+    window.history.replaceState({}, "", u);
+  }
+}
+
+// ---- State ----
+
+var lastRev = null;       // full ETag header value, e.g. '"abcd1234"'
+var lastProviderJson = {}; // id \u2192 JSON string of last-rendered provider
+
+// ---- Fetch ----
+
+function loadUsage() {
+  var headers = authHeaders();
+  if (lastRev) headers["If-None-Match"] = lastRev;
+  return fetch("/v1/usage", { headers: headers }).then(function(resp) {
+    if (resp.status === 401) { showTokenInput(); return null; }
+    if (resp.status === 304)  { loadHealthz(); return null; }
+    return resp.json();
+  });
+}
+
+function loadHealthz() {
+  fetch("/healthz", { headers: authHeaders() })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(h) { if (h) updateFooterChecked(h); });
+}
+
+// ---- Rendering ----
+
+function renderSnapshot(snap) {
+  var container = document.getElementById("cards");
+  snap.providers.forEach(function(p) {
+    var jsonStr = JSON.stringify(p);
+    var cardEl = document.getElementById("card-" + p.id);
+    if (lastProviderJson[p.id] !== jsonStr) {
+      if (cardEl) {
+        cardEl.className = "card" + (p.status === "stale" ? " stale" : "");
+        cardEl.innerHTML = cardInner(p);
+      } else {
+        container.insertAdjacentHTML("beforeend", cardElHtml(p));
+      }
+    }
+    lastProviderJson[p.id] = jsonStr;
+  });
+  lastRev = '"' + snap.rev + '"';
+  updateFooter(snap);
+}
+
+function cardElHtml(p) {
+  return '<div id="card-' + esc(p.id) + '" class="card' +
+    (p.status === "stale" ? " stale" : "") + '">' + cardInner(p) + '</div>';
+}
+
+function cardInner(p) {
+  return cardHeader(p) + '<div class="rows">' +
+    (p.rows || []).map(function(r) { return renderRow(r, p.status === "stale"); }).join("") +
+    '</div>';
+}
+
+function cardHeader(p) {
+  return '<div class="card-header">' +
+    '<span class="card-title">' + esc(p.label) + '</span>' +
+    '<span class="badge badge-plan">' + esc(planLabel(p.plan)) + '</span>' +
+    statusBadge(p.status, p.msg) +
+    '</div>';
+}
+
+function renderRow(row, isStale) {
+  var hasPct = row.pct != null;
+  var color = tierColor(row.tier);
+  var bar = "";
+  if (hasPct) {
+    bar = '<div class="bar-wrap"><div class="bar"><div class="bar-fill" style="width:' +
+      row.pct + '%;background:' + color + '"></div></div></div>';
+  } else {
+    bar = '<div class="bar-wrap"></div>';
+  }
+  return '<div class="row' + (isStale ? " stale" : "") + '">' +
+    '<div class="row-inner">' +
+    '<span class="label">' + esc(row.label) + '</span>' +
+    bar +
+    '<span class="usage">' + esc(pctText(row.pct, row.txt)) + '</span>' +
+    '<span class="reset" data-reset-at="' + (row.reset_at || "") + '" data-fallback="' +
+    esc(row.txt || "") + '">' + esc(resetText(row.reset_at, row.txt)) + '</span>' +
+    '</div></div>';
+}
+
+function updateFooter(snap) {
+  var asOf = fmtTime(snap.generated_at);
+  var el = document.getElementById("footer-text");
+  el.textContent = "Data as of " + asOf + " \u00b7 checked " + asOf +
+    " \u00b7 rev " + (snap.rev || "\u2014") + " \u00b7 seq " + (snap.seq != null ? snap.seq : "\u2014");
+}
+
+function updateFooterChecked(h) {
+  var el = document.getElementById("footer-text");
+  var parts = el.textContent.split(" \u00b7 ");
+  if (parts.length >= 4) {
+    parts[1] = "checked " + fmtTime(h.checked_at);
+    if (h.rev) parts[2] = "rev " + h.rev;
+    if (h.seq != null) parts[3] = "seq " + h.seq;
+    el.textContent = parts.join(" \u00b7 ");
+  }
+}
+
+// ---- Actions ----
+
+function showTokenInput() {
+  var msg = document.getElementById("auth-error");
+  msg.style.display = "block";
+  msg.textContent = "401 Unauthorized \u2014 enter your device token to view usage data.";
+  document.getElementById("token-input").style.display = "flex";
+}
+
+function saveToken() {
+  var token = document.getElementById("token-field").value.trim();
+  if (token) {
+    localStorage.setItem("usaged_token", token);
+    document.getElementById("token-input").style.display = "none";
+    document.getElementById("auth-error").style.display = "none";
+    loadUsage().then(function(snap) { if (snap) renderSnapshot(snap); });
+  }
+}
+
+function doRefresh() {
+  var headers = authHeaders();
+  headers["Content-Type"] = "application/json";
+  fetch("/v1/refresh", { method: "POST", headers: headers })
+    .then(function(r) {
+      if (r.status === 401) { showTokenInput(); return null; }
+      if (!r.ok) return null;
+      return r.json();
+    })
+    .then(function(snap) {
+      if (!snap) return;
+      renderSnapshot(snap);
+      lastRev = '"' + snap.rev + '"';
+    });
+}
+
+// ---- Init & polling ----
+
+function init() {
+  stripTokenFromUrl();
+  loadUsage().then(function(snap) { if (snap) renderSnapshot(snap); });
+  document.getElementById("refresh-btn").addEventListener("click", doRefresh);
+  document.getElementById("token-save").addEventListener("click", saveToken);
+  setInterval(pollUsage, 60000);   // 60 s poll with If-None-Match
+  setInterval(tickResets, 30000);  // 30 s countdown refresh
+}
+
+function pollUsage() {
+  loadUsage().then(function(snap) { if (snap) renderSnapshot(snap); });
+}
+
+function tickResets() {
+  document.querySelectorAll(".reset").forEach(function(el) {
+    var ra = parseInt(el.getAttribute("data-reset-at") || "0", 10);
+    var fb = el.getAttribute("data-fallback") || "";
+    el.textContent = resetText(ra || null, fb);
+  });
+}
+
+document.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>

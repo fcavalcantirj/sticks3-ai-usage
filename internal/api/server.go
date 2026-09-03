@@ -13,6 +13,7 @@ import (
 	"usaged/internal/format"
 	"usaged/internal/sched"
 	"usaged/internal/snapshot"
+	"usaged/internal/web"
 )
 
 // Server hosts the usage HTTP API backed by a scheduler.
@@ -43,6 +44,8 @@ func New(s *sched.Scheduler, cfg config.Config, logger *slog.Logger) (*http.Serv
 	}
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /", srv.handleIndex)
+	mux.HandleFunc("GET /index.html", srv.handleIndex)
 	mux.HandleFunc("GET /healthz", srv.handleHealthz)
 	mux.HandleFunc("GET /v1/usage", srv.handleUsage)
 	mux.HandleFunc("GET /v1/usage.txt", srv.handleUsageTxt)
@@ -124,6 +127,13 @@ func (s *Server) handleUsageTxt(w http.ResponseWriter, _ *http.Request) {
 	snap := s.withNextSec(s.sched.Current())
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	format.RenderTable(snap, w, s.cfg.TZ)
+}
+
+// handleIndex serves the embedded dashboard at / and /index.html.
+func (s *Server) handleIndex(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Write(web.IndexHTML)
 }
 
 // handleNotFound returns a JSON 404 for unknown paths/methods.

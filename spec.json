@@ -210,7 +210,7 @@
       "Go test in `internal/web/web_test.go`: the embedded HTML is non-empty, contains `<title>AI Usage</title>`, `/v1/usage`, `If-None-Match`, `X-Device-Token`; an api test serves `/` → 200 text/html. Keep JS logic that is pure (tier colour, resets text) in small named functions so a future test harness could import them; document in a comment.",
       "Verify: `make smoke` still exits 0 and additionally `curl -s http://127.0.0.1:18765/ | grep -c 'AI Usage'` prints ≥1 (extend scripts/smoke.sh with this check); `make verify` exits 0. UAT for the founder (not required for passes): run `bin/usaged serve --fixtures testdata/fixtures --listen 127.0.0.1:18765` and open http://127.0.0.1:18765/ — expect two cards, Claude rows 19/30/20 %, ChatGPT rows 100/31 % + `$178.10`."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "web",

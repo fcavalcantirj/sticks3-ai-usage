@@ -310,6 +310,27 @@ func TestUsageTXT(t *testing.T) {
 	}
 }
 
+func TestIndexHTML(t *testing.T) {
+	dir := setupFixtures(t)
+	ts, _, _ := newFixtureServer(t, dir)
+
+	resp, err := http.Get(ts.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
+		t.Errorf("Content-Type = %q, want text/html", ct)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "AI Usage") {
+		t.Errorf("GET / body missing 'AI Usage'")
+	}
+}
+
 // --- Auth middleware tests ---
 
 func TestAuthLoopbackNoToken(t *testing.T) {

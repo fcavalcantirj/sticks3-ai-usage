@@ -67,4 +67,11 @@ if [ "$REFRESH_CODE" != "200" ]; then
     exit 1
 fi
 
+# GET / → 200 text/html containing "AI Usage".
+ROOT_COUNT=$(curl -s "${BASE}/" | grep -c 'AI Usage')
+if [ "$ROOT_COUNT" -lt 1 ]; then
+    echo "FAIL: GET / does not contain 'AI Usage'"
+    exit 1
+fi
+
 echo "SMOKE OK"
