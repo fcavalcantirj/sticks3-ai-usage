@@ -263,7 +263,7 @@
       "Tests: fixture transport → OR main bal pct 99 txt `$0.07`, day `$0.00`; credits 403 override (routes.json) → bal row absent, day row present, status ok; 401 on /key → auth. Table output in `once` shows the new rows after the codex rows.",
       "Verify: `go test ./internal/providers -run OpenRouter -v 2>&1 | grep -c '^--- PASS'` ≥ 3; `OPENROUTER_API_KEY=x go run ./cmd/usaged once --fixtures testdata/fixtures | grep -c 'OR main'` ≥ 1; `make verify` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "providers",
