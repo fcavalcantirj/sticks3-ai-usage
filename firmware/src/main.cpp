@@ -26,7 +26,9 @@ static const uint32_t kMaxFails = 12;
 // --- poll state -------------------------------------------------------------
 
 static usage::View g_view;
+static usage::Model g_model;
 static char g_lastRev[9] = "";
+static bool g_hasModel = false;
 static uint32_t g_netUpAt = 0;
 static bool g_netWasUp = false;
 static uint32_t g_nextPoll = 0;
@@ -41,6 +43,19 @@ static uint32_t pollInterval() {
     }
     if (b > kPollMs) b = kPollMs;
     return b;
+}
+
+static void redraw() {
+    usage::RenderPlan plan;
+    usage::buildPlan(g_model, g_view.page, plan);
+    drawPlan(plan, netUp());
+
+    char buf[64];
+    usage::fmtRender(buf, sizeof(buf), plan.page, plan.lineCount,
+                     g_model.rev);
+    serialLine(buf);
+
+    g_view.needsRedraw = false;
 }
 
 static void doFetch() {
@@ -60,6 +75,8 @@ static void doFetch() {
                 serialLine(buf);
             } else {
                 usage::onSnapshot(g_view, model);
+                g_model = model;
+                g_hasModel = true;
                 // Save rev for the next conditional request.
                 for (size_t i = 0; i < 8; i++)
                     g_lastRev[i] = model.rev[i];
@@ -122,6 +139,16 @@ void loop() {
         }
     } else {
         g_netWasUp = false;
+    }
+
+    // Redraw on data change (set by onSnapshot) or button press.
+    if (g_hasModel && g_view.needsRedraw) {
+        redraw();
+    }
+
+    if (M5.BtnA.wasClicked() && g_hasModel) {
+        usage::nextPage(g_view, g_model);
+        redraw();
     }
 
     delay(1);

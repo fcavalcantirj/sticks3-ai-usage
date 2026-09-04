@@ -379,7 +379,7 @@
       "Add a host test for the pure text-fitting rule by moving the measure-then-shrink decision into `firmware/src/usage/textfit.h/.cpp` (`size_t fitRight(const char* in, char* out, size_t n, int maxPx, int (*measure)(const char*))`) with a test that uses a fake 6-px-per-char measure and asserts `100% $178.10` fits in 156 px unchanged while a 30-char string is shortened to end with `..`.",
       "Verify: `make fw-test` prints `PASS textfit_shortens` and ends in `Failed 0`; `make fw-build` ends with `SUCCESS` and the build log `RAM:` line shows < 25 % used; `grep -c 'needsRedraw' firmware/src/main.cpp` \u2265 1. No upload."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "hal",
