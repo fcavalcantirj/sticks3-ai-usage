@@ -368,7 +368,7 @@
       "Create `firmware/src/hal/sticks3/fetch.h/.cpp`: `struct FetchResult { int code; char rev[9]; uint32_t ms; String body; /* body only on 200 */ }`; `bool fetchUsage(const char* lastRev, FetchResult& out)`: `HTTPClient http; http.setTimeout(8000); http.setReuse(false);` URL `http://USAGED_HOST:USAGED_PORT/v1/usage`; headers `X-Device-Token: USAGED_DEVICE_TOKEN`, and if lastRev non-empty `If-None-Match: \"<lastRev>\"`; `const char* keys[] = {\"ETag\"}; http.collectHeaders(keys, 1);` `int code = http.GET();` on 304: do NOT call getString(); copy the ETag (strip quotes and any `W/`) into out.rev; on 200: `out.body = http.getString()` (\u2264 4 KB expected; reject > 8 KB), rev from ETag; other codes/negative: out.code = code (HTTPClient negative codes for timeouts \u2192 emit `err=timeout`/`err=conn`); always `http.end()`. Emit the `[FETCH]` line via serial_proto with the elapsed ms. Then in `main.cpp` add the poll state machine: first fetch 3 s after `netUp()` becomes true, then every 300 s (`kPollMs = 300000`), immediately on `BtnB.wasClicked()`, with exponential backoff 30 s \u2192 300 s on consecutive failures, and `ESP.restart()` after 12 consecutive failures (log `[ERR] restart after 12 failures` first). On 200: `parseSnapshot` into the Model, `onSnapshot(view, model)`; on parse error emit `[ERR] parse: <err>`.",
       "Verify: `make fw-build` ends with `SUCCESS`; `grep -c 'If-None-Match' firmware/src/hal/sticks3/fetch.cpp` \u2265 1; `grep -c 'getString' firmware/src/hal/sticks3/fetch.cpp` prints 1 (only on the 200 path). No upload. UAT later: `[FETCH] code=200 \u2026` then `[FETCH] code=304 \u2026` every 5 min while the host snapshot is unchanged."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "hal",
