@@ -419,7 +419,7 @@
       "In a temp dir: `git clone /Users/fcavalcanti/dev/m5/sticks3-ai-usage /tmp/usaged-clone && cd /tmp/usaged-clone && make verify && make fw-test && cp firmware/include/secrets.h.example firmware/include/secrets.h && make fw-build`; all must exit 0 (PlatformIO may download packages once). Secret scan on the repo history and tree: `git grep -nE 'sk-ant-(oat|ort|api|admin)01-[A-Za-z0-9]{8}|sk-or-v1-[A-Za-z0-9]{8}|gsk_[A-Za-z0-9]{8}|rt\\.1\\.[A-Za-z0-9]{8}|sk-proj-[A-Za-z0-9]{8}' -- . ':!testdata/fixtures/keychain.json'` must print nothing (the fixture token is `sk-ant-oat01-FIXTURE-\u2026`, which the regex must not match \u2014 adjust the regex so FIXTURE is excluded rather than the file), and `git log -p | grep -cE 'sk-ant-oat01-[A-Za-z0-9]{20}'` prints 0. Remove the clone afterwards.",
       "Verify: the clone commands above exit 0 (paste the last 3 lines of each into progress.txt); both secret scans print 0/nothing; `rm -rf /tmp/usaged-clone`."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "docs",
