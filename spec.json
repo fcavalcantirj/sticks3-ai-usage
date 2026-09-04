@@ -348,7 +348,7 @@
       "Create `firmware/src/hal/sticks3/board.h/.cpp`: `void boardInit()` (M5.config flags as in the skeleton, `M5.begin`, `M5.Display.setRotation(1)`, `setBrightness(80)`, `M5.BtnA.setHoldThresh(600)`, `M5.BtnB.setHoldThresh(600)`), `int boardId()`, `uint32_t psramBytes()`, `const char* buildId()` (USAGED_BUILD_ID macro), `uint32_t nowMs()` (millis), `void serialLine(const char*)` (Serial.println). Create `firmware/src/hal/sticks3/screen.h/.cpp` with `void drawBootScreen(const char* build)` (black background, `AI USAGE` size 2 centred, `build \u2026` size 1 at the bottom). Rewrite `firmware/src/main.cpp` to: `boardInit(); Serial.begin(115200); print fmtBoot(...); drawBootScreen(buildId());` and an empty cooperative `loop()` (`M5.update(); uint32_t now = nowMs(); /* state machines come in later tasks */ delay(1);` \u2014 a 1 ms yield in loop() is the only allowed delay).",
       "Verify: `make fw-build` ends with `SUCCESS` and `grep -c 'M5Unified.h' firmware/src/usage/*.cpp firmware/src/usage/*.h` prints 0 (purity rule: only hal/ and main.cpp include M5). No upload. UAT (later, founder-authorised): serial shows `[BOOT] board=26 psram=8388608 build=<sha>`."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "hal",

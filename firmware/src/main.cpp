@@ -1,31 +1,29 @@
+// firmware/src/main.cpp — Arduino entry points for the StickS3 usage monitor.
+//
+// Includes <M5Unified.h> (allowed for main.cpp) and delegates all M5 calls to
+// the HAL layer; usage/ formatters stay pure C++17.
 #include <M5Unified.h>
 
+#include "hal/sticks3/board.h"
+#include "hal/sticks3/screen.h"
+#include "usage/serial_proto.h"
+
+using namespace sticks3;
+
 void setup() {
-  auto cfg = M5.config();
-  cfg.internal_imu = false;
-  cfg.internal_spk = false;
-  cfg.internal_mic = false;
-  cfg.output_power = false;
-  M5.begin(cfg);
+    boardInit();
+    Serial.begin(115200);
 
-  Serial.begin(115200);
+    char buf[64];
+    usage::fmtBoot(buf, sizeof(buf), boardId(), psramBytes(), buildId());
+    serialLine(buf);
 
-  M5.Display.setRotation(1);
-  M5.Display.setBrightness(80);
-
-  const char *msg = "AI USAGE";
-  M5.Display.setTextSize(2);
-  M5.Display.setTextColor(0xFFFF);
-  int16_t tw = M5.Display.textWidth(msg);
-  int16_t th = M5.Display.fontHeight();
-  M5.Display.setCursor((M5.Display.width() - tw) / 2, (M5.Display.height() - th) / 2);
-  M5.Display.println(msg);
-
-  Serial.printf("[BOOT] board=%d psram=%d build=%s fw=0.1.0\n",
-                (int)M5.getBoard(), (int)ESP.getPsramSize(), USAGED_BUILD_ID);
+    drawBootScreen(buildId());
 }
 
 void loop() {
-  M5.update();
-  delay(10);
+    M5.update();
+    uint32_t now = nowMs();
+    /* state machines come in later tasks */
+    delay(1);
 }
