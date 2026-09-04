@@ -56,4 +56,13 @@ int fmtSleep(char* out, size_t n, const char* reason);
 // Unknown kinds produce "[OTA] err=0".
 int fmtOta(char* out, size_t n, const char* kind, unsigned int param);
 
+// fmtGesture formats a gesture event line:
+//   [GESTURE] flip rot=3
+int fmtGesture(char* out, size_t n, uint8_t rot);
+
+// fmtBtn formats a button event line:
+//   [BTN] a_hold refresh
+//   [BTN] a_click page
+int fmtBtn(char* out, size_t n, const char* event);
+
 } // namespace usage

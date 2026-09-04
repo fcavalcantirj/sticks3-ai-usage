@@ -32,4 +32,14 @@ void serialLine(const char* s);
 // Set the LCD backlight brightness (0–255).
 void setBrightness(uint8_t level);
 
+// Apply a screen rotation (1 = upright, 3 = 180-degree flip).
+void setRotation(uint8_t r);
+
+// Load the persisted rotation from NVS (namespace "usaged", key "rot").
+// Returns 1 (upright) if no saved value exists.
+uint8_t loadRotation();
+
+// Persist the current rotation to NVS.
+void saveRotation(uint8_t r);
+
 } // namespace sticks3

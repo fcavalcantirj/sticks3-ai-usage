@@ -6,12 +6,13 @@
 #endif
 
 #include <M5Unified.h>
+#include <Preferences.h>
 
 namespace sticks3 {
 
 void boardInit() {
     auto cfg = M5.config();
-    cfg.internal_imu = false;
+    cfg.internal_imu = true;
     cfg.internal_spk = false;
     cfg.internal_mic = false;
     cfg.output_power = false;
@@ -46,6 +47,34 @@ void serialLine(const char* s) {
 
 void setBrightness(uint8_t level) {
     M5.Display.setBrightness(level);
+}
+
+// --- IMU + rotation ----------------------------------------------------------
+
+// Apply a screen rotation value (1 = upright, 3 = 180-degree flip).
+void setRotation(uint8_t r) {
+    M5.Display.setRotation(r);
+}
+
+// Load persisted rotation from NVS.  Returns 1 (upright) if unset.
+uint8_t loadRotation() {
+    Preferences pref;
+    pref.begin("usaged", false);
+    uint8_t rot = (uint8_t)pref.getUChar("rot", 1);
+    pref.end();
+    // Validate: only 1 and 3 are valid for the StickS3.
+    if (rot != 1 && rot != 3) {
+        rot = 1;
+    }
+    return rot;
+}
+
+// Persist rotation to NVS so it survives reboot, deep sleep, and OTA.
+void saveRotation(uint8_t r) {
+    Preferences pref;
+    pref.begin("usaged", false);
+    pref.putUChar("rot", r);
+    pref.end();
 }
 
 } // namespace sticks3

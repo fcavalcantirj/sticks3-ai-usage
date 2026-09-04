@@ -185,3 +185,28 @@ TEST(serial_ota_unknown_kind) {
     ASSERT_STREQ("[OTA] err=0", buf);
     ASSERT_EQ(r, (int)std::strlen(buf));
 }
+
+// --- fmtGesture ----------------------------------------------------------------
+
+TEST(serial_gesture_flip) {
+    char buf[64];
+    int r = usage::fmtGesture(buf, sizeof(buf), 3);
+    ASSERT_STREQ("[GESTURE] flip rot=3", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+// --- fmtBtn ---------------------------------------------------------------------
+
+TEST(serial_btn_a_hold_refresh) {
+    char buf[64];
+    int r = usage::fmtBtn(buf, sizeof(buf), "a_hold refresh");
+    ASSERT_STREQ("[BTN] a_hold refresh", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+TEST(serial_btn_a_click_page) {
+    char buf[64];
+    int r = usage::fmtBtn(buf, sizeof(buf), "a_click page");
+    ASSERT_STREQ("[BTN] a_click page", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}

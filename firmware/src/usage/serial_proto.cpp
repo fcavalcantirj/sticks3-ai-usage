@@ -120,4 +120,19 @@ int fmtOta(char* out, size_t n, const char* kind, unsigned int param) {
     return std::snprintf(out, n, "[OTA] err=0");
 }
 
+// fmtGesture formats a gesture event line:
+//   [GESTURE] flip rot=3
+int fmtGesture(char* out, size_t n, uint8_t rot) {
+    return std::snprintf(out, n, "[GESTURE] flip rot=%u",
+                         static_cast<unsigned int>(rot));
+}
+
+// fmtBtn formats a button event line:
+//   [BTN] a_hold refresh
+//   [BTN] a_click page
+int fmtBtn(char* out, size_t n, const char* event) {
+    return std::snprintf(out, n, "[BTN] %s",
+                         event != nullptr ? event : "");
+}
+
 } // namespace usage

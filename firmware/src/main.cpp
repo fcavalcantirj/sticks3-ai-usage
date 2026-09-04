@@ -26,6 +26,7 @@
 #include "usage/power.h"
 #include "usage/render_plan.h"
 #include "usage/serial_proto.h"
+#include "usage/gesture.h"
 
 #include <cstdio>
 #include <cstring>
@@ -90,6 +91,13 @@ static bool g_brightnessDimmed = false;
 static bool g_graceActive = false;     // grace window started (first render/fetch-fail on this boot)
 static bool g_paintedThisBoot = false; // at least one redraw() completed
 static bool g_prevVbusPresent = false; // for USB→battery transition detection
+
+// --- IMU gesture state (task 48) ---------------------------------------------
+// Double-tap detector: pure state machine, fed from the HAL IMU poll.
+static sticks3::gesture::DoubleTapDetector g_gesture;
+// IMU poll rate.
+static const uint32_t kImuPollMs = 20;
+static uint32_t g_lastImuPoll = 0;
 
 // --- helpers ----------------------------------------------------------------
 
@@ -183,6 +191,38 @@ static void doFetch() {
     }
 }
 
+// --- IMU gesture polling ----------------------------------------------------
+
+// imuGestureUpdate polls the BMI270 at ~50 Hz and feeds samples to the
+// double-tap detector.  On a detected gesture, toggles rotation, persists
+// it, emits [GESTURE], and forces a redraw.
+static void imuGestureUpdate(uint32_t now) {
+    if ((int32_t)(now - g_lastImuPoll) < (int32_t)kImuPollMs) {
+        return;
+    }
+    g_lastImuPoll = now;
+
+    // Read raw acceleration from the BMI270 via M5Unified.
+    // Units are m/s²; the detector converts to g internally.
+    float ax = 0, ay = 0, az = 0;
+    M5.Imu.getAccelData(&ax, &ay, &az);
+
+    sticks3::gesture::Gesture g = g_gesture.feed(ax, ay, az, now);
+    if (g == sticks3::gesture::Gesture::double_tap) {
+        uint8_t rot = (uint8_t)g_gesture.rotation();
+        setRotation(rot);
+        saveRotation(rot);
+
+        char buf[64];
+        usage::fmtGesture(buf, sizeof(buf), rot);
+        serialLine(buf);
+
+        // Force a redraw in the new orientation.
+        g_view.needsRedraw = true;
+        g_lastActivity = now;
+    }
+}
+
 // --- state machine steps ----------------------------------------------------
 
 // Poll: first fetch after netUp, then periodic kPollMs.
@@ -209,15 +249,28 @@ static void pollUpdate(uint32_t now) {
     }
 }
 
-// Buttons: BtnA cycles pages, BtnB triggers an immediate fetch.
+// Buttons: BtnA short-press cycles pages; BtnA long-press forces a fetch;
+// BtnB short-press forces a fetch.
 static void buttonsUpdate(uint32_t now) {
-    // BtnA: cycle pages (only when we have a model).
+    // BtnA short press: cycle pages (only when we have a model).
     if (M5.BtnA.wasClicked() && g_hasModel) {
         usage::nextPage(g_view, g_model);
         g_lastActivity = now;
+        char buf[64];
+        usage::fmtBtn(buf, sizeof(buf), "a_click page");
+        serialLine(buf);
     }
 
-    // BtnB: immediate fetch.
+    // BtnA long press (hold threshold 600 ms in boardInit): force fetch.
+    if (M5.BtnA.wasHold() && netUp()) {
+        doFetch();
+        g_lastActivity = now;
+        char buf[64];
+        usage::fmtBtn(buf, sizeof(buf), "a_hold refresh");
+        serialLine(buf);
+    }
+
+    // BtnB short press: immediate fetch.
     if (M5.BtnB.wasClicked() && netUp()) {
         doFetch();
         g_lastActivity = now;
@@ -264,6 +317,13 @@ void setup() {
     serialLine(buf);
 
     drawBootScreen(buildId());
+
+    // --- IMU + rotation (task 48) ------------------------------------------
+    // Load persisted rotation BEFORE the first paint so a flipped device
+    // never shows one upside-down frame.
+    uint8_t rot = loadRotation();
+    setRotation(rot);
+    M5.Imu.begin(); // BMI270 at 0x68; safe to call even if IMU is disabled
 
     // --- power: wake cause + RTC snapshot restore ---
     WakeCause wakeCause = readWakeCause();
@@ -349,6 +409,13 @@ void loop() {
     // paint of the cached snapshot (paintedThisBoot guard).
     if (g_view.needsRedraw || (!g_paintedThisBoot && g_hasModel)) {
         redraw();
+    }
+
+    // --- IMU gesture polling (task 48) -----------------------------------
+    // Poll every 20 ms while awake and no fetch/OTA is in flight.
+    // The detector is pure C++ — hardware access is in the HAL.
+    if (netUp() && !otaInProgress()) {
+        imuGestureUpdate(now);
     }
 
     // ORDER #30: when grace is not yet active (pre-first-render on wake),

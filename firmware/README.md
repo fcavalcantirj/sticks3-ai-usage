@@ -47,8 +47,14 @@ hardware behaviour is verified without a camera or extra tools.
 | `[FETCH]` | `[FETCH] code=200 rev=abcd1234 seq=43 ms=310`  (200, new data)        |
 | `[FETCH]` | `[FETCH] code=-1 err=timeout ms=8000`  (error; rev reused as err)     |
 | `[RENDER]`| `[RENDER] page=1 lines=5 rev=abcd1234`                                 |
+| `[GESTURE]`| `[GESTURE] flip rot=3`  (IMU double-tap, 180° rotation)          |
+| `[BTN]`    | `[BTN] a_hold refresh`  (BtnA long-press → force fetch)          |
+| `[BTN]`    | `[BTN] a_click page`  (BtnA short-press → page cycle)            |
 | `[HEAP]`  | `[HEAP] free=123456 min=65432`  (60 s watchdog)                        |
 | `[ERR]`   | `[ERR] <what>`                                                        |
+| `[WAKE]`  | `[WAKE] cause=timer vbus=0`  (deep-sleep wake cause)                   |
+| `[SLEEP]` | `[SLEEP] reason=battery`  (deep-sleep entry)                            |
+| `[OTA]`   | `[OTA] start` / `[OTA] pct=47` / `[OTA] end` / `[OTA] err=2`            |
 
 ### Fetch variants
 
@@ -117,3 +123,47 @@ The value text and label share `textY` (vertically centred in the row); the bar
 shares `barY` (also vertically centred).  Previously the text was top-datum
 (`rowY`) while the bar was at `rowY + 4`, making the value look like it belonged
 to the row above.
+
+## IMU & gestures (task 48)
+
+The BMI270 IMU is at I2C address 0x68 (not 0x69) on SDA GPIO47 / SCL GPIO48.
+M5Unified probes both and the hardcoded 0x68 value is the real address on this
+board.  `internal_imu` is set to `true` in `boardInit()`.
+
+### Double-tap to flip
+
+The gesture logic lives entirely in `firmware/src/usage/gesture.{h,cpp}` — a
+pure state machine with no M5/Arduino headers, host-tested by
+`test/host/test_gesture.cpp`.  The HAL polls `M5.Imu.getAccelData` at ~50 Hz
+(every 20 ms) while awake and feeds raw m/s² samples to the detector.
+
+**Detection algorithm:**
+1. Compute true-g magnitude: `mag = sqrt(ax² + ay² + az²) / 9.80665`.
+2. A spike is a transient where `mag > 2.5g` lasting under 120 ms.
+3. Two spikes separated by 120–500 ms form a double-tap.
+4. A 1-second lockout follows each double-tap.
+5. A slow ramp (picking the device up) exceeds 120 ms and is ignored.
+
+On a double-tap, the screen rotation toggles between 1 (upright) and 3
+(180-degree flip).  The rotation is persisted in NVS (namespace `"usaged"`,
+key `"rot"`) so it survives reboot, deep sleep, and OTA.  It is loaded during
+`boardInit()` before the first paint so a flipped device never shows one
+upside-down frame.
+
+### Button gestures
+
+- **BtnA short press** (wasClicked): cycles to the next page.
+- **BtnA long press** (wasHold, 600 ms threshold): forces an immediate fetch
+  (`[BTN] a_hold refresh`), equivalent to pressing BtnB.
+- **BtnB short press**: forces an immediate fetch (ORDER #38 refresh).
+
+### Hardware capture notes (from Felipe's real device)
+
+The thresholds (2.5g spike, 120 ms max spike duration, 120–500 ms gap,
+1 s lockout) were tuned from real double-tap captures recorded while the device
+was on USB power.  Raw accelerometer magnitude was logged as `[IMU] mag=<f>`
+behind a build flag during tuning; see docs/DEVICES.md for the captured values.
+
+The BMI270 draws ~1 mA when active.  During deep-sleep teardown it is
+suspended (0x68: 0x7D=0x00, 0x7C=0x03) so it does not waste battery on the
+60-second timer wake.  IMU polling is skipped during fetches and OTA transfers.
