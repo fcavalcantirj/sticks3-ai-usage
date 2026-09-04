@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -426,5 +427,83 @@ func TestScanSkipOldFiles(t *testing.T) {
 	src := report.Sources["claude_code"]
 	if src.Today.Tokens.Input == 0 {
 		t.Error("SkipOld should not skip files within MaxAge")
+	}
+}
+
+func TestScanUnpricedModelsAndSynthetic(t *testing.T) {
+	// Create a temp fixture with known-priced, unknown, and <synthetic> models.
+	claudeDir := filepath.Join(fixtureDir(t), "test_pricing")
+	if err := os.MkdirAll(claudeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(claudeDir) })
+
+	lines := []string{
+		// Priced model (claude-sonnet-4-20250514)
+		`{"type":"assistant","timestamp":"2026-09-03T10:00:00Z","requestId":"req-1","message":{"id":"msg-1","model":"claude-sonnet-4-20250514","usage":{"input_tokens":100,"output_tokens":200,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}`,
+		// Unknown model
+		`{"type":"assistant","timestamp":"2026-09-03T11:00:00Z","requestId":"req-2","message":{"id":"msg-2","model":"claude-unknown-model-xyz","usage":{"input_tokens":50,"output_tokens":100,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}`,
+		// <synthetic> — must be excluded from models and cost
+		`{"type":"assistant","timestamp":"2026-09-03T12:00:00Z","requestId":"req-3","message":{"id":"msg-3","model":"<synthetic>","usage":{"input_tokens":1000,"output_tokens":2000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}`,
+	}
+	dst := filepath.Join(claudeDir, "pricing.jsonl")
+	if err := os.WriteFile(dst, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	s := NewScanner(testTZ)
+	s.Clock = func() time.Time { return fixedScanNow }
+	cfg := ScanConfig{TZ: testTZ, ClaudeDir: claudeDir}
+
+	report, _, err := s.Scan(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+
+	src := report.Sources["claude_code"]
+
+	// <synthetic> must be excluded from the model table.
+	for _, m := range src.Models {
+		if m.Model == "<synthetic>" {
+			t.Error("<synthetic> should be excluded from models list")
+		}
+	}
+	if len(src.Models) != 2 {
+		t.Errorf("len(Models) = %d, want 2 (priced + unknown, no <synthetic>)", len(src.Models))
+	}
+
+	// The unknown model must be tracked in UnpricedModels.
+	found := false
+	for _, um := range src.UnpricedModels {
+		if um == "claude-unknown-model-xyz" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("unpriced models = %v, want to contain claude-unknown-model-xyz", src.UnpricedModels)
+	}
+
+	// Partial must be true.
+	if !src.Partial {
+		t.Error("Partial should be true when unpriced models exist")
+	}
+
+	// Cost should only include the priced model (100 in + 200 out at $3/$15/MTok).
+	// = (100*3 + 200*15) / 1e6 = (300 + 3000) / 1e6 = 0.0033
+	wantCost := (float64(100)*3 + float64(200)*15) / 1e6
+	if src.Today.Cost != wantCost {
+		t.Errorf("Today Cost = %f, want %f", src.Today.Cost, wantCost)
+	}
+}
+
+func TestScanAliasModels(t *testing.T) {
+	// Verify that bare aliases like "opus" and "sonnet" map to current family defaults.
+	_, ok := LookupPrice("opus")
+	if !ok {
+		t.Error("alias 'opus' should map to a priced model")
+	}
+	_, ok = LookupPrice("sonnet")
+	if !ok {
+		t.Error("alias 'sonnet' should map to a priced model")
 	}
 }
