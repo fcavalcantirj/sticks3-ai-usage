@@ -175,6 +175,7 @@ func (s *Scanner) scanClaudeCode(ctx context.Context, dir string, index Index, n
 	modelReqs := make(map[string]int)
 	modelOrder := []string{}
 	dayAgg := make(map[string]dayAccum)
+	unpricedModels := make(map[string]bool) // track for loud gap reporting
 
 	newIdx := make(Index)
 	maxAge := now.Add(-MaxAge)
@@ -331,13 +332,29 @@ func (s *Scanner) scanClaudeCode(ctx context.Context, dir string, index Index, n
 		}
 	}
 
-	// Build models list.
+	// Build models list (exclude <synthetic>, track unpriced).
 	for _, model := range modelOrder {
+		if model == "<synthetic>" {
+			continue
+		}
+		if _, ok := s.priceOf(model); !ok {
+			unpricedModels[model] = true
+		}
 		m := Model{Model: model, Tokens: modelAgg[model], Requests: modelReqs[model]}
 		if p, ok := s.priceOf(model); ok {
 			m.Cost = p.Cost(modelAgg[model])
 		}
 		src.Models = append(src.Models, m)
+	}
+
+	// Record unpriced models for the caller to warn loudly.
+	if len(unpricedModels) > 0 {
+		src.UnpricedModels = make([]string, 0, len(unpricedModels))
+		for m := range unpricedModels {
+			src.UnpricedModels = append(src.UnpricedModels, m)
+		}
+		sort.Strings(src.UnpricedModels)
+		src.Partial = true
 	}
 
 	// Build days list (last 182 days, oldest first).
@@ -408,6 +425,7 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 	modelReqs := make(map[string]int)
 	modelOrder := []string{}
 	dayAgg := make(map[string]dayAccum)
+	unpricedModels := make(map[string]bool) // track for loud gap reporting
 
 	newIdx := make(Index)
 	maxAge := now.Add(-MaxAge)
@@ -555,13 +573,29 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 		}
 	}
 
-	// Build models list.
+	// Build models list (exclude <synthetic>, track unpriced).
 	for _, model := range modelOrder {
+		if model == "<synthetic>" {
+			continue
+		}
+		if _, ok := s.priceOf(model); !ok {
+			unpricedModels[model] = true
+		}
 		m := Model{Model: model, Tokens: modelAgg[model], Requests: modelReqs[model]}
 		if p, ok := s.priceOf(model); ok {
 			m.Cost = p.Cost(modelAgg[model])
 		}
 		src.Models = append(src.Models, m)
+	}
+
+	// Record unpriced models for the caller to warn loudly.
+	if len(unpricedModels) > 0 {
+		src.UnpricedModels = make([]string, 0, len(unpricedModels))
+		for m := range unpricedModels {
+			src.UnpricedModels = append(src.UnpricedModels, m)
+		}
+		sort.Strings(src.UnpricedModels)
+		src.Partial = true
 	}
 
 	// Build days list (last 182 days, oldest first).

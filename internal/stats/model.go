@@ -63,12 +63,14 @@ type Peak struct {
 
 // Source aggregates stats for one transcript source (claude_code or codex).
 type Source struct {
-	Today      Totals  `json:"today"`
-	Month      Totals  `json:"month"`
-	Models     []Model `json:"models"` // sorted by month tokens desc
-	Days       []Day   `json:"days"`   // last 182 days, oldest first
-	ActiveDays int     `json:"active_days"`
-	Peak       Peak    `json:"peak"`
+	Today          Totals   `json:"today"`
+	Month          Totals   `json:"month"`
+	Models         []Model  `json:"models"` // sorted by month tokens desc
+	Days           []Day    `json:"days"`   // last 182 days, oldest first
+	ActiveDays     int      `json:"active_days"`
+	Peak           Peak     `json:"peak"`
+	UnpricedModels []string `json:"unpriced_models,omitempty"` // model IDs with unknown prices
+	Partial        bool     `json:"partial,omitempty"`         // true if any model is unpriced
 }
 
 // Report is the top-level stats report returned by Scan and served at

@@ -348,10 +348,10 @@ func TestScanCostKnownModel(t *testing.T) {
 	}
 	// Today: msg-001 (1000 in + 2000 out, claude-sonnet-4-20250514) +
 	//        msg-002 deduped (500 in + 300 out + 200 cw, claude-sonnet-4-20250514)
-	// Price for sonnet: input=0.003, output=0.015, cache_read=0.00075, cache_write=0
-	// Cost = (1500*0.003 + 2300*0.015 + 0*0.00075 + 200*0) / 1e6
-	// = (4.5 + 34.5) / 1e6 = 39 / 1e6 = 0.000039
-	wantCost := (float64(1500)*0.003 + float64(2300)*0.015) / 1e6
+	// Price for sonnet (Anthropic 2026-09-04): input=3, output=15, cache_read=0.30, cache_write=6 (all USD per 1M tokens)
+	// Cost = (1500*3 + 2300*15 + 0*0.30 + 200*6) / 1e6
+	// = (4500 + 34500 + 0 + 1200) / 1e6 = 40200 / 1e6 = 0.040200
+	wantCost := (float64(1500)*3 + float64(2300)*15 + float64(200)*6) / 1e6
 	if src.Today.Cost != wantCost {
 		t.Errorf("Today Cost = %f, want %f", src.Today.Cost, wantCost)
 	}

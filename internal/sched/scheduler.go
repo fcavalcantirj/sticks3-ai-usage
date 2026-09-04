@@ -214,6 +214,14 @@ func (s *Scheduler) scanStats(ctx context.Context, now time.Time) {
 		slog.Debug("sched: stats scan error", "err", err)
 	}
 
+	// Warn loudly about any unpriced models (cost estimates will be partial).
+	for srcName, src := range report.Sources {
+		if len(src.UnpricedModels) > 0 {
+			slog.Warn("stats: unpriced models in cost estimate",
+				"src", srcName, "models", src.UnpricedModels)
+		}
+	}
+
 	s.mu.Lock()
 	s.StatsReport = &report
 	s.StatsIndex = index

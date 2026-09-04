@@ -75,20 +75,46 @@ func printStatsReport(w io.Writer, report *stats.Report, tz *time.Location) {
 		}
 
 		fmt.Fprintf(w, "%s:\n", label)
-		fmt.Fprintf(w, "  Today: %d tokens (%d reqs), $%.6f\n",
-			src.Today.Tokens.Total(), src.Today.Requests, src.Today.Cost)
-		fmt.Fprintf(w, "  Month: %d tokens (%d reqs), $%.6f\n",
-			src.Month.Tokens.Total(), src.Month.Requests, src.Month.Cost)
+		costSuffix := ""
+		if src.Partial {
+			costSuffix = " (partial)"
+		}
+		fmt.Fprintf(w, "  Today: %d tokens (%d reqs), $%.6f%s\n",
+			src.Today.Tokens.Total(), src.Today.Requests, src.Today.Cost, costSuffix)
+		fmt.Fprintf(w, "  Month: %d tokens (%d reqs), $%.6f%s\n",
+			src.Month.Tokens.Total(), src.Month.Requests, src.Month.Cost, costSuffix)
 		fmt.Fprintf(w, "  Active days: %d, Peak: %s (%d tokens)\n",
 			src.ActiveDays, src.Peak.Date, src.Peak.Tokens)
 
 		if len(src.Models) > 0 {
 			fmt.Fprintf(w, "  Models:\n")
 			for _, m := range src.Models {
-				fmt.Fprintf(w, "    %-30s %10d in  %10d out  %10d tot  %12.6f $  %6d reqs\n",
+				costStr := fmt.Sprintf("%12.6f $", m.Cost)
+				if !src.Partial {
+					for _, um := range src.UnpricedModels {
+						if m.Model == um {
+							costStr = "      — $"
+							break
+						}
+					}
+				}
+				fmt.Fprintf(w, "    %-30s %10d in  %10d out  %10d tot  %s  %6d reqs\n",
 					truncModel(m.Model), m.Tokens.Input, m.Tokens.Output,
-					m.Tokens.Total(), m.Cost, m.Requests)
+					m.Tokens.Total(), costStr, m.Requests)
 			}
+		}
+
+		// Loud gap: report unpriced models.
+		if len(src.UnpricedModels) > 0 {
+			display := make([]string, len(src.UnpricedModels))
+			for i, m := range src.UnpricedModels {
+				if m == "" {
+					display[i] = "unknown"
+				} else {
+					display[i] = m
+				}
+			}
+			fmt.Fprintf(w, "  unpriced: %s\n", strings.Join(display, ", "))
 		}
 		fmt.Fprintln(w)
 	}

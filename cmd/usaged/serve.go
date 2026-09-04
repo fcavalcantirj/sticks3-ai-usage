@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -70,6 +71,14 @@ func runServe(args []string, stdout io.Writer) int {
 	}
 	if cfg.StatsPath != "" {
 		s.LoadStatsReport(cfg.StatsPath)
+	}
+	// In fixtures/scenario mode, load the stats.json from the resolved fixtures
+	// dir so /v1/stats can serve the demo report (if a scenario provides it).
+	statsFixturePath := filepath.Join(fixturesDir, "stats.json")
+	if fixturesDir != "" {
+		if _, err := os.Stat(statsFixturePath); err == nil {
+			s.LoadStatsReport(statsFixturePath)
+		}
 	}
 
 	// Start the background poller.

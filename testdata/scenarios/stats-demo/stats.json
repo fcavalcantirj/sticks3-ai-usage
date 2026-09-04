@@ -1,0 +1,6707 @@
+{
+  "generated_at": 1788447600,
+  "sources": {
+    "claude_code": {
+      "today": {
+        "tokens": {
+          "input": 2900,
+          "output": 5800,
+          "cache_read": 1450,
+          "cache_write": 290
+        },
+        "cost": 0.00123,
+        "requests": 29
+      },
+      "month": {
+        "tokens": {
+          "input": 908300,
+          "output": 1816600,
+          "cache_read": 454150,
+          "cache_write": 90830
+        },
+        "cost": 0.04567,
+        "requests": 9083
+      },
+      "models": [
+        {
+          "model": "claude-sonnet-4-20250514",
+          "tokens": {
+            "input": 5000,
+            "output": 10000,
+            "cache_read": 2500,
+            "cache_write": 500
+          },
+          "cost": 0.01,
+          "requests": 50
+        },
+        {
+          "model": "claude-opus-4-20250514",
+          "tokens": {
+            "input": 5000,
+            "output": 10000,
+            "cache_read": 2500,
+            "cache_write": 500
+          },
+          "cost": 0.01,
+          "requests": 50
+        },
+        {
+          "model": "gpt-4o",
+          "tokens": {
+            "input": 5000,
+            "output": 10000,
+            "cache_read": 2500,
+            "cache_write": 500
+          },
+          "cost": 0.01,
+          "requests": 50
+        },
+        {
+          "model": "gpt-4.1-mini",
+          "tokens": {
+            "input": 5000,
+            "output": 10000,
+            "cache_read": 2500,
+            "cache_write": 500
+          },
+          "cost": 0.01,
+          "requests": 50
+        }
+      ],
+      "days": [
+        {
+          "date": "2026-03-06",
+          "tokens": {
+            "input": 5000,
+            "output": 10000,
+            "cache_read": 2500,
+            "cache_write": 500
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 5000,
+              "output": 10000,
+              "cache_read": 2500,
+              "cache_write": 500
+            }
+          }
+        },
+        {
+          "date": "2026-03-07",
+          "tokens": {
+            "input": 5200,
+            "output": 10400,
+            "cache_read": 2600,
+            "cache_write": 520
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 5200,
+              "output": 10400,
+              "cache_read": 2600,
+              "cache_write": 520
+            }
+          }
+        },
+        {
+          "date": "2026-03-08",
+          "tokens": {
+            "input": 5500,
+            "output": 11000,
+            "cache_read": 2750,
+            "cache_write": 550
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 5500,
+              "output": 11000,
+              "cache_read": 2750,
+              "cache_write": 550
+            }
+          }
+        },
+        {
+          "date": "2026-03-09",
+          "tokens": {
+            "input": 5800,
+            "output": 11600,
+            "cache_read": 2900,
+            "cache_write": 580
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 5800,
+              "output": 11600,
+              "cache_read": 2900,
+              "cache_write": 580
+            }
+          }
+        },
+        {
+          "date": "2026-03-10",
+          "tokens": {
+            "input": 6100,
+            "output": 12200,
+            "cache_read": 3050,
+            "cache_write": 610
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 6100,
+              "output": 12200,
+              "cache_read": 3050,
+              "cache_write": 610
+            }
+          }
+        },
+        {
+          "date": "2026-03-11",
+          "tokens": {
+            "input": 6400,
+            "output": 12800,
+            "cache_read": 3200,
+            "cache_write": 640
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 6400,
+              "output": 12800,
+              "cache_read": 3200,
+              "cache_write": 640
+            }
+          }
+        },
+        {
+          "date": "2026-03-12",
+          "tokens": {
+            "input": 6600,
+            "output": 13200,
+            "cache_read": 3300,
+            "cache_write": 660
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 6600,
+              "output": 13200,
+              "cache_read": 3300,
+              "cache_write": 660
+            }
+          }
+        },
+        {
+          "date": "2026-03-13",
+          "tokens": {
+            "input": 6900,
+            "output": 13800,
+            "cache_read": 3450,
+            "cache_write": 690
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 6900,
+              "output": 13800,
+              "cache_read": 3450,
+              "cache_write": 690
+            }
+          }
+        },
+        {
+          "date": "2026-03-14",
+          "tokens": {
+            "input": 7100,
+            "output": 14200,
+            "cache_read": 3550,
+            "cache_write": 710
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7100,
+              "output": 14200,
+              "cache_read": 3550,
+              "cache_write": 710
+            }
+          }
+        },
+        {
+          "date": "2026-03-15",
+          "tokens": {
+            "input": 7300,
+            "output": 14600,
+            "cache_read": 3650,
+            "cache_write": 730
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7300,
+              "output": 14600,
+              "cache_read": 3650,
+              "cache_write": 730
+            }
+          }
+        },
+        {
+          "date": "2026-03-16",
+          "tokens": {
+            "input": 7500,
+            "output": 15000,
+            "cache_read": 3750,
+            "cache_write": 750
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7500,
+              "output": 15000,
+              "cache_read": 3750,
+              "cache_write": 750
+            }
+          }
+        },
+        {
+          "date": "2026-03-17",
+          "tokens": {
+            "input": 7600,
+            "output": 15200,
+            "cache_read": 3800,
+            "cache_write": 760
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7600,
+              "output": 15200,
+              "cache_read": 3800,
+              "cache_write": 760
+            }
+          }
+        },
+        {
+          "date": "2026-03-18",
+          "tokens": {
+            "input": 7700,
+            "output": 15400,
+            "cache_read": 3850,
+            "cache_write": 770
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7700,
+              "output": 15400,
+              "cache_read": 3850,
+              "cache_write": 770
+            }
+          }
+        },
+        {
+          "date": "2026-03-19",
+          "tokens": {
+            "input": 7800,
+            "output": 15600,
+            "cache_read": 3900,
+            "cache_write": 780
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7800,
+              "output": 15600,
+              "cache_read": 3900,
+              "cache_write": 780
+            }
+          }
+        },
+        {
+          "date": "2026-03-20",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-03-21",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-03-22",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-03-23",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-03-24",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-03-25",
+          "tokens": {
+            "input": 7800,
+            "output": 15600,
+            "cache_read": 3900,
+            "cache_write": 780
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7800,
+              "output": 15600,
+              "cache_read": 3900,
+              "cache_write": 780
+            }
+          }
+        },
+        {
+          "date": "2026-03-26",
+          "tokens": {
+            "input": 7700,
+            "output": 15400,
+            "cache_read": 3850,
+            "cache_write": 770
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7700,
+              "output": 15400,
+              "cache_read": 3850,
+              "cache_write": 770
+            }
+          }
+        },
+        {
+          "date": "2026-03-27",
+          "tokens": {
+            "input": 7500,
+            "output": 15000,
+            "cache_read": 3750,
+            "cache_write": 750
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7500,
+              "output": 15000,
+              "cache_read": 3750,
+              "cache_write": 750
+            }
+          }
+        },
+        {
+          "date": "2026-03-28",
+          "tokens": {
+            "input": 7400,
+            "output": 14800,
+            "cache_read": 3700,
+            "cache_write": 740
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7400,
+              "output": 14800,
+              "cache_read": 3700,
+              "cache_write": 740
+            }
+          }
+        },
+        {
+          "date": "2026-03-29",
+          "tokens": {
+            "input": 7200,
+            "output": 14400,
+            "cache_read": 3600,
+            "cache_write": 720
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7200,
+              "output": 14400,
+              "cache_read": 3600,
+              "cache_write": 720
+            }
+          }
+        },
+        {
+          "date": "2026-03-30",
+          "tokens": {
+            "input": 7000,
+            "output": 14000,
+            "cache_read": 3500,
+            "cache_write": 700
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7000,
+              "output": 14000,
+              "cache_read": 3500,
+              "cache_write": 700
+            }
+          }
+        },
+        {
+          "date": "2026-03-31",
+          "tokens": {
+            "input": 6700,
+            "output": 13400,
+            "cache_read": 3350,
+            "cache_write": 670
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 6700,
+              "output": 13400,
+              "cache_read": 3350,
+              "cache_write": 670
+            }
+          }
+        },
+        {
+          "date": "2026-04-01",
+          "tokens": {
+            "input": 6500,
+            "output": 13000,
+            "cache_read": 3250,
+            "cache_write": 650
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 6500,
+              "output": 13000,
+              "cache_read": 3250,
+              "cache_write": 650
+            }
+          }
+        },
+        {
+          "date": "2026-04-02",
+          "tokens": {
+            "input": 6200,
+            "output": 12400,
+            "cache_read": 3100,
+            "cache_write": 620
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 6200,
+              "output": 12400,
+              "cache_read": 3100,
+              "cache_write": 620
+            }
+          }
+        },
+        {
+          "date": "2026-04-03",
+          "tokens": {
+            "input": 6000,
+            "output": 12000,
+            "cache_read": 3000,
+            "cache_write": 600
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 6000,
+              "output": 12000,
+              "cache_read": 3000,
+              "cache_write": 600
+            }
+          }
+        },
+        {
+          "date": "2026-04-04",
+          "tokens": {
+            "input": 5700,
+            "output": 11400,
+            "cache_read": 2850,
+            "cache_write": 570
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 5700,
+              "output": 11400,
+              "cache_read": 2850,
+              "cache_write": 570
+            }
+          }
+        },
+        {
+          "date": "2026-04-05",
+          "tokens": {
+            "input": 5400,
+            "output": 10800,
+            "cache_read": 2700,
+            "cache_write": 540
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 5400,
+              "output": 10800,
+              "cache_read": 2700,
+              "cache_write": 540
+            }
+          }
+        },
+        {
+          "date": "2026-04-06",
+          "tokens": {
+            "input": 5100,
+            "output": 10200,
+            "cache_read": 2550,
+            "cache_write": 510
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 5100,
+              "output": 10200,
+              "cache_read": 2550,
+              "cache_write": 510
+            }
+          }
+        },
+        {
+          "date": "2026-04-07",
+          "tokens": {
+            "input": 4800,
+            "output": 9600,
+            "cache_read": 2400,
+            "cache_write": 480
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 4800,
+              "output": 9600,
+              "cache_read": 2400,
+              "cache_write": 480
+            }
+          }
+        },
+        {
+          "date": "2026-04-08",
+          "tokens": {
+            "input": 4500,
+            "output": 9000,
+            "cache_read": 2250,
+            "cache_write": 450
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 4500,
+              "output": 9000,
+              "cache_read": 2250,
+              "cache_write": 450
+            }
+          }
+        },
+        {
+          "date": "2026-04-09",
+          "tokens": {
+            "input": 4200,
+            "output": 8400,
+            "cache_read": 2100,
+            "cache_write": 420
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 4200,
+              "output": 8400,
+              "cache_read": 2100,
+              "cache_write": 420
+            }
+          }
+        },
+        {
+          "date": "2026-04-10",
+          "tokens": {
+            "input": 3900,
+            "output": 7800,
+            "cache_read": 1950,
+            "cache_write": 390
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 3900,
+              "output": 7800,
+              "cache_read": 1950,
+              "cache_write": 390
+            }
+          }
+        },
+        {
+          "date": "2026-04-11",
+          "tokens": {
+            "input": 3600,
+            "output": 7200,
+            "cache_read": 1800,
+            "cache_write": 360
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 3600,
+              "output": 7200,
+              "cache_read": 1800,
+              "cache_write": 360
+            }
+          }
+        },
+        {
+          "date": "2026-04-12",
+          "tokens": {
+            "input": 3400,
+            "output": 6800,
+            "cache_read": 1700,
+            "cache_write": 340
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 3400,
+              "output": 6800,
+              "cache_read": 1700,
+              "cache_write": 340
+            }
+          }
+        },
+        {
+          "date": "2026-04-13",
+          "tokens": {
+            "input": 3100,
+            "output": 6200,
+            "cache_read": 1550,
+            "cache_write": 310
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 3100,
+              "output": 6200,
+              "cache_read": 1550,
+              "cache_write": 310
+            }
+          }
+        },
+        {
+          "date": "2026-04-14",
+          "tokens": {
+            "input": 2900,
+            "output": 5800,
+            "cache_read": 1450,
+            "cache_write": 290
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2900,
+              "output": 5800,
+              "cache_read": 1450,
+              "cache_write": 290
+            }
+          }
+        },
+        {
+          "date": "2026-04-15",
+          "tokens": {
+            "input": 2700,
+            "output": 5400,
+            "cache_read": 1350,
+            "cache_write": 270
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2700,
+              "output": 5400,
+              "cache_read": 1350,
+              "cache_write": 270
+            }
+          }
+        },
+        {
+          "date": "2026-04-16",
+          "tokens": {
+            "input": 2500,
+            "output": 5000,
+            "cache_read": 1250,
+            "cache_write": 250
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2500,
+              "output": 5000,
+              "cache_read": 1250,
+              "cache_write": 250
+            }
+          }
+        },
+        {
+          "date": "2026-04-17",
+          "tokens": {
+            "input": 2300,
+            "output": 4600,
+            "cache_read": 1150,
+            "cache_write": 230
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2300,
+              "output": 4600,
+              "cache_read": 1150,
+              "cache_write": 230
+            }
+          }
+        },
+        {
+          "date": "2026-04-18",
+          "tokens": {
+            "input": 2200,
+            "output": 4400,
+            "cache_read": 1100,
+            "cache_write": 220
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2200,
+              "output": 4400,
+              "cache_read": 1100,
+              "cache_write": 220
+            }
+          }
+        },
+        {
+          "date": "2026-04-19",
+          "tokens": {
+            "input": 2100,
+            "output": 4200,
+            "cache_read": 1050,
+            "cache_write": 210
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2100,
+              "output": 4200,
+              "cache_read": 1050,
+              "cache_write": 210
+            }
+          }
+        },
+        {
+          "date": "2026-04-20",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-04-21",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-04-22",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-04-23",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-04-24",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-04-25",
+          "tokens": {
+            "input": 2100,
+            "output": 4200,
+            "cache_read": 1050,
+            "cache_write": 210
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2100,
+              "output": 4200,
+              "cache_read": 1050,
+              "cache_write": 210
+            }
+          }
+        },
+        {
+          "date": "2026-04-26",
+          "tokens": {
+            "input": 2200,
+            "output": 4400,
+            "cache_read": 1100,
+            "cache_write": 220
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2200,
+              "output": 4400,
+              "cache_read": 1100,
+              "cache_write": 220
+            }
+          }
+        },
+        {
+          "date": "2026-04-27",
+          "tokens": {
+            "input": 2300,
+            "output": 4600,
+            "cache_read": 1150,
+            "cache_write": 230
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2300,
+              "output": 4600,
+              "cache_read": 1150,
+              "cache_write": 230
+            }
+          }
+        },
+        {
+          "date": "2026-04-28",
+          "tokens": {
+            "input": 2500,
+            "output": 5000,
+            "cache_read": 1250,
+            "cache_write": 250
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2500,
+              "output": 5000,
+              "cache_read": 1250,
+              "cache_write": 250
+            }
+          }
+        },
+        {
+          "date": "2026-04-29",
+          "tokens": {
+            "input": 2600,
+            "output": 5200,
+            "cache_read": 1300,
+            "cache_write": 260
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2600,
+              "output": 5200,
+              "cache_read": 1300,
+              "cache_write": 260
+            }
+          }
+        },
+        {
+          "date": "2026-04-30",
+          "tokens": {
+            "input": 2800,
+            "output": 5600,
+            "cache_read": 1400,
+            "cache_write": 280
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2800,
+              "output": 5600,
+              "cache_read": 1400,
+              "cache_write": 280
+            }
+          }
+        },
+        {
+          "date": "2026-05-01",
+          "tokens": {
+            "input": 3100,
+            "output": 6200,
+            "cache_read": 1550,
+            "cache_write": 310
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 3100,
+              "output": 6200,
+              "cache_read": 1550,
+              "cache_write": 310
+            }
+          }
+        },
+        {
+          "date": "2026-05-02",
+          "tokens": {
+            "input": 3300,
+            "output": 6600,
+            "cache_read": 1650,
+            "cache_write": 330
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 3300,
+              "output": 6600,
+              "cache_read": 1650,
+              "cache_write": 330
+            }
+          }
+        },
+        {
+          "date": "2026-05-03",
+          "tokens": {
+            "input": 3600,
+            "output": 7200,
+            "cache_read": 1800,
+            "cache_write": 360
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 3600,
+              "output": 7200,
+              "cache_read": 1800,
+              "cache_write": 360
+            }
+          }
+        },
+        {
+          "date": "2026-05-04",
+          "tokens": {
+            "input": 3800,
+            "output": 7600,
+            "cache_read": 1900,
+            "cache_write": 380
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 3800,
+              "output": 7600,
+              "cache_read": 1900,
+              "cache_write": 380
+            }
+          }
+        },
+        {
+          "date": "2026-05-05",
+          "tokens": {
+            "input": 4100,
+            "output": 8200,
+            "cache_read": 2050,
+            "cache_write": 410
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 4100,
+              "output": 8200,
+              "cache_read": 2050,
+              "cache_write": 410
+            }
+          }
+        },
+        {
+          "date": "2026-05-06",
+          "tokens": {
+            "input": 4400,
+            "output": 8800,
+            "cache_read": 2200,
+            "cache_write": 440
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 4400,
+              "output": 8800,
+              "cache_read": 2200,
+              "cache_write": 440
+            }
+          }
+        },
+        {
+          "date": "2026-05-07",
+          "tokens": {
+            "input": 4700,
+            "output": 9400,
+            "cache_read": 2350,
+            "cache_write": 470
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 4700,
+              "output": 9400,
+              "cache_read": 2350,
+              "cache_write": 470
+            }
+          }
+        },
+        {
+          "date": "2026-05-08",
+          "tokens": {
+            "input": 5000,
+            "output": 10000,
+            "cache_read": 2500,
+            "cache_write": 500
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 5000,
+              "output": 10000,
+              "cache_read": 2500,
+              "cache_write": 500
+            }
+          }
+        },
+        {
+          "date": "2026-05-09",
+          "tokens": {
+            "input": 5300,
+            "output": 10600,
+            "cache_read": 2650,
+            "cache_write": 530
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 5300,
+              "output": 10600,
+              "cache_read": 2650,
+              "cache_write": 530
+            }
+          }
+        },
+        {
+          "date": "2026-05-10",
+          "tokens": {
+            "input": 5600,
+            "output": 11200,
+            "cache_read": 2800,
+            "cache_write": 560
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 5600,
+              "output": 11200,
+              "cache_read": 2800,
+              "cache_write": 560
+            }
+          }
+        },
+        {
+          "date": "2026-05-11",
+          "tokens": {
+            "input": 5900,
+            "output": 11800,
+            "cache_read": 2950,
+            "cache_write": 590
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 5900,
+              "output": 11800,
+              "cache_read": 2950,
+              "cache_write": 590
+            }
+          }
+        },
+        {
+          "date": "2026-05-12",
+          "tokens": {
+            "input": 6200,
+            "output": 12400,
+            "cache_read": 3100,
+            "cache_write": 620
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 6200,
+              "output": 12400,
+              "cache_read": 3100,
+              "cache_write": 620
+            }
+          }
+        },
+        {
+          "date": "2026-05-13",
+          "tokens": {
+            "input": 6400,
+            "output": 12800,
+            "cache_read": 3200,
+            "cache_write": 640
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 6400,
+              "output": 12800,
+              "cache_read": 3200,
+              "cache_write": 640
+            }
+          }
+        },
+        {
+          "date": "2026-05-14",
+          "tokens": {
+            "input": 6700,
+            "output": 13400,
+            "cache_read": 3350,
+            "cache_write": 670
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 6700,
+              "output": 13400,
+              "cache_read": 3350,
+              "cache_write": 670
+            }
+          }
+        },
+        {
+          "date": "2026-05-15",
+          "tokens": {
+            "input": 6900,
+            "output": 13800,
+            "cache_read": 3450,
+            "cache_write": 690
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 6900,
+              "output": 13800,
+              "cache_read": 3450,
+              "cache_write": 690
+            }
+          }
+        },
+        {
+          "date": "2026-05-16",
+          "tokens": {
+            "input": 7100,
+            "output": 14200,
+            "cache_read": 3550,
+            "cache_write": 710
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7100,
+              "output": 14200,
+              "cache_read": 3550,
+              "cache_write": 710
+            }
+          }
+        },
+        {
+          "date": "2026-05-17",
+          "tokens": {
+            "input": 7300,
+            "output": 14600,
+            "cache_read": 3650,
+            "cache_write": 730
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7300,
+              "output": 14600,
+              "cache_read": 3650,
+              "cache_write": 730
+            }
+          }
+        },
+        {
+          "date": "2026-05-18",
+          "tokens": {
+            "input": 7500,
+            "output": 15000,
+            "cache_read": 3750,
+            "cache_write": 750
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7500,
+              "output": 15000,
+              "cache_read": 3750,
+              "cache_write": 750
+            }
+          }
+        },
+        {
+          "date": "2026-05-19",
+          "tokens": {
+            "input": 7600,
+            "output": 15200,
+            "cache_read": 3800,
+            "cache_write": 760
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7600,
+              "output": 15200,
+              "cache_read": 3800,
+              "cache_write": 760
+            }
+          }
+        },
+        {
+          "date": "2026-05-20",
+          "tokens": {
+            "input": 7800,
+            "output": 15600,
+            "cache_read": 3900,
+            "cache_write": 780
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7800,
+              "output": 15600,
+              "cache_read": 3900,
+              "cache_write": 780
+            }
+          }
+        },
+        {
+          "date": "2026-05-21",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-05-22",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-05-23",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-05-24",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-05-25",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-05-26",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-05-27",
+          "tokens": {
+            "input": 7800,
+            "output": 15600,
+            "cache_read": 3900,
+            "cache_write": 780
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7800,
+              "output": 15600,
+              "cache_read": 3900,
+              "cache_write": 780
+            }
+          }
+        },
+        {
+          "date": "2026-05-28",
+          "tokens": {
+            "input": 7700,
+            "output": 15400,
+            "cache_read": 3850,
+            "cache_write": 770
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7700,
+              "output": 15400,
+              "cache_read": 3850,
+              "cache_write": 770
+            }
+          }
+        },
+        {
+          "date": "2026-05-29",
+          "tokens": {
+            "input": 7500,
+            "output": 15000,
+            "cache_read": 3750,
+            "cache_write": 750
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7500,
+              "output": 15000,
+              "cache_read": 3750,
+              "cache_write": 750
+            }
+          }
+        },
+        {
+          "date": "2026-05-30",
+          "tokens": {
+            "input": 7300,
+            "output": 14600,
+            "cache_read": 3650,
+            "cache_write": 730
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7300,
+              "output": 14600,
+              "cache_read": 3650,
+              "cache_write": 730
+            }
+          }
+        },
+        {
+          "date": "2026-05-31",
+          "tokens": {
+            "input": 7200,
+            "output": 14400,
+            "cache_read": 3600,
+            "cache_write": 720
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7200,
+              "output": 14400,
+              "cache_read": 3600,
+              "cache_write": 720
+            }
+          }
+        },
+        {
+          "date": "2026-06-01",
+          "tokens": {
+            "input": 6900,
+            "output": 13800,
+            "cache_read": 3450,
+            "cache_write": 690
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 6900,
+              "output": 13800,
+              "cache_read": 3450,
+              "cache_write": 690
+            }
+          }
+        },
+        {
+          "date": "2026-06-02",
+          "tokens": {
+            "input": 6700,
+            "output": 13400,
+            "cache_read": 3350,
+            "cache_write": 670
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 6700,
+              "output": 13400,
+              "cache_read": 3350,
+              "cache_write": 670
+            }
+          }
+        },
+        {
+          "date": "2026-06-03",
+          "tokens": {
+            "input": 6500,
+            "output": 13000,
+            "cache_read": 3250,
+            "cache_write": 650
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 6500,
+              "output": 13000,
+              "cache_read": 3250,
+              "cache_write": 650
+            }
+          }
+        },
+        {
+          "date": "2026-06-04",
+          "tokens": {
+            "input": 6200,
+            "output": 12400,
+            "cache_read": 3100,
+            "cache_write": 620
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 6200,
+              "output": 12400,
+              "cache_read": 3100,
+              "cache_write": 620
+            }
+          }
+        },
+        {
+          "date": "2026-06-05",
+          "tokens": {
+            "input": 5900,
+            "output": 11800,
+            "cache_read": 2950,
+            "cache_write": 590
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 5900,
+              "output": 11800,
+              "cache_read": 2950,
+              "cache_write": 590
+            }
+          }
+        },
+        {
+          "date": "2026-06-06",
+          "tokens": {
+            "input": 5600,
+            "output": 11200,
+            "cache_read": 2800,
+            "cache_write": 560
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 5600,
+              "output": 11200,
+              "cache_read": 2800,
+              "cache_write": 560
+            }
+          }
+        },
+        {
+          "date": "2026-06-07",
+          "tokens": {
+            "input": 5300,
+            "output": 10600,
+            "cache_read": 2650,
+            "cache_write": 530
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 5300,
+              "output": 10600,
+              "cache_read": 2650,
+              "cache_write": 530
+            }
+          }
+        },
+        {
+          "date": "2026-06-08",
+          "tokens": {
+            "input": 5000,
+            "output": 10000,
+            "cache_read": 2500,
+            "cache_write": 500
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 5000,
+              "output": 10000,
+              "cache_read": 2500,
+              "cache_write": 500
+            }
+          }
+        },
+        {
+          "date": "2026-06-09",
+          "tokens": {
+            "input": 4700,
+            "output": 9400,
+            "cache_read": 2350,
+            "cache_write": 470
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 4700,
+              "output": 9400,
+              "cache_read": 2350,
+              "cache_write": 470
+            }
+          }
+        },
+        {
+          "date": "2026-06-10",
+          "tokens": {
+            "input": 4400,
+            "output": 8800,
+            "cache_read": 2200,
+            "cache_write": 440
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 4400,
+              "output": 8800,
+              "cache_read": 2200,
+              "cache_write": 440
+            }
+          }
+        },
+        {
+          "date": "2026-06-11",
+          "tokens": {
+            "input": 4100,
+            "output": 8200,
+            "cache_read": 2050,
+            "cache_write": 410
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 4100,
+              "output": 8200,
+              "cache_read": 2050,
+              "cache_write": 410
+            }
+          }
+        },
+        {
+          "date": "2026-06-12",
+          "tokens": {
+            "input": 3900,
+            "output": 7800,
+            "cache_read": 1950,
+            "cache_write": 390
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 3900,
+              "output": 7800,
+              "cache_read": 1950,
+              "cache_write": 390
+            }
+          }
+        },
+        {
+          "date": "2026-06-13",
+          "tokens": {
+            "input": 3600,
+            "output": 7200,
+            "cache_read": 1800,
+            "cache_write": 360
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 3600,
+              "output": 7200,
+              "cache_read": 1800,
+              "cache_write": 360
+            }
+          }
+        },
+        {
+          "date": "2026-06-14",
+          "tokens": {
+            "input": 3300,
+            "output": 6600,
+            "cache_read": 1650,
+            "cache_write": 330
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 3300,
+              "output": 6600,
+              "cache_read": 1650,
+              "cache_write": 330
+            }
+          }
+        },
+        {
+          "date": "2026-06-15",
+          "tokens": {
+            "input": 3100,
+            "output": 6200,
+            "cache_read": 1550,
+            "cache_write": 310
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 3100,
+              "output": 6200,
+              "cache_read": 1550,
+              "cache_write": 310
+            }
+          }
+        },
+        {
+          "date": "2026-06-16",
+          "tokens": {
+            "input": 2900,
+            "output": 5800,
+            "cache_read": 1450,
+            "cache_write": 290
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2900,
+              "output": 5800,
+              "cache_read": 1450,
+              "cache_write": 290
+            }
+          }
+        },
+        {
+          "date": "2026-06-17",
+          "tokens": {
+            "input": 2600,
+            "output": 5200,
+            "cache_read": 1300,
+            "cache_write": 260
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2600,
+              "output": 5200,
+              "cache_read": 1300,
+              "cache_write": 260
+            }
+          }
+        },
+        {
+          "date": "2026-06-18",
+          "tokens": {
+            "input": 2500,
+            "output": 5000,
+            "cache_read": 1250,
+            "cache_write": 250
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2500,
+              "output": 5000,
+              "cache_read": 1250,
+              "cache_write": 250
+            }
+          }
+        },
+        {
+          "date": "2026-06-19",
+          "tokens": {
+            "input": 2300,
+            "output": 4600,
+            "cache_read": 1150,
+            "cache_write": 230
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2300,
+              "output": 4600,
+              "cache_read": 1150,
+              "cache_write": 230
+            }
+          }
+        },
+        {
+          "date": "2026-06-20",
+          "tokens": {
+            "input": 2200,
+            "output": 4400,
+            "cache_read": 1100,
+            "cache_write": 220
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2200,
+              "output": 4400,
+              "cache_read": 1100,
+              "cache_write": 220
+            }
+          }
+        },
+        {
+          "date": "2026-06-21",
+          "tokens": {
+            "input": 2100,
+            "output": 4200,
+            "cache_read": 1050,
+            "cache_write": 210
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2100,
+              "output": 4200,
+              "cache_read": 1050,
+              "cache_write": 210
+            }
+          }
+        },
+        {
+          "date": "2026-06-22",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-06-23",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-06-24",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-06-25",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-06-26",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-06-27",
+          "tokens": {
+            "input": 2100,
+            "output": 4200,
+            "cache_read": 1050,
+            "cache_write": 210
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2100,
+              "output": 4200,
+              "cache_read": 1050,
+              "cache_write": 210
+            }
+          }
+        },
+        {
+          "date": "2026-06-28",
+          "tokens": {
+            "input": 2200,
+            "output": 4400,
+            "cache_read": 1100,
+            "cache_write": 220
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2200,
+              "output": 4400,
+              "cache_read": 1100,
+              "cache_write": 220
+            }
+          }
+        },
+        {
+          "date": "2026-06-29",
+          "tokens": {
+            "input": 2300,
+            "output": 4600,
+            "cache_read": 1150,
+            "cache_write": 230
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2300,
+              "output": 4600,
+              "cache_read": 1150,
+              "cache_write": 230
+            }
+          }
+        },
+        {
+          "date": "2026-06-30",
+          "tokens": {
+            "input": 2500,
+            "output": 5000,
+            "cache_read": 1250,
+            "cache_write": 250
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2500,
+              "output": 5000,
+              "cache_read": 1250,
+              "cache_write": 250
+            }
+          }
+        },
+        {
+          "date": "2026-07-01",
+          "tokens": {
+            "input": 2700,
+            "output": 5400,
+            "cache_read": 1350,
+            "cache_write": 270
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2700,
+              "output": 5400,
+              "cache_read": 1350,
+              "cache_write": 270
+            }
+          }
+        },
+        {
+          "date": "2026-07-02",
+          "tokens": {
+            "input": 2900,
+            "output": 5800,
+            "cache_read": 1450,
+            "cache_write": 290
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2900,
+              "output": 5800,
+              "cache_read": 1450,
+              "cache_write": 290
+            }
+          }
+        },
+        {
+          "date": "2026-07-03",
+          "tokens": {
+            "input": 3100,
+            "output": 6200,
+            "cache_read": 1550,
+            "cache_write": 310
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 3100,
+              "output": 6200,
+              "cache_read": 1550,
+              "cache_write": 310
+            }
+          }
+        },
+        {
+          "date": "2026-07-04",
+          "tokens": {
+            "input": 3300,
+            "output": 6600,
+            "cache_read": 1650,
+            "cache_write": 330
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 3300,
+              "output": 6600,
+              "cache_read": 1650,
+              "cache_write": 330
+            }
+          }
+        },
+        {
+          "date": "2026-07-05",
+          "tokens": {
+            "input": 3600,
+            "output": 7200,
+            "cache_read": 1800,
+            "cache_write": 360
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 3600,
+              "output": 7200,
+              "cache_read": 1800,
+              "cache_write": 360
+            }
+          }
+        },
+        {
+          "date": "2026-07-06",
+          "tokens": {
+            "input": 3900,
+            "output": 7800,
+            "cache_read": 1950,
+            "cache_write": 390
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 3900,
+              "output": 7800,
+              "cache_read": 1950,
+              "cache_write": 390
+            }
+          }
+        },
+        {
+          "date": "2026-07-07",
+          "tokens": {
+            "input": 4200,
+            "output": 8400,
+            "cache_read": 2100,
+            "cache_write": 420
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 4200,
+              "output": 8400,
+              "cache_read": 2100,
+              "cache_write": 420
+            }
+          }
+        },
+        {
+          "date": "2026-07-08",
+          "tokens": {
+            "input": 4500,
+            "output": 9000,
+            "cache_read": 2250,
+            "cache_write": 450
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 4500,
+              "output": 9000,
+              "cache_read": 2250,
+              "cache_write": 450
+            }
+          }
+        },
+        {
+          "date": "2026-07-09",
+          "tokens": {
+            "input": 4800,
+            "output": 9600,
+            "cache_read": 2400,
+            "cache_write": 480
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 4800,
+              "output": 9600,
+              "cache_read": 2400,
+              "cache_write": 480
+            }
+          }
+        },
+        {
+          "date": "2026-07-10",
+          "tokens": {
+            "input": 5100,
+            "output": 10200,
+            "cache_read": 2550,
+            "cache_write": 510
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 5100,
+              "output": 10200,
+              "cache_read": 2550,
+              "cache_write": 510
+            }
+          }
+        },
+        {
+          "date": "2026-07-11",
+          "tokens": {
+            "input": 5300,
+            "output": 10600,
+            "cache_read": 2650,
+            "cache_write": 530
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 5300,
+              "output": 10600,
+              "cache_read": 2650,
+              "cache_write": 530
+            }
+          }
+        },
+        {
+          "date": "2026-07-12",
+          "tokens": {
+            "input": 5600,
+            "output": 11200,
+            "cache_read": 2800,
+            "cache_write": 560
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 5600,
+              "output": 11200,
+              "cache_read": 2800,
+              "cache_write": 560
+            }
+          }
+        },
+        {
+          "date": "2026-07-13",
+          "tokens": {
+            "input": 5900,
+            "output": 11800,
+            "cache_read": 2950,
+            "cache_write": 590
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 5900,
+              "output": 11800,
+              "cache_read": 2950,
+              "cache_write": 590
+            }
+          }
+        },
+        {
+          "date": "2026-07-14",
+          "tokens": {
+            "input": 6200,
+            "output": 12400,
+            "cache_read": 3100,
+            "cache_write": 620
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 6200,
+              "output": 12400,
+              "cache_read": 3100,
+              "cache_write": 620
+            }
+          }
+        },
+        {
+          "date": "2026-07-15",
+          "tokens": {
+            "input": 6500,
+            "output": 13000,
+            "cache_read": 3250,
+            "cache_write": 650
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 6500,
+              "output": 13000,
+              "cache_read": 3250,
+              "cache_write": 650
+            }
+          }
+        },
+        {
+          "date": "2026-07-16",
+          "tokens": {
+            "input": 6700,
+            "output": 13400,
+            "cache_read": 3350,
+            "cache_write": 670
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 6700,
+              "output": 13400,
+              "cache_read": 3350,
+              "cache_write": 670
+            }
+          }
+        },
+        {
+          "date": "2026-07-17",
+          "tokens": {
+            "input": 7000,
+            "output": 14000,
+            "cache_read": 3500,
+            "cache_write": 700
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7000,
+              "output": 14000,
+              "cache_read": 3500,
+              "cache_write": 700
+            }
+          }
+        },
+        {
+          "date": "2026-07-18",
+          "tokens": {
+            "input": 7200,
+            "output": 14400,
+            "cache_read": 3600,
+            "cache_write": 720
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7200,
+              "output": 14400,
+              "cache_read": 3600,
+              "cache_write": 720
+            }
+          }
+        },
+        {
+          "date": "2026-07-19",
+          "tokens": {
+            "input": 7400,
+            "output": 14800,
+            "cache_read": 3700,
+            "cache_write": 740
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7400,
+              "output": 14800,
+              "cache_read": 3700,
+              "cache_write": 740
+            }
+          }
+        },
+        {
+          "date": "2026-07-20",
+          "tokens": {
+            "input": 7500,
+            "output": 15000,
+            "cache_read": 3750,
+            "cache_write": 750
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7500,
+              "output": 15000,
+              "cache_read": 3750,
+              "cache_write": 750
+            }
+          }
+        },
+        {
+          "date": "2026-07-21",
+          "tokens": {
+            "input": 7700,
+            "output": 15400,
+            "cache_read": 3850,
+            "cache_write": 770
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7700,
+              "output": 15400,
+              "cache_read": 3850,
+              "cache_write": 770
+            }
+          }
+        },
+        {
+          "date": "2026-07-22",
+          "tokens": {
+            "input": 7800,
+            "output": 15600,
+            "cache_read": 3900,
+            "cache_write": 780
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7800,
+              "output": 15600,
+              "cache_read": 3900,
+              "cache_write": 780
+            }
+          }
+        },
+        {
+          "date": "2026-07-23",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-07-24",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-07-25",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-07-26",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-07-27",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-07-28",
+          "tokens": {
+            "input": 7800,
+            "output": 15600,
+            "cache_read": 3900,
+            "cache_write": 780
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7800,
+              "output": 15600,
+              "cache_read": 3900,
+              "cache_write": 780
+            }
+          }
+        },
+        {
+          "date": "2026-07-29",
+          "tokens": {
+            "input": 7800,
+            "output": 15600,
+            "cache_read": 3900,
+            "cache_write": 780
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7800,
+              "output": 15600,
+              "cache_read": 3900,
+              "cache_write": 780
+            }
+          }
+        },
+        {
+          "date": "2026-07-30",
+          "tokens": {
+            "input": 7600,
+            "output": 15200,
+            "cache_read": 3800,
+            "cache_write": 760
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7600,
+              "output": 15200,
+              "cache_read": 3800,
+              "cache_write": 760
+            }
+          }
+        },
+        {
+          "date": "2026-07-31",
+          "tokens": {
+            "input": 7500,
+            "output": 15000,
+            "cache_read": 3750,
+            "cache_write": 750
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7500,
+              "output": 15000,
+              "cache_read": 3750,
+              "cache_write": 750
+            }
+          }
+        },
+        {
+          "date": "2026-08-01",
+          "tokens": {
+            "input": 7300,
+            "output": 14600,
+            "cache_read": 3650,
+            "cache_write": 730
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7300,
+              "output": 14600,
+              "cache_read": 3650,
+              "cache_write": 730
+            }
+          }
+        },
+        {
+          "date": "2026-08-02",
+          "tokens": {
+            "input": 7100,
+            "output": 14200,
+            "cache_read": 3550,
+            "cache_write": 710
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7100,
+              "output": 14200,
+              "cache_read": 3550,
+              "cache_write": 710
+            }
+          }
+        },
+        {
+          "date": "2026-08-03",
+          "tokens": {
+            "input": 6900,
+            "output": 13800,
+            "cache_read": 3450,
+            "cache_write": 690
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 6900,
+              "output": 13800,
+              "cache_read": 3450,
+              "cache_write": 690
+            }
+          }
+        },
+        {
+          "date": "2026-08-04",
+          "tokens": {
+            "input": 6700,
+            "output": 13400,
+            "cache_read": 3350,
+            "cache_write": 670
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 6700,
+              "output": 13400,
+              "cache_read": 3350,
+              "cache_write": 670
+            }
+          }
+        },
+        {
+          "date": "2026-08-05",
+          "tokens": {
+            "input": 6400,
+            "output": 12800,
+            "cache_read": 3200,
+            "cache_write": 640
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 6400,
+              "output": 12800,
+              "cache_read": 3200,
+              "cache_write": 640
+            }
+          }
+        },
+        {
+          "date": "2026-08-06",
+          "tokens": {
+            "input": 6100,
+            "output": 12200,
+            "cache_read": 3050,
+            "cache_write": 610
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 6100,
+              "output": 12200,
+              "cache_read": 3050,
+              "cache_write": 610
+            }
+          }
+        },
+        {
+          "date": "2026-08-07",
+          "tokens": {
+            "input": 5900,
+            "output": 11800,
+            "cache_read": 2950,
+            "cache_write": 590
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 5900,
+              "output": 11800,
+              "cache_read": 2950,
+              "cache_write": 590
+            }
+          }
+        },
+        {
+          "date": "2026-08-08",
+          "tokens": {
+            "input": 5600,
+            "output": 11200,
+            "cache_read": 2800,
+            "cache_write": 560
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 5600,
+              "output": 11200,
+              "cache_read": 2800,
+              "cache_write": 560
+            }
+          }
+        },
+        {
+          "date": "2026-08-09",
+          "tokens": {
+            "input": 5300,
+            "output": 10600,
+            "cache_read": 2650,
+            "cache_write": 530
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 5300,
+              "output": 10600,
+              "cache_read": 2650,
+              "cache_write": 530
+            }
+          }
+        },
+        {
+          "date": "2026-08-10",
+          "tokens": {
+            "input": 5000,
+            "output": 10000,
+            "cache_read": 2500,
+            "cache_write": 500
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 5000,
+              "output": 10000,
+              "cache_read": 2500,
+              "cache_write": 500
+            }
+          }
+        },
+        {
+          "date": "2026-08-11",
+          "tokens": {
+            "input": 4700,
+            "output": 9400,
+            "cache_read": 2350,
+            "cache_write": 470
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 4700,
+              "output": 9400,
+              "cache_read": 2350,
+              "cache_write": 470
+            }
+          }
+        },
+        {
+          "date": "2026-08-12",
+          "tokens": {
+            "input": 4400,
+            "output": 8800,
+            "cache_read": 2200,
+            "cache_write": 440
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 4400,
+              "output": 8800,
+              "cache_read": 2200,
+              "cache_write": 440
+            }
+          }
+        },
+        {
+          "date": "2026-08-13",
+          "tokens": {
+            "input": 4100,
+            "output": 8200,
+            "cache_read": 2050,
+            "cache_write": 410
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 4100,
+              "output": 8200,
+              "cache_read": 2050,
+              "cache_write": 410
+            }
+          }
+        },
+        {
+          "date": "2026-08-14",
+          "tokens": {
+            "input": 3800,
+            "output": 7600,
+            "cache_read": 1900,
+            "cache_write": 380
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 3800,
+              "output": 7600,
+              "cache_read": 1900,
+              "cache_write": 380
+            }
+          }
+        },
+        {
+          "date": "2026-08-15",
+          "tokens": {
+            "input": 3500,
+            "output": 7000,
+            "cache_read": 1750,
+            "cache_write": 350
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 3500,
+              "output": 7000,
+              "cache_read": 1750,
+              "cache_write": 350
+            }
+          }
+        },
+        {
+          "date": "2026-08-16",
+          "tokens": {
+            "input": 3300,
+            "output": 6600,
+            "cache_read": 1650,
+            "cache_write": 330
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 3300,
+              "output": 6600,
+              "cache_read": 1650,
+              "cache_write": 330
+            }
+          }
+        },
+        {
+          "date": "2026-08-17",
+          "tokens": {
+            "input": 3000,
+            "output": 6000,
+            "cache_read": 1500,
+            "cache_write": 300
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 3000,
+              "output": 6000,
+              "cache_read": 1500,
+              "cache_write": 300
+            }
+          }
+        },
+        {
+          "date": "2026-08-18",
+          "tokens": {
+            "input": 2800,
+            "output": 5600,
+            "cache_read": 1400,
+            "cache_write": 280
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2800,
+              "output": 5600,
+              "cache_read": 1400,
+              "cache_write": 280
+            }
+          }
+        },
+        {
+          "date": "2026-08-19",
+          "tokens": {
+            "input": 2600,
+            "output": 5200,
+            "cache_read": 1300,
+            "cache_write": 260
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2600,
+              "output": 5200,
+              "cache_read": 1300,
+              "cache_write": 260
+            }
+          }
+        },
+        {
+          "date": "2026-08-20",
+          "tokens": {
+            "input": 2400,
+            "output": 4800,
+            "cache_read": 1200,
+            "cache_write": 240
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2400,
+              "output": 4800,
+              "cache_read": 1200,
+              "cache_write": 240
+            }
+          }
+        },
+        {
+          "date": "2026-08-21",
+          "tokens": {
+            "input": 2300,
+            "output": 4600,
+            "cache_read": 1150,
+            "cache_write": 230
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2300,
+              "output": 4600,
+              "cache_read": 1150,
+              "cache_write": 230
+            }
+          }
+        },
+        {
+          "date": "2026-08-22",
+          "tokens": {
+            "input": 2200,
+            "output": 4400,
+            "cache_read": 1100,
+            "cache_write": 220
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2200,
+              "output": 4400,
+              "cache_read": 1100,
+              "cache_write": 220
+            }
+          }
+        },
+        {
+          "date": "2026-08-23",
+          "tokens": {
+            "input": 2100,
+            "output": 4200,
+            "cache_read": 1050,
+            "cache_write": 210
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2100,
+              "output": 4200,
+              "cache_read": 1050,
+              "cache_write": 210
+            }
+          }
+        },
+        {
+          "date": "2026-08-24",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-08-25",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-08-26",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-08-27",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-08-28",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-08-29",
+          "tokens": {
+            "input": 2100,
+            "output": 4200,
+            "cache_read": 1050,
+            "cache_write": 210
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2100,
+              "output": 4200,
+              "cache_read": 1050,
+              "cache_write": 210
+            }
+          }
+        },
+        {
+          "date": "2026-08-30",
+          "tokens": {
+            "input": 2200,
+            "output": 4400,
+            "cache_read": 1100,
+            "cache_write": 220
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2200,
+              "output": 4400,
+              "cache_read": 1100,
+              "cache_write": 220
+            }
+          }
+        },
+        {
+          "date": "2026-08-31",
+          "tokens": {
+            "input": 2300,
+            "output": 4600,
+            "cache_read": 1150,
+            "cache_write": 230
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2300,
+              "output": 4600,
+              "cache_read": 1150,
+              "cache_write": 230
+            }
+          }
+        },
+        {
+          "date": "2026-09-01",
+          "tokens": {
+            "input": 2500,
+            "output": 5000,
+            "cache_read": 1250,
+            "cache_write": 250
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2500,
+              "output": 5000,
+              "cache_read": 1250,
+              "cache_write": 250
+            }
+          }
+        },
+        {
+          "date": "2026-09-02",
+          "tokens": {
+            "input": 2700,
+            "output": 5400,
+            "cache_read": 1350,
+            "cache_write": 270
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2700,
+              "output": 5400,
+              "cache_read": 1350,
+              "cache_write": 270
+            }
+          }
+        },
+        {
+          "date": "2026-09-03",
+          "tokens": {
+            "input": 2900,
+            "output": 5800,
+            "cache_read": 1450,
+            "cache_write": 290
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2900,
+              "output": 5800,
+              "cache_read": 1450,
+              "cache_write": 290
+            }
+          }
+        }
+      ],
+      "active_days": 182,
+      "peak": {
+        "date": "2026-03-20",
+        "tokens": 28440
+      }
+    },
+    "codex": {
+      "today": {
+        "tokens": {
+          "input": 2900,
+          "output": 5800,
+          "cache_read": 1450,
+          "cache_write": 290
+        },
+        "cost": 0.00123,
+        "requests": 29
+      },
+      "month": {
+        "tokens": {
+          "input": 908300,
+          "output": 1816600,
+          "cache_read": 454150,
+          "cache_write": 90830
+        },
+        "cost": 0.04567,
+        "requests": 9083
+      },
+      "models": [
+        {
+          "model": "claude-sonnet-4-20250514",
+          "tokens": {
+            "input": 5000,
+            "output": 10000,
+            "cache_read": 2500,
+            "cache_write": 500
+          },
+          "cost": 0.01,
+          "requests": 50
+        },
+        {
+          "model": "claude-opus-4-20250514",
+          "tokens": {
+            "input": 5000,
+            "output": 10000,
+            "cache_read": 2500,
+            "cache_write": 500
+          },
+          "cost": 0.01,
+          "requests": 50
+        },
+        {
+          "model": "gpt-4o",
+          "tokens": {
+            "input": 5000,
+            "output": 10000,
+            "cache_read": 2500,
+            "cache_write": 500
+          },
+          "cost": 0.01,
+          "requests": 50
+        },
+        {
+          "model": "gpt-4.1-mini",
+          "tokens": {
+            "input": 5000,
+            "output": 10000,
+            "cache_read": 2500,
+            "cache_write": 500
+          },
+          "cost": 0.01,
+          "requests": 50
+        }
+      ],
+      "days": [
+        {
+          "date": "2026-03-06",
+          "tokens": {
+            "input": 5000,
+            "output": 10000,
+            "cache_read": 2500,
+            "cache_write": 500
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 5000,
+              "output": 10000,
+              "cache_read": 2500,
+              "cache_write": 500
+            }
+          }
+        },
+        {
+          "date": "2026-03-07",
+          "tokens": {
+            "input": 5200,
+            "output": 10400,
+            "cache_read": 2600,
+            "cache_write": 520
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 5200,
+              "output": 10400,
+              "cache_read": 2600,
+              "cache_write": 520
+            }
+          }
+        },
+        {
+          "date": "2026-03-08",
+          "tokens": {
+            "input": 5500,
+            "output": 11000,
+            "cache_read": 2750,
+            "cache_write": 550
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 5500,
+              "output": 11000,
+              "cache_read": 2750,
+              "cache_write": 550
+            }
+          }
+        },
+        {
+          "date": "2026-03-09",
+          "tokens": {
+            "input": 5800,
+            "output": 11600,
+            "cache_read": 2900,
+            "cache_write": 580
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 5800,
+              "output": 11600,
+              "cache_read": 2900,
+              "cache_write": 580
+            }
+          }
+        },
+        {
+          "date": "2026-03-10",
+          "tokens": {
+            "input": 6100,
+            "output": 12200,
+            "cache_read": 3050,
+            "cache_write": 610
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 6100,
+              "output": 12200,
+              "cache_read": 3050,
+              "cache_write": 610
+            }
+          }
+        },
+        {
+          "date": "2026-03-11",
+          "tokens": {
+            "input": 6400,
+            "output": 12800,
+            "cache_read": 3200,
+            "cache_write": 640
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 6400,
+              "output": 12800,
+              "cache_read": 3200,
+              "cache_write": 640
+            }
+          }
+        },
+        {
+          "date": "2026-03-12",
+          "tokens": {
+            "input": 6600,
+            "output": 13200,
+            "cache_read": 3300,
+            "cache_write": 660
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 6600,
+              "output": 13200,
+              "cache_read": 3300,
+              "cache_write": 660
+            }
+          }
+        },
+        {
+          "date": "2026-03-13",
+          "tokens": {
+            "input": 6900,
+            "output": 13800,
+            "cache_read": 3450,
+            "cache_write": 690
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 6900,
+              "output": 13800,
+              "cache_read": 3450,
+              "cache_write": 690
+            }
+          }
+        },
+        {
+          "date": "2026-03-14",
+          "tokens": {
+            "input": 7100,
+            "output": 14200,
+            "cache_read": 3550,
+            "cache_write": 710
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7100,
+              "output": 14200,
+              "cache_read": 3550,
+              "cache_write": 710
+            }
+          }
+        },
+        {
+          "date": "2026-03-15",
+          "tokens": {
+            "input": 7300,
+            "output": 14600,
+            "cache_read": 3650,
+            "cache_write": 730
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7300,
+              "output": 14600,
+              "cache_read": 3650,
+              "cache_write": 730
+            }
+          }
+        },
+        {
+          "date": "2026-03-16",
+          "tokens": {
+            "input": 7500,
+            "output": 15000,
+            "cache_read": 3750,
+            "cache_write": 750
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7500,
+              "output": 15000,
+              "cache_read": 3750,
+              "cache_write": 750
+            }
+          }
+        },
+        {
+          "date": "2026-03-17",
+          "tokens": {
+            "input": 7600,
+            "output": 15200,
+            "cache_read": 3800,
+            "cache_write": 760
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7600,
+              "output": 15200,
+              "cache_read": 3800,
+              "cache_write": 760
+            }
+          }
+        },
+        {
+          "date": "2026-03-18",
+          "tokens": {
+            "input": 7700,
+            "output": 15400,
+            "cache_read": 3850,
+            "cache_write": 770
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7700,
+              "output": 15400,
+              "cache_read": 3850,
+              "cache_write": 770
+            }
+          }
+        },
+        {
+          "date": "2026-03-19",
+          "tokens": {
+            "input": 7800,
+            "output": 15600,
+            "cache_read": 3900,
+            "cache_write": 780
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7800,
+              "output": 15600,
+              "cache_read": 3900,
+              "cache_write": 780
+            }
+          }
+        },
+        {
+          "date": "2026-03-20",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-03-21",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-03-22",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-03-23",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-03-24",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-03-25",
+          "tokens": {
+            "input": 7800,
+            "output": 15600,
+            "cache_read": 3900,
+            "cache_write": 780
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7800,
+              "output": 15600,
+              "cache_read": 3900,
+              "cache_write": 780
+            }
+          }
+        },
+        {
+          "date": "2026-03-26",
+          "tokens": {
+            "input": 7700,
+            "output": 15400,
+            "cache_read": 3850,
+            "cache_write": 770
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7700,
+              "output": 15400,
+              "cache_read": 3850,
+              "cache_write": 770
+            }
+          }
+        },
+        {
+          "date": "2026-03-27",
+          "tokens": {
+            "input": 7500,
+            "output": 15000,
+            "cache_read": 3750,
+            "cache_write": 750
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7500,
+              "output": 15000,
+              "cache_read": 3750,
+              "cache_write": 750
+            }
+          }
+        },
+        {
+          "date": "2026-03-28",
+          "tokens": {
+            "input": 7400,
+            "output": 14800,
+            "cache_read": 3700,
+            "cache_write": 740
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7400,
+              "output": 14800,
+              "cache_read": 3700,
+              "cache_write": 740
+            }
+          }
+        },
+        {
+          "date": "2026-03-29",
+          "tokens": {
+            "input": 7200,
+            "output": 14400,
+            "cache_read": 3600,
+            "cache_write": 720
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7200,
+              "output": 14400,
+              "cache_read": 3600,
+              "cache_write": 720
+            }
+          }
+        },
+        {
+          "date": "2026-03-30",
+          "tokens": {
+            "input": 7000,
+            "output": 14000,
+            "cache_read": 3500,
+            "cache_write": 700
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7000,
+              "output": 14000,
+              "cache_read": 3500,
+              "cache_write": 700
+            }
+          }
+        },
+        {
+          "date": "2026-03-31",
+          "tokens": {
+            "input": 6700,
+            "output": 13400,
+            "cache_read": 3350,
+            "cache_write": 670
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 6700,
+              "output": 13400,
+              "cache_read": 3350,
+              "cache_write": 670
+            }
+          }
+        },
+        {
+          "date": "2026-04-01",
+          "tokens": {
+            "input": 6500,
+            "output": 13000,
+            "cache_read": 3250,
+            "cache_write": 650
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 6500,
+              "output": 13000,
+              "cache_read": 3250,
+              "cache_write": 650
+            }
+          }
+        },
+        {
+          "date": "2026-04-02",
+          "tokens": {
+            "input": 6200,
+            "output": 12400,
+            "cache_read": 3100,
+            "cache_write": 620
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 6200,
+              "output": 12400,
+              "cache_read": 3100,
+              "cache_write": 620
+            }
+          }
+        },
+        {
+          "date": "2026-04-03",
+          "tokens": {
+            "input": 6000,
+            "output": 12000,
+            "cache_read": 3000,
+            "cache_write": 600
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 6000,
+              "output": 12000,
+              "cache_read": 3000,
+              "cache_write": 600
+            }
+          }
+        },
+        {
+          "date": "2026-04-04",
+          "tokens": {
+            "input": 5700,
+            "output": 11400,
+            "cache_read": 2850,
+            "cache_write": 570
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 5700,
+              "output": 11400,
+              "cache_read": 2850,
+              "cache_write": 570
+            }
+          }
+        },
+        {
+          "date": "2026-04-05",
+          "tokens": {
+            "input": 5400,
+            "output": 10800,
+            "cache_read": 2700,
+            "cache_write": 540
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 5400,
+              "output": 10800,
+              "cache_read": 2700,
+              "cache_write": 540
+            }
+          }
+        },
+        {
+          "date": "2026-04-06",
+          "tokens": {
+            "input": 5100,
+            "output": 10200,
+            "cache_read": 2550,
+            "cache_write": 510
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 5100,
+              "output": 10200,
+              "cache_read": 2550,
+              "cache_write": 510
+            }
+          }
+        },
+        {
+          "date": "2026-04-07",
+          "tokens": {
+            "input": 4800,
+            "output": 9600,
+            "cache_read": 2400,
+            "cache_write": 480
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 4800,
+              "output": 9600,
+              "cache_read": 2400,
+              "cache_write": 480
+            }
+          }
+        },
+        {
+          "date": "2026-04-08",
+          "tokens": {
+            "input": 4500,
+            "output": 9000,
+            "cache_read": 2250,
+            "cache_write": 450
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 4500,
+              "output": 9000,
+              "cache_read": 2250,
+              "cache_write": 450
+            }
+          }
+        },
+        {
+          "date": "2026-04-09",
+          "tokens": {
+            "input": 4200,
+            "output": 8400,
+            "cache_read": 2100,
+            "cache_write": 420
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 4200,
+              "output": 8400,
+              "cache_read": 2100,
+              "cache_write": 420
+            }
+          }
+        },
+        {
+          "date": "2026-04-10",
+          "tokens": {
+            "input": 3900,
+            "output": 7800,
+            "cache_read": 1950,
+            "cache_write": 390
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 3900,
+              "output": 7800,
+              "cache_read": 1950,
+              "cache_write": 390
+            }
+          }
+        },
+        {
+          "date": "2026-04-11",
+          "tokens": {
+            "input": 3600,
+            "output": 7200,
+            "cache_read": 1800,
+            "cache_write": 360
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 3600,
+              "output": 7200,
+              "cache_read": 1800,
+              "cache_write": 360
+            }
+          }
+        },
+        {
+          "date": "2026-04-12",
+          "tokens": {
+            "input": 3400,
+            "output": 6800,
+            "cache_read": 1700,
+            "cache_write": 340
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 3400,
+              "output": 6800,
+              "cache_read": 1700,
+              "cache_write": 340
+            }
+          }
+        },
+        {
+          "date": "2026-04-13",
+          "tokens": {
+            "input": 3100,
+            "output": 6200,
+            "cache_read": 1550,
+            "cache_write": 310
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 3100,
+              "output": 6200,
+              "cache_read": 1550,
+              "cache_write": 310
+            }
+          }
+        },
+        {
+          "date": "2026-04-14",
+          "tokens": {
+            "input": 2900,
+            "output": 5800,
+            "cache_read": 1450,
+            "cache_write": 290
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2900,
+              "output": 5800,
+              "cache_read": 1450,
+              "cache_write": 290
+            }
+          }
+        },
+        {
+          "date": "2026-04-15",
+          "tokens": {
+            "input": 2700,
+            "output": 5400,
+            "cache_read": 1350,
+            "cache_write": 270
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2700,
+              "output": 5400,
+              "cache_read": 1350,
+              "cache_write": 270
+            }
+          }
+        },
+        {
+          "date": "2026-04-16",
+          "tokens": {
+            "input": 2500,
+            "output": 5000,
+            "cache_read": 1250,
+            "cache_write": 250
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2500,
+              "output": 5000,
+              "cache_read": 1250,
+              "cache_write": 250
+            }
+          }
+        },
+        {
+          "date": "2026-04-17",
+          "tokens": {
+            "input": 2300,
+            "output": 4600,
+            "cache_read": 1150,
+            "cache_write": 230
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2300,
+              "output": 4600,
+              "cache_read": 1150,
+              "cache_write": 230
+            }
+          }
+        },
+        {
+          "date": "2026-04-18",
+          "tokens": {
+            "input": 2200,
+            "output": 4400,
+            "cache_read": 1100,
+            "cache_write": 220
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2200,
+              "output": 4400,
+              "cache_read": 1100,
+              "cache_write": 220
+            }
+          }
+        },
+        {
+          "date": "2026-04-19",
+          "tokens": {
+            "input": 2100,
+            "output": 4200,
+            "cache_read": 1050,
+            "cache_write": 210
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2100,
+              "output": 4200,
+              "cache_read": 1050,
+              "cache_write": 210
+            }
+          }
+        },
+        {
+          "date": "2026-04-20",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-04-21",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-04-22",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-04-23",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-04-24",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-04-25",
+          "tokens": {
+            "input": 2100,
+            "output": 4200,
+            "cache_read": 1050,
+            "cache_write": 210
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2100,
+              "output": 4200,
+              "cache_read": 1050,
+              "cache_write": 210
+            }
+          }
+        },
+        {
+          "date": "2026-04-26",
+          "tokens": {
+            "input": 2200,
+            "output": 4400,
+            "cache_read": 1100,
+            "cache_write": 220
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2200,
+              "output": 4400,
+              "cache_read": 1100,
+              "cache_write": 220
+            }
+          }
+        },
+        {
+          "date": "2026-04-27",
+          "tokens": {
+            "input": 2300,
+            "output": 4600,
+            "cache_read": 1150,
+            "cache_write": 230
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2300,
+              "output": 4600,
+              "cache_read": 1150,
+              "cache_write": 230
+            }
+          }
+        },
+        {
+          "date": "2026-04-28",
+          "tokens": {
+            "input": 2500,
+            "output": 5000,
+            "cache_read": 1250,
+            "cache_write": 250
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2500,
+              "output": 5000,
+              "cache_read": 1250,
+              "cache_write": 250
+            }
+          }
+        },
+        {
+          "date": "2026-04-29",
+          "tokens": {
+            "input": 2600,
+            "output": 5200,
+            "cache_read": 1300,
+            "cache_write": 260
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2600,
+              "output": 5200,
+              "cache_read": 1300,
+              "cache_write": 260
+            }
+          }
+        },
+        {
+          "date": "2026-04-30",
+          "tokens": {
+            "input": 2800,
+            "output": 5600,
+            "cache_read": 1400,
+            "cache_write": 280
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2800,
+              "output": 5600,
+              "cache_read": 1400,
+              "cache_write": 280
+            }
+          }
+        },
+        {
+          "date": "2026-05-01",
+          "tokens": {
+            "input": 3100,
+            "output": 6200,
+            "cache_read": 1550,
+            "cache_write": 310
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 3100,
+              "output": 6200,
+              "cache_read": 1550,
+              "cache_write": 310
+            }
+          }
+        },
+        {
+          "date": "2026-05-02",
+          "tokens": {
+            "input": 3300,
+            "output": 6600,
+            "cache_read": 1650,
+            "cache_write": 330
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 3300,
+              "output": 6600,
+              "cache_read": 1650,
+              "cache_write": 330
+            }
+          }
+        },
+        {
+          "date": "2026-05-03",
+          "tokens": {
+            "input": 3600,
+            "output": 7200,
+            "cache_read": 1800,
+            "cache_write": 360
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 3600,
+              "output": 7200,
+              "cache_read": 1800,
+              "cache_write": 360
+            }
+          }
+        },
+        {
+          "date": "2026-05-04",
+          "tokens": {
+            "input": 3800,
+            "output": 7600,
+            "cache_read": 1900,
+            "cache_write": 380
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 3800,
+              "output": 7600,
+              "cache_read": 1900,
+              "cache_write": 380
+            }
+          }
+        },
+        {
+          "date": "2026-05-05",
+          "tokens": {
+            "input": 4100,
+            "output": 8200,
+            "cache_read": 2050,
+            "cache_write": 410
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 4100,
+              "output": 8200,
+              "cache_read": 2050,
+              "cache_write": 410
+            }
+          }
+        },
+        {
+          "date": "2026-05-06",
+          "tokens": {
+            "input": 4400,
+            "output": 8800,
+            "cache_read": 2200,
+            "cache_write": 440
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 4400,
+              "output": 8800,
+              "cache_read": 2200,
+              "cache_write": 440
+            }
+          }
+        },
+        {
+          "date": "2026-05-07",
+          "tokens": {
+            "input": 4700,
+            "output": 9400,
+            "cache_read": 2350,
+            "cache_write": 470
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 4700,
+              "output": 9400,
+              "cache_read": 2350,
+              "cache_write": 470
+            }
+          }
+        },
+        {
+          "date": "2026-05-08",
+          "tokens": {
+            "input": 5000,
+            "output": 10000,
+            "cache_read": 2500,
+            "cache_write": 500
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 5000,
+              "output": 10000,
+              "cache_read": 2500,
+              "cache_write": 500
+            }
+          }
+        },
+        {
+          "date": "2026-05-09",
+          "tokens": {
+            "input": 5300,
+            "output": 10600,
+            "cache_read": 2650,
+            "cache_write": 530
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 5300,
+              "output": 10600,
+              "cache_read": 2650,
+              "cache_write": 530
+            }
+          }
+        },
+        {
+          "date": "2026-05-10",
+          "tokens": {
+            "input": 5600,
+            "output": 11200,
+            "cache_read": 2800,
+            "cache_write": 560
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 5600,
+              "output": 11200,
+              "cache_read": 2800,
+              "cache_write": 560
+            }
+          }
+        },
+        {
+          "date": "2026-05-11",
+          "tokens": {
+            "input": 5900,
+            "output": 11800,
+            "cache_read": 2950,
+            "cache_write": 590
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 5900,
+              "output": 11800,
+              "cache_read": 2950,
+              "cache_write": 590
+            }
+          }
+        },
+        {
+          "date": "2026-05-12",
+          "tokens": {
+            "input": 6200,
+            "output": 12400,
+            "cache_read": 3100,
+            "cache_write": 620
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 6200,
+              "output": 12400,
+              "cache_read": 3100,
+              "cache_write": 620
+            }
+          }
+        },
+        {
+          "date": "2026-05-13",
+          "tokens": {
+            "input": 6400,
+            "output": 12800,
+            "cache_read": 3200,
+            "cache_write": 640
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 6400,
+              "output": 12800,
+              "cache_read": 3200,
+              "cache_write": 640
+            }
+          }
+        },
+        {
+          "date": "2026-05-14",
+          "tokens": {
+            "input": 6700,
+            "output": 13400,
+            "cache_read": 3350,
+            "cache_write": 670
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 6700,
+              "output": 13400,
+              "cache_read": 3350,
+              "cache_write": 670
+            }
+          }
+        },
+        {
+          "date": "2026-05-15",
+          "tokens": {
+            "input": 6900,
+            "output": 13800,
+            "cache_read": 3450,
+            "cache_write": 690
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 6900,
+              "output": 13800,
+              "cache_read": 3450,
+              "cache_write": 690
+            }
+          }
+        },
+        {
+          "date": "2026-05-16",
+          "tokens": {
+            "input": 7100,
+            "output": 14200,
+            "cache_read": 3550,
+            "cache_write": 710
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7100,
+              "output": 14200,
+              "cache_read": 3550,
+              "cache_write": 710
+            }
+          }
+        },
+        {
+          "date": "2026-05-17",
+          "tokens": {
+            "input": 7300,
+            "output": 14600,
+            "cache_read": 3650,
+            "cache_write": 730
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7300,
+              "output": 14600,
+              "cache_read": 3650,
+              "cache_write": 730
+            }
+          }
+        },
+        {
+          "date": "2026-05-18",
+          "tokens": {
+            "input": 7500,
+            "output": 15000,
+            "cache_read": 3750,
+            "cache_write": 750
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7500,
+              "output": 15000,
+              "cache_read": 3750,
+              "cache_write": 750
+            }
+          }
+        },
+        {
+          "date": "2026-05-19",
+          "tokens": {
+            "input": 7600,
+            "output": 15200,
+            "cache_read": 3800,
+            "cache_write": 760
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7600,
+              "output": 15200,
+              "cache_read": 3800,
+              "cache_write": 760
+            }
+          }
+        },
+        {
+          "date": "2026-05-20",
+          "tokens": {
+            "input": 7800,
+            "output": 15600,
+            "cache_read": 3900,
+            "cache_write": 780
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7800,
+              "output": 15600,
+              "cache_read": 3900,
+              "cache_write": 780
+            }
+          }
+        },
+        {
+          "date": "2026-05-21",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-05-22",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-05-23",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-05-24",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-05-25",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-05-26",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-05-27",
+          "tokens": {
+            "input": 7800,
+            "output": 15600,
+            "cache_read": 3900,
+            "cache_write": 780
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7800,
+              "output": 15600,
+              "cache_read": 3900,
+              "cache_write": 780
+            }
+          }
+        },
+        {
+          "date": "2026-05-28",
+          "tokens": {
+            "input": 7700,
+            "output": 15400,
+            "cache_read": 3850,
+            "cache_write": 770
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7700,
+              "output": 15400,
+              "cache_read": 3850,
+              "cache_write": 770
+            }
+          }
+        },
+        {
+          "date": "2026-05-29",
+          "tokens": {
+            "input": 7500,
+            "output": 15000,
+            "cache_read": 3750,
+            "cache_write": 750
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7500,
+              "output": 15000,
+              "cache_read": 3750,
+              "cache_write": 750
+            }
+          }
+        },
+        {
+          "date": "2026-05-30",
+          "tokens": {
+            "input": 7300,
+            "output": 14600,
+            "cache_read": 3650,
+            "cache_write": 730
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7300,
+              "output": 14600,
+              "cache_read": 3650,
+              "cache_write": 730
+            }
+          }
+        },
+        {
+          "date": "2026-05-31",
+          "tokens": {
+            "input": 7200,
+            "output": 14400,
+            "cache_read": 3600,
+            "cache_write": 720
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7200,
+              "output": 14400,
+              "cache_read": 3600,
+              "cache_write": 720
+            }
+          }
+        },
+        {
+          "date": "2026-06-01",
+          "tokens": {
+            "input": 6900,
+            "output": 13800,
+            "cache_read": 3450,
+            "cache_write": 690
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 6900,
+              "output": 13800,
+              "cache_read": 3450,
+              "cache_write": 690
+            }
+          }
+        },
+        {
+          "date": "2026-06-02",
+          "tokens": {
+            "input": 6700,
+            "output": 13400,
+            "cache_read": 3350,
+            "cache_write": 670
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 6700,
+              "output": 13400,
+              "cache_read": 3350,
+              "cache_write": 670
+            }
+          }
+        },
+        {
+          "date": "2026-06-03",
+          "tokens": {
+            "input": 6500,
+            "output": 13000,
+            "cache_read": 3250,
+            "cache_write": 650
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 6500,
+              "output": 13000,
+              "cache_read": 3250,
+              "cache_write": 650
+            }
+          }
+        },
+        {
+          "date": "2026-06-04",
+          "tokens": {
+            "input": 6200,
+            "output": 12400,
+            "cache_read": 3100,
+            "cache_write": 620
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 6200,
+              "output": 12400,
+              "cache_read": 3100,
+              "cache_write": 620
+            }
+          }
+        },
+        {
+          "date": "2026-06-05",
+          "tokens": {
+            "input": 5900,
+            "output": 11800,
+            "cache_read": 2950,
+            "cache_write": 590
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 5900,
+              "output": 11800,
+              "cache_read": 2950,
+              "cache_write": 590
+            }
+          }
+        },
+        {
+          "date": "2026-06-06",
+          "tokens": {
+            "input": 5600,
+            "output": 11200,
+            "cache_read": 2800,
+            "cache_write": 560
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 5600,
+              "output": 11200,
+              "cache_read": 2800,
+              "cache_write": 560
+            }
+          }
+        },
+        {
+          "date": "2026-06-07",
+          "tokens": {
+            "input": 5300,
+            "output": 10600,
+            "cache_read": 2650,
+            "cache_write": 530
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 5300,
+              "output": 10600,
+              "cache_read": 2650,
+              "cache_write": 530
+            }
+          }
+        },
+        {
+          "date": "2026-06-08",
+          "tokens": {
+            "input": 5000,
+            "output": 10000,
+            "cache_read": 2500,
+            "cache_write": 500
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 5000,
+              "output": 10000,
+              "cache_read": 2500,
+              "cache_write": 500
+            }
+          }
+        },
+        {
+          "date": "2026-06-09",
+          "tokens": {
+            "input": 4700,
+            "output": 9400,
+            "cache_read": 2350,
+            "cache_write": 470
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 4700,
+              "output": 9400,
+              "cache_read": 2350,
+              "cache_write": 470
+            }
+          }
+        },
+        {
+          "date": "2026-06-10",
+          "tokens": {
+            "input": 4400,
+            "output": 8800,
+            "cache_read": 2200,
+            "cache_write": 440
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 4400,
+              "output": 8800,
+              "cache_read": 2200,
+              "cache_write": 440
+            }
+          }
+        },
+        {
+          "date": "2026-06-11",
+          "tokens": {
+            "input": 4100,
+            "output": 8200,
+            "cache_read": 2050,
+            "cache_write": 410
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 4100,
+              "output": 8200,
+              "cache_read": 2050,
+              "cache_write": 410
+            }
+          }
+        },
+        {
+          "date": "2026-06-12",
+          "tokens": {
+            "input": 3900,
+            "output": 7800,
+            "cache_read": 1950,
+            "cache_write": 390
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 3900,
+              "output": 7800,
+              "cache_read": 1950,
+              "cache_write": 390
+            }
+          }
+        },
+        {
+          "date": "2026-06-13",
+          "tokens": {
+            "input": 3600,
+            "output": 7200,
+            "cache_read": 1800,
+            "cache_write": 360
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 3600,
+              "output": 7200,
+              "cache_read": 1800,
+              "cache_write": 360
+            }
+          }
+        },
+        {
+          "date": "2026-06-14",
+          "tokens": {
+            "input": 3300,
+            "output": 6600,
+            "cache_read": 1650,
+            "cache_write": 330
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 3300,
+              "output": 6600,
+              "cache_read": 1650,
+              "cache_write": 330
+            }
+          }
+        },
+        {
+          "date": "2026-06-15",
+          "tokens": {
+            "input": 3100,
+            "output": 6200,
+            "cache_read": 1550,
+            "cache_write": 310
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 3100,
+              "output": 6200,
+              "cache_read": 1550,
+              "cache_write": 310
+            }
+          }
+        },
+        {
+          "date": "2026-06-16",
+          "tokens": {
+            "input": 2900,
+            "output": 5800,
+            "cache_read": 1450,
+            "cache_write": 290
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2900,
+              "output": 5800,
+              "cache_read": 1450,
+              "cache_write": 290
+            }
+          }
+        },
+        {
+          "date": "2026-06-17",
+          "tokens": {
+            "input": 2600,
+            "output": 5200,
+            "cache_read": 1300,
+            "cache_write": 260
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2600,
+              "output": 5200,
+              "cache_read": 1300,
+              "cache_write": 260
+            }
+          }
+        },
+        {
+          "date": "2026-06-18",
+          "tokens": {
+            "input": 2500,
+            "output": 5000,
+            "cache_read": 1250,
+            "cache_write": 250
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2500,
+              "output": 5000,
+              "cache_read": 1250,
+              "cache_write": 250
+            }
+          }
+        },
+        {
+          "date": "2026-06-19",
+          "tokens": {
+            "input": 2300,
+            "output": 4600,
+            "cache_read": 1150,
+            "cache_write": 230
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2300,
+              "output": 4600,
+              "cache_read": 1150,
+              "cache_write": 230
+            }
+          }
+        },
+        {
+          "date": "2026-06-20",
+          "tokens": {
+            "input": 2200,
+            "output": 4400,
+            "cache_read": 1100,
+            "cache_write": 220
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2200,
+              "output": 4400,
+              "cache_read": 1100,
+              "cache_write": 220
+            }
+          }
+        },
+        {
+          "date": "2026-06-21",
+          "tokens": {
+            "input": 2100,
+            "output": 4200,
+            "cache_read": 1050,
+            "cache_write": 210
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2100,
+              "output": 4200,
+              "cache_read": 1050,
+              "cache_write": 210
+            }
+          }
+        },
+        {
+          "date": "2026-06-22",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-06-23",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-06-24",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-06-25",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-06-26",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-06-27",
+          "tokens": {
+            "input": 2100,
+            "output": 4200,
+            "cache_read": 1050,
+            "cache_write": 210
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2100,
+              "output": 4200,
+              "cache_read": 1050,
+              "cache_write": 210
+            }
+          }
+        },
+        {
+          "date": "2026-06-28",
+          "tokens": {
+            "input": 2200,
+            "output": 4400,
+            "cache_read": 1100,
+            "cache_write": 220
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2200,
+              "output": 4400,
+              "cache_read": 1100,
+              "cache_write": 220
+            }
+          }
+        },
+        {
+          "date": "2026-06-29",
+          "tokens": {
+            "input": 2300,
+            "output": 4600,
+            "cache_read": 1150,
+            "cache_write": 230
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2300,
+              "output": 4600,
+              "cache_read": 1150,
+              "cache_write": 230
+            }
+          }
+        },
+        {
+          "date": "2026-06-30",
+          "tokens": {
+            "input": 2500,
+            "output": 5000,
+            "cache_read": 1250,
+            "cache_write": 250
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2500,
+              "output": 5000,
+              "cache_read": 1250,
+              "cache_write": 250
+            }
+          }
+        },
+        {
+          "date": "2026-07-01",
+          "tokens": {
+            "input": 2700,
+            "output": 5400,
+            "cache_read": 1350,
+            "cache_write": 270
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2700,
+              "output": 5400,
+              "cache_read": 1350,
+              "cache_write": 270
+            }
+          }
+        },
+        {
+          "date": "2026-07-02",
+          "tokens": {
+            "input": 2900,
+            "output": 5800,
+            "cache_read": 1450,
+            "cache_write": 290
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2900,
+              "output": 5800,
+              "cache_read": 1450,
+              "cache_write": 290
+            }
+          }
+        },
+        {
+          "date": "2026-07-03",
+          "tokens": {
+            "input": 3100,
+            "output": 6200,
+            "cache_read": 1550,
+            "cache_write": 310
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 3100,
+              "output": 6200,
+              "cache_read": 1550,
+              "cache_write": 310
+            }
+          }
+        },
+        {
+          "date": "2026-07-04",
+          "tokens": {
+            "input": 3300,
+            "output": 6600,
+            "cache_read": 1650,
+            "cache_write": 330
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 3300,
+              "output": 6600,
+              "cache_read": 1650,
+              "cache_write": 330
+            }
+          }
+        },
+        {
+          "date": "2026-07-05",
+          "tokens": {
+            "input": 3600,
+            "output": 7200,
+            "cache_read": 1800,
+            "cache_write": 360
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 3600,
+              "output": 7200,
+              "cache_read": 1800,
+              "cache_write": 360
+            }
+          }
+        },
+        {
+          "date": "2026-07-06",
+          "tokens": {
+            "input": 3900,
+            "output": 7800,
+            "cache_read": 1950,
+            "cache_write": 390
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 3900,
+              "output": 7800,
+              "cache_read": 1950,
+              "cache_write": 390
+            }
+          }
+        },
+        {
+          "date": "2026-07-07",
+          "tokens": {
+            "input": 4200,
+            "output": 8400,
+            "cache_read": 2100,
+            "cache_write": 420
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 4200,
+              "output": 8400,
+              "cache_read": 2100,
+              "cache_write": 420
+            }
+          }
+        },
+        {
+          "date": "2026-07-08",
+          "tokens": {
+            "input": 4500,
+            "output": 9000,
+            "cache_read": 2250,
+            "cache_write": 450
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 4500,
+              "output": 9000,
+              "cache_read": 2250,
+              "cache_write": 450
+            }
+          }
+        },
+        {
+          "date": "2026-07-09",
+          "tokens": {
+            "input": 4800,
+            "output": 9600,
+            "cache_read": 2400,
+            "cache_write": 480
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 4800,
+              "output": 9600,
+              "cache_read": 2400,
+              "cache_write": 480
+            }
+          }
+        },
+        {
+          "date": "2026-07-10",
+          "tokens": {
+            "input": 5100,
+            "output": 10200,
+            "cache_read": 2550,
+            "cache_write": 510
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 5100,
+              "output": 10200,
+              "cache_read": 2550,
+              "cache_write": 510
+            }
+          }
+        },
+        {
+          "date": "2026-07-11",
+          "tokens": {
+            "input": 5300,
+            "output": 10600,
+            "cache_read": 2650,
+            "cache_write": 530
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 5300,
+              "output": 10600,
+              "cache_read": 2650,
+              "cache_write": 530
+            }
+          }
+        },
+        {
+          "date": "2026-07-12",
+          "tokens": {
+            "input": 5600,
+            "output": 11200,
+            "cache_read": 2800,
+            "cache_write": 560
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 5600,
+              "output": 11200,
+              "cache_read": 2800,
+              "cache_write": 560
+            }
+          }
+        },
+        {
+          "date": "2026-07-13",
+          "tokens": {
+            "input": 5900,
+            "output": 11800,
+            "cache_read": 2950,
+            "cache_write": 590
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 5900,
+              "output": 11800,
+              "cache_read": 2950,
+              "cache_write": 590
+            }
+          }
+        },
+        {
+          "date": "2026-07-14",
+          "tokens": {
+            "input": 6200,
+            "output": 12400,
+            "cache_read": 3100,
+            "cache_write": 620
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 6200,
+              "output": 12400,
+              "cache_read": 3100,
+              "cache_write": 620
+            }
+          }
+        },
+        {
+          "date": "2026-07-15",
+          "tokens": {
+            "input": 6500,
+            "output": 13000,
+            "cache_read": 3250,
+            "cache_write": 650
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 6500,
+              "output": 13000,
+              "cache_read": 3250,
+              "cache_write": 650
+            }
+          }
+        },
+        {
+          "date": "2026-07-16",
+          "tokens": {
+            "input": 6700,
+            "output": 13400,
+            "cache_read": 3350,
+            "cache_write": 670
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 6700,
+              "output": 13400,
+              "cache_read": 3350,
+              "cache_write": 670
+            }
+          }
+        },
+        {
+          "date": "2026-07-17",
+          "tokens": {
+            "input": 7000,
+            "output": 14000,
+            "cache_read": 3500,
+            "cache_write": 700
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7000,
+              "output": 14000,
+              "cache_read": 3500,
+              "cache_write": 700
+            }
+          }
+        },
+        {
+          "date": "2026-07-18",
+          "tokens": {
+            "input": 7200,
+            "output": 14400,
+            "cache_read": 3600,
+            "cache_write": 720
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7200,
+              "output": 14400,
+              "cache_read": 3600,
+              "cache_write": 720
+            }
+          }
+        },
+        {
+          "date": "2026-07-19",
+          "tokens": {
+            "input": 7400,
+            "output": 14800,
+            "cache_read": 3700,
+            "cache_write": 740
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7400,
+              "output": 14800,
+              "cache_read": 3700,
+              "cache_write": 740
+            }
+          }
+        },
+        {
+          "date": "2026-07-20",
+          "tokens": {
+            "input": 7500,
+            "output": 15000,
+            "cache_read": 3750,
+            "cache_write": 750
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7500,
+              "output": 15000,
+              "cache_read": 3750,
+              "cache_write": 750
+            }
+          }
+        },
+        {
+          "date": "2026-07-21",
+          "tokens": {
+            "input": 7700,
+            "output": 15400,
+            "cache_read": 3850,
+            "cache_write": 770
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7700,
+              "output": 15400,
+              "cache_read": 3850,
+              "cache_write": 770
+            }
+          }
+        },
+        {
+          "date": "2026-07-22",
+          "tokens": {
+            "input": 7800,
+            "output": 15600,
+            "cache_read": 3900,
+            "cache_write": 780
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7800,
+              "output": 15600,
+              "cache_read": 3900,
+              "cache_write": 780
+            }
+          }
+        },
+        {
+          "date": "2026-07-23",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-07-24",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-07-25",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-07-26",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-07-27",
+          "tokens": {
+            "input": 7900,
+            "output": 15800,
+            "cache_read": 3950,
+            "cache_write": 790
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7900,
+              "output": 15800,
+              "cache_read": 3950,
+              "cache_write": 790
+            }
+          }
+        },
+        {
+          "date": "2026-07-28",
+          "tokens": {
+            "input": 7800,
+            "output": 15600,
+            "cache_read": 3900,
+            "cache_write": 780
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7800,
+              "output": 15600,
+              "cache_read": 3900,
+              "cache_write": 780
+            }
+          }
+        },
+        {
+          "date": "2026-07-29",
+          "tokens": {
+            "input": 7800,
+            "output": 15600,
+            "cache_read": 3900,
+            "cache_write": 780
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7800,
+              "output": 15600,
+              "cache_read": 3900,
+              "cache_write": 780
+            }
+          }
+        },
+        {
+          "date": "2026-07-30",
+          "tokens": {
+            "input": 7600,
+            "output": 15200,
+            "cache_read": 3800,
+            "cache_write": 760
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 7600,
+              "output": 15200,
+              "cache_read": 3800,
+              "cache_write": 760
+            }
+          }
+        },
+        {
+          "date": "2026-07-31",
+          "tokens": {
+            "input": 7500,
+            "output": 15000,
+            "cache_read": 3750,
+            "cache_write": 750
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 7500,
+              "output": 15000,
+              "cache_read": 3750,
+              "cache_write": 750
+            }
+          }
+        },
+        {
+          "date": "2026-08-01",
+          "tokens": {
+            "input": 7300,
+            "output": 14600,
+            "cache_read": 3650,
+            "cache_write": 730
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 7300,
+              "output": 14600,
+              "cache_read": 3650,
+              "cache_write": 730
+            }
+          }
+        },
+        {
+          "date": "2026-08-02",
+          "tokens": {
+            "input": 7100,
+            "output": 14200,
+            "cache_read": 3550,
+            "cache_write": 710
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 7100,
+              "output": 14200,
+              "cache_read": 3550,
+              "cache_write": 710
+            }
+          }
+        },
+        {
+          "date": "2026-08-03",
+          "tokens": {
+            "input": 6900,
+            "output": 13800,
+            "cache_read": 3450,
+            "cache_write": 690
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 6900,
+              "output": 13800,
+              "cache_read": 3450,
+              "cache_write": 690
+            }
+          }
+        },
+        {
+          "date": "2026-08-04",
+          "tokens": {
+            "input": 6700,
+            "output": 13400,
+            "cache_read": 3350,
+            "cache_write": 670
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 6700,
+              "output": 13400,
+              "cache_read": 3350,
+              "cache_write": 670
+            }
+          }
+        },
+        {
+          "date": "2026-08-05",
+          "tokens": {
+            "input": 6400,
+            "output": 12800,
+            "cache_read": 3200,
+            "cache_write": 640
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 6400,
+              "output": 12800,
+              "cache_read": 3200,
+              "cache_write": 640
+            }
+          }
+        },
+        {
+          "date": "2026-08-06",
+          "tokens": {
+            "input": 6100,
+            "output": 12200,
+            "cache_read": 3050,
+            "cache_write": 610
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 6100,
+              "output": 12200,
+              "cache_read": 3050,
+              "cache_write": 610
+            }
+          }
+        },
+        {
+          "date": "2026-08-07",
+          "tokens": {
+            "input": 5900,
+            "output": 11800,
+            "cache_read": 2950,
+            "cache_write": 590
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 5900,
+              "output": 11800,
+              "cache_read": 2950,
+              "cache_write": 590
+            }
+          }
+        },
+        {
+          "date": "2026-08-08",
+          "tokens": {
+            "input": 5600,
+            "output": 11200,
+            "cache_read": 2800,
+            "cache_write": 560
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 5600,
+              "output": 11200,
+              "cache_read": 2800,
+              "cache_write": 560
+            }
+          }
+        },
+        {
+          "date": "2026-08-09",
+          "tokens": {
+            "input": 5300,
+            "output": 10600,
+            "cache_read": 2650,
+            "cache_write": 530
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 5300,
+              "output": 10600,
+              "cache_read": 2650,
+              "cache_write": 530
+            }
+          }
+        },
+        {
+          "date": "2026-08-10",
+          "tokens": {
+            "input": 5000,
+            "output": 10000,
+            "cache_read": 2500,
+            "cache_write": 500
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 5000,
+              "output": 10000,
+              "cache_read": 2500,
+              "cache_write": 500
+            }
+          }
+        },
+        {
+          "date": "2026-08-11",
+          "tokens": {
+            "input": 4700,
+            "output": 9400,
+            "cache_read": 2350,
+            "cache_write": 470
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 4700,
+              "output": 9400,
+              "cache_read": 2350,
+              "cache_write": 470
+            }
+          }
+        },
+        {
+          "date": "2026-08-12",
+          "tokens": {
+            "input": 4400,
+            "output": 8800,
+            "cache_read": 2200,
+            "cache_write": 440
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 4400,
+              "output": 8800,
+              "cache_read": 2200,
+              "cache_write": 440
+            }
+          }
+        },
+        {
+          "date": "2026-08-13",
+          "tokens": {
+            "input": 4100,
+            "output": 8200,
+            "cache_read": 2050,
+            "cache_write": 410
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 4100,
+              "output": 8200,
+              "cache_read": 2050,
+              "cache_write": 410
+            }
+          }
+        },
+        {
+          "date": "2026-08-14",
+          "tokens": {
+            "input": 3800,
+            "output": 7600,
+            "cache_read": 1900,
+            "cache_write": 380
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 3800,
+              "output": 7600,
+              "cache_read": 1900,
+              "cache_write": 380
+            }
+          }
+        },
+        {
+          "date": "2026-08-15",
+          "tokens": {
+            "input": 3500,
+            "output": 7000,
+            "cache_read": 1750,
+            "cache_write": 350
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 3500,
+              "output": 7000,
+              "cache_read": 1750,
+              "cache_write": 350
+            }
+          }
+        },
+        {
+          "date": "2026-08-16",
+          "tokens": {
+            "input": 3300,
+            "output": 6600,
+            "cache_read": 1650,
+            "cache_write": 330
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 3300,
+              "output": 6600,
+              "cache_read": 1650,
+              "cache_write": 330
+            }
+          }
+        },
+        {
+          "date": "2026-08-17",
+          "tokens": {
+            "input": 3000,
+            "output": 6000,
+            "cache_read": 1500,
+            "cache_write": 300
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 3000,
+              "output": 6000,
+              "cache_read": 1500,
+              "cache_write": 300
+            }
+          }
+        },
+        {
+          "date": "2026-08-18",
+          "tokens": {
+            "input": 2800,
+            "output": 5600,
+            "cache_read": 1400,
+            "cache_write": 280
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2800,
+              "output": 5600,
+              "cache_read": 1400,
+              "cache_write": 280
+            }
+          }
+        },
+        {
+          "date": "2026-08-19",
+          "tokens": {
+            "input": 2600,
+            "output": 5200,
+            "cache_read": 1300,
+            "cache_write": 260
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2600,
+              "output": 5200,
+              "cache_read": 1300,
+              "cache_write": 260
+            }
+          }
+        },
+        {
+          "date": "2026-08-20",
+          "tokens": {
+            "input": 2400,
+            "output": 4800,
+            "cache_read": 1200,
+            "cache_write": 240
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2400,
+              "output": 4800,
+              "cache_read": 1200,
+              "cache_write": 240
+            }
+          }
+        },
+        {
+          "date": "2026-08-21",
+          "tokens": {
+            "input": 2300,
+            "output": 4600,
+            "cache_read": 1150,
+            "cache_write": 230
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2300,
+              "output": 4600,
+              "cache_read": 1150,
+              "cache_write": 230
+            }
+          }
+        },
+        {
+          "date": "2026-08-22",
+          "tokens": {
+            "input": 2200,
+            "output": 4400,
+            "cache_read": 1100,
+            "cache_write": 220
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2200,
+              "output": 4400,
+              "cache_read": 1100,
+              "cache_write": 220
+            }
+          }
+        },
+        {
+          "date": "2026-08-23",
+          "tokens": {
+            "input": 2100,
+            "output": 4200,
+            "cache_read": 1050,
+            "cache_write": 210
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2100,
+              "output": 4200,
+              "cache_read": 1050,
+              "cache_write": 210
+            }
+          }
+        },
+        {
+          "date": "2026-08-24",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-08-25",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-08-26",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-08-27",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-08-28",
+          "tokens": {
+            "input": 2000,
+            "output": 4000,
+            "cache_read": 1000,
+            "cache_write": 200
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2000,
+              "output": 4000,
+              "cache_read": 1000,
+              "cache_write": 200
+            }
+          }
+        },
+        {
+          "date": "2026-08-29",
+          "tokens": {
+            "input": 2100,
+            "output": 4200,
+            "cache_read": 1050,
+            "cache_write": 210
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2100,
+              "output": 4200,
+              "cache_read": 1050,
+              "cache_write": 210
+            }
+          }
+        },
+        {
+          "date": "2026-08-30",
+          "tokens": {
+            "input": 2200,
+            "output": 4400,
+            "cache_read": 1100,
+            "cache_write": 220
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2200,
+              "output": 4400,
+              "cache_read": 1100,
+              "cache_write": 220
+            }
+          }
+        },
+        {
+          "date": "2026-08-31",
+          "tokens": {
+            "input": 2300,
+            "output": 4600,
+            "cache_read": 1150,
+            "cache_write": 230
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4o": {
+              "input": 2300,
+              "output": 4600,
+              "cache_read": 1150,
+              "cache_write": 230
+            }
+          }
+        },
+        {
+          "date": "2026-09-01",
+          "tokens": {
+            "input": 2500,
+            "output": 5000,
+            "cache_read": 1250,
+            "cache_write": 250
+          },
+          "cost": 0,
+          "by_model": {
+            "gpt-4.1-mini": {
+              "input": 2500,
+              "output": 5000,
+              "cache_read": 1250,
+              "cache_write": 250
+            }
+          }
+        },
+        {
+          "date": "2026-09-02",
+          "tokens": {
+            "input": 2700,
+            "output": 5400,
+            "cache_read": 1350,
+            "cache_write": 270
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-sonnet-4-20250514": {
+              "input": 2700,
+              "output": 5400,
+              "cache_read": 1350,
+              "cache_write": 270
+            }
+          }
+        },
+        {
+          "date": "2026-09-03",
+          "tokens": {
+            "input": 2900,
+            "output": 5800,
+            "cache_read": 1450,
+            "cache_write": 290
+          },
+          "cost": 0,
+          "by_model": {
+            "claude-opus-4-20250514": {
+              "input": 2900,
+              "output": 5800,
+              "cache_read": 1450,
+              "cache_write": 290
+            }
+          }
+        }
+      ],
+      "active_days": 182,
+      "peak": {
+        "date": "2026-03-20",
+        "tokens": 28440
+      }
+    }
+  }
+}
