@@ -30,4 +30,48 @@ enum class PowerAction : uint8_t {
 PowerAction powerDecide(bool vbusPresent, uint32_t nowMs,
                         uint32_t lastActivityMs, uint32_t graceMs = 20000);
 
+// VbusDebouncer filters single-sample VBUS glitches so a one-off I2C read
+// failure (returns 0 mV) or noise spike can never make the device deep-sleep
+// while it is actually on USB.  A reading of exactly 0 mV is always suspect
+// and is ignored (the last settled state is returned).  After N consecutive
+// "battery" readings (vbus <= 4000, > 0) the settled state flips to false.
+// Any "USB" reading (vbus > 4000) resets the counter and flips to true.
+//
+// The debouncer is pure C++17 (no M5/Arduino headers) so the "one spurious
+// sample does not cause SleepNow" invariant is host-tested.
+class VbusDebouncer {
+public:
+    // samplesNeeded consecutive "battery" readings before settling to false.
+    explicit VbusDebouncer(uint8_t samplesNeeded = 3)
+        : m_samplesNeeded(samplesNeeded), m_batteryCount(0), m_settled(true) {}
+
+    // Feed a raw VBUS reading (mV).  Returns the debounced vbusPresent.
+    bool sample(uint32_t vbusMv) {
+        if (vbusMv == 0) {
+            // Suspect read (I2C failure) — don't consume, return settled state.
+            return m_settled;
+        }
+        if (vbusMv > 4000) {
+            // USB confirmed: reset counter, settle true.
+            m_batteryCount = 0;
+            m_settled = true;
+        } else {
+            // Battery: increment, but don't flip until threshold.
+            if (m_batteryCount < 255) m_batteryCount++;
+            if (m_batteryCount >= m_samplesNeeded) {
+                m_settled = false;
+            }
+        }
+        return m_settled;
+    }
+
+    // Current settled result without consuming a sample.
+    bool vbusPresent() const { return m_settled; }
+
+private:
+    const uint8_t m_samplesNeeded;
+    uint8_t m_batteryCount;
+    bool m_settled;
+};
+
 } // namespace usage

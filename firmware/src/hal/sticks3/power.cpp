@@ -10,7 +10,7 @@
 #include "hal/sticks3/power.h"
 
 #include "hal/sticks3/board.h"   // serialLine
-#include "usage/power.h"          // powerDecide
+#include "usage/power.h"          // powerDecide, VbusDebouncer
 #include "usage/serial_proto.h"   // fmtWake, fmtSleep
 
 #include <ArduinoOTA.h>
@@ -18,6 +18,7 @@
 #include <WiFi.h>
 #include <esp_sleep.h>
 #include <driver/rtc_io.h>
+#include <cstdio>
 
 namespace sticks3 {
 
@@ -37,8 +38,16 @@ uint16_t vbusMv() {
     return M5.Power.getVBUSVoltage();
 }
 
+// ORDER #26: debounce VBUS reads so a single I2C glitch (0 mV) or noise
+// spike on the PM1 I2C bus can never make the device deep-sleep while on USB.
 bool vbusPresent() {
-    return vbusMv() > 4000;
+    static usage::VbusDebouncer debouncer(3);  // 3 consecutive battery reads
+    uint16_t mv = vbusMv();
+    if (mv == 0) {
+        // Suspect read: don't consume, return last settled state.
+        return debouncer.vbusPresent();
+    }
+    return debouncer.sample(mv);
 }
 
 // --- screen off ------------------------------------------------------------
@@ -85,47 +94,80 @@ static void radioOff() {
 
 // --- wake sources ----------------------------------------------------------
 
-static void armWakeSources() {
+static void armWakeSources(bool disableExt0) {
     // PM1 GPIO1 as push-pull IRQ output for 5VIN-insert detection.
+    // ORDER #27: set mode=output and drive=push_pull FIRST, latch
+    // setGPIOFunction(gpio1, irq) LAST — setting the function before the
+    // drive can leave the pin open-drain during the brief window before
+    // the drive is configured.
     M5.Power.M5pm1.setGPIOMode(m5::M5PM1_Class::gpio1,
                                m5::M5PM1_Class::output);
-    M5.Power.M5pm1.setGPIOFunction(m5::M5PM1_Class::gpio1,
-                                   m5::M5PM1_Class::irq);
     M5.Power.M5pm1.setGPIODrive(m5::M5PM1_Class::gpio1,
                                 m5::M5PM1_Class::push_pull);
+    M5.Power.M5pm1.setGPIOFunction(m5::M5PM1_Class::gpio1,
+                                   m5::M5PM1_Class::irq);
     // Clear IRQ status so the line is released before sleep.
     M5.Power.M5pm1.clearIRQStatus();
     // Unmask only 5VIN-inserted (system IRQ bit 0); disable all others.
     // setSystemIRQMaskBits: bit=1 DISABLES.  0x3E = 0b111110 → bit0 enabled.
     M5.Power.M5pm1.setSystemIRQMaskBits(0x3E);
 
-    // (a) USB insert: ext0 on GPIO13 (PM1 IRQ line), trigger on low.
-    esp_sleep_enable_ext0_wakeup(GPIO_NUM_13, 0);
-    rtc_gpio_pullup_en(GPIO_NUM_13);
-
     // (b) Buttons: BtnA (GPIO11) + BtnB (GPIO12), any-low → per-pin OR.
     //     ESP_EXT1_WAKEUP_ANY_LOW == 0 is the per-pin OR mode.
     esp_sleep_enable_ext1_wakeup((1ULL << 11) | (1ULL << 12),
                                  ESP_EXT1_WAKEUP_ANY_LOW);
+    // ORDER #27: pair pullup_en...pulldown_dis on every ext wake pin.
+    // Without pulldown_dis, the RTC domain's internal pulldown keeps the
+    // pin LOW, causing ext0/ext1 to fire instantly on sleep entry.
+    rtc_gpio_pullup_en(GPIO_NUM_11);
+    rtc_gpio_pulldown_dis(GPIO_NUM_11);
+    rtc_gpio_pullup_en(GPIO_NUM_12);
+    rtc_gpio_pulldown_dis(GPIO_NUM_12);
 
     // (c) 1-hour timer backstop: a missed IRQ can never strand the device.
     esp_sleep_enable_timer_wakeup(3600ULL * 1000000ULL);
+
+    // (a) USB insert: ext0 on GPIO13 (PM1 IRQ line), trigger on low.
+    // ORDER #27: only arm ext0 when the line is confirmed high AND not
+    // disabled by the instant-wake guard.  Read the pin BEFORE rtc_gpio
+    // hand-off (while it is still a plain digital input).
+    if (!disableExt0) {
+        int level = digitalRead(13);  // GPIO13 before rtc_gpio hand-off
+        if (level == 0) {
+            // IRQ line is stuck low — skip ext0 to avoid an instant-wake loop.
+            // Timer + ext1 will still wake the device.
+            serialLine("[SLEEP] skipped irq_line_low");
+        } else {
+            esp_sleep_enable_ext0_wakeup(GPIO_NUM_13, 0);
+            rtc_gpio_pullup_en(GPIO_NUM_13);
+            rtc_gpio_pulldown_dis(GPIO_NUM_13);
+        }
+    }
 }
 
 // --- sleep -----------------------------------------------------------------
 
-void powerSleep() {
+void powerSleep(bool disableExt0) {
     // [SLEEP] before teardown so the line is visible over serial.
     char buf[64];
     usage::fmtSleep(buf, sizeof(buf), "battery");
     serialLine(buf);
+
+    // ORDER #27: if ext0 was disabled by the instant-wake guard, log it so
+    // the reason is visible in the serial transcript.
+    if (disableExt0) {
+        char guardBuf[80];
+        std::snprintf(guardBuf, sizeof(guardBuf),
+                      "[SLEEP] ext0 disabled by guard");
+        serialLine(guardBuf);
+    }
 
     screenOff();
     radioOff();
     teardownCodecs();
     teardownImu();
     teardownPowerRails();
-    armWakeSources();
+    armWakeSources(disableExt0);
 
     esp_deep_sleep_start();
 }

@@ -39,3 +39,60 @@
 38	2026-09-03T23:58:00Z task 38 done — end-to-end on the desk: device polled Mac's usaged (healthz seq=19 rev=509f35e8) every 300s; 660s serial capture: [FETCH] code=200 rev=509f35e8 seq=0 ms=54 → [RENDER] page=1 lines=5 rev=509f35e8 → 5x [HEAP] 60s → [FETCH] code=304 rev=509f35e8 ms=203 (+5min, no RENDER) → 5x [HEAP] → [FETCH] code=304 rev=509f35e8 ms=122 (+10min, no RENDER) → [FETCH] code=200 rev=0ad24b8e seq=0 ms=142 (+15min, rev changed) → [RENDER] page=1 lines=5 rev=0ad24b8e (redraw on change); [HEAP] free=281168→281136 (stable within 10%); verify: 200→304→304→200+RENDER cycle captured, no RENDER between 304s, HEAP trending flat
 39	2026-09-04T03:11:44Z task 39 done — ArduinoOTA on unit #2 (last USB flash): fmtOta (4 formats + 6 tests PASS), net.cpp OTA armed on NET_CONNECTED via otaBegin() (re-arms every join), otaHandle/otaInProgress/otaPercent in main.cpp loop (skip fetch/render during transfer + drawOtaStatus "OTA %"), OTA_PASS in secrets.h.example + secrets.h (#error guard if undefined), firmware/scripts/upload_ota.sh (MAC guard 14:c1:9f:d4:d5:34 twice: ping+ARP, espota.py upload with --auth), make fw-ota target; Verify: make fw-test 32 PASS+Failed 0, make fw-build SUCCESS RAM 16.4%, fresh-clone build green, bash -n OK, grep verify_target=2; HARDWARE UAT: USB flash OK, [NET] state=connected ip=192.168.0.136, sticks3-usage.local ping 0% loss, arp MAC=14:c1:9f:d4:d5:34, make fw-ota unchanged build=61a90ee+dirty → [OTA] start/pct=1..100/end → RTC_SW_CPU_RST → [BOOT] build=61a90ee+dirty (same id) → [NET] connected → [FETCH] 200 rev=0906ceba → [RENDER] → [HEAP] free=268872; spec.json[39] passes flipped, task count=50
 2026-09-04T08:36:00Z task 42 done — README.md (114 lines: ASCII arch, quick start, CLI, API table, v1 contract, firmware section, troubleshooting); docs/SOURCES.md Policy + Attribution (sheepxux/Taskhub, Colibrino/ptt.ino, ArduinoJson MIT); verify: grep /v1/usage=3 ≥2, Attribution=1 ≥1, make verify=0; commit ed8433a
+
+## Reconciliation
+
+Reconciled 2026-09-04. Ledger: 51 tasks, 41 passed (spec.json passes=true count).
+
+Task-by-task status (one line per task, matches spec.json passes):
+  1: done
+  2: done
+  3: done
+  4: done
+  5: done
+  6: done
+  7: done
+  8: done
+  9: done
+  10: done
+  11: done
+  12: done
+  13: done
+  14: done
+  15: done
+  16: done
+  17: done
+  18: done
+  19: done
+  20: done
+  21: done
+  22: done
+  23: done
+  24: done
+  25: done
+  26: done
+  27: done
+  28: done
+  29: done
+  30: done
+  31: done
+  32: done
+  33: done
+  34: done
+  35: done
+  36: done
+  37: done
+  38: done
+  39: done
+  40: UAT-FAILED — BUG 40 (seq 155): ext0 instant-wake loop on battery. Root cause: rtc_gpio_pulldown_dis(GPIO_NUM_13) missing in armWakeSources (power.cpp:103-104), so the pulldown keeps GPIO13 low and ext0 fires instantly. Also ORDER #26 (vbusPresent single-read glitch) and ORDER #27 (pin config order, irq-line-high pre-check, ext0 disabled-after-3-wakes guard, VBUS debounce) pending. Fix committed, awaiting Felipe OTA authorization to re-flash + UAT.
+  41: done
+  42: done
+  43: done — AGENTS.md finalised (real tree, all Make targets, serial protocol, status), progress.txt reconciled
+  44: pending — Local usage stats /v1/stats (scan Claude/Codex transcripts incrementally)
+  45: pending — Desktop dashboard polish (AIUsage-style stat pills, heatmaps, models table)
+  46: pending — IMU gestures (shake refresh, double tap flip)
+  47: pending — Battery percentage on top bar (PTT gauge, pure core + host tests)
+  48: pending — OPTIONAL v3: codex app-server JSON-RPC spike
+  49: pending — OPTIONAL v3: Claude rate_limits via statusline shell
+  50: pending — OPTIONAL v3: remote HTTPS snapshot publish
+  51: pending — OPTIONAL v3: task-hub rows POST /v1/rows

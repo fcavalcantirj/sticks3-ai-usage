@@ -86,21 +86,30 @@ void drawPlan(const usage::RenderPlan& plan, bool wifiOk) {
     // --- rows ---
     for (uint8_t i = 0; i < plan.lineCount; i++) {
         const usage::Line& line = plan.lines[i];
-        int16_t y = 29 + i * 17;
+        int16_t rowY = 29 + i * 17;
+        int16_t rowH = 17;
+
+        // ORDER #28: one shared vertical centre for label, bar and value.
+        // Font 1 height (size 1) is 8 px; bar height is 8 px.  Centring both
+        // at rowY + rowH/2 avoids the "value looks like the row above" misalignment
+        // where top-datum text sat 4 px above the bar.
+        int16_t fontH = M5.Display.fontHeight();
+        int16_t textY = rowY + (rowH - fontH) / 2;
+        int16_t barY  = rowY + (rowH - 8) / 2;
 
         // Left label.
         uint16_t labelColor = line.dim ? 0x8410 : TFT_WHITE;  // grey / white
         M5.Display.setTextColor(labelColor);
-        M5.Display.setCursor(12, y);
+        M5.Display.setCursor(12, textY);
         M5.Display.println(line.left);
 
         // Bar (only when pct >= 0).
         int maxPx = 156;  // 228 - 72
         if (line.pct >= 0) {
-            M5.Display.fillRoundRect(72, y + 4, 100, 8, 3, 0x2945);
+            M5.Display.fillRoundRect(72, barY, 100, 8, 3, 0x2945);
             uint16_t barColor =
                 usage::tierColor565(line.tier, line.dim != 0);
-            M5.Display.fillRect(72, y + 4, (int)line.pct, 8, barColor);
+            M5.Display.fillRect(72, barY, (int)line.pct, 8, barColor);
             maxPx = 156 - (int)line.pct;  // space after bar fill
         }
 
@@ -112,7 +121,7 @@ void drawPlan(const usage::RenderPlan& plan, bool wifiOk) {
         } else {
             std::snprintf(rightText, sizeof(rightText), "%s", line.right);
         }
-        fitPrintRight(W - 12, y, rightText, maxPx);
+        fitPrintRight(W - 12, textY, rightText, maxPx);
     }
 
     // --- footer (y = 116..134) ---

@@ -40,6 +40,13 @@ RTC_DATA_ATTR struct WakeSnapshot {
     usage::Model model;
 } g_wakeSnapshot;
 
+// ORDER #27: guard against the PM1 IRQ line stuck-low causing an instant
+// sleep/wake loop.  Counts consecutive ext0 wakes that found vbus < 4000.
+// After 3, ext0 is disabled (timer + ext1 only) to protect the battery.
+RTC_DATA_ATTR struct PowerGuard {
+    uint8_t ext0InstantWakeCount;
+} g_powerGuard;
+
 // --- poll configuration ------------------------------------------------------
 
 static const uint32_t kPollMs = 300000;            // 5 minutes
@@ -237,6 +244,16 @@ void setup() {
     uint16_t vbus = vbusMv();
     emitWake(wakeCause, vbus);
 
+    // ORDER #27: count consecutive ext0 instant-wakes (vbus still < 4000).
+    // After 3, disable ext0 to prevent a battery-flattening sleep/wake loop.
+    if (wakeCause == WakeCause::Ext0 && vbus < 4000) {
+        if (g_powerGuard.ext0InstantWakeCount < 255)
+            g_powerGuard.ext0InstantWakeCount++;
+    } else if (vbus >= 4000) {
+        // USB present or non-ext0 wake: ext0 is safe, reset the guard.
+        g_powerGuard.ext0InstantWakeCount = 0;
+    }
+
     if (std::memcmp(g_wakeSnapshot.magic, "WAKE", 4) == 0) {
         // Warm boot from deep sleep: restore the cached model so a redraw
         // paints instantly without re-fetching.
@@ -259,7 +276,8 @@ void setup() {
     // to sleep.  A missed IRQ or button press will wake us again.
     // powerSleep() emits [SLEEP] internally and never returns.
     if (wakeCause == WakeCause::Timer && !vbusPresent()) {
-        powerSleep();
+        bool disableExt0 = g_powerGuard.ext0InstantWakeCount > 3;
+        powerSleep(disableExt0);
     }
 
     netBegin();
@@ -299,7 +317,10 @@ void loop() {
     // register read; powerDecide() is pure and never sleeps on USB.
     if (usage::powerDecide(vbusPresent(), now, g_lastActivity)
             == usage::PowerAction::SleepNow) {
-        powerSleep();  // emits [SLEEP], teardown, arm wakes, never returns
+        // ORDER #27: disable ext0 after 3 instant-wake cycles to protect
+        // the battery from an IRQ-line-stuck-low loop.
+        bool disableExt0 = g_powerGuard.ext0InstantWakeCount > 3;
+        powerSleep(disableExt0);
     }
 
     delay(1);

@@ -33,7 +33,11 @@ void screenOff();
 // Full teardown (screen, radio, codec, IMU, PA rail) + arm the three wake
 // sources (USB-insert ext0, buttons ext1, 1-h timer) + esp_deep_sleep_start().
 // Never returns.  Call when powerDecide() returns SleepNow.
-void powerSleep();
+//
+// If disableExt0 is true, ext0 (USB-insert IRQ) is NOT armed — only timer
+// and ext1 (buttons).  Used when the IRQ line was stuck low or has fired
+// too many instant-wake cycles (ORDER #27 guard).
+void powerSleep(bool disableExt0 = false);
 
 // Read the ESP-IDF wake cause from boot registers.
 WakeCause readWakeCause();

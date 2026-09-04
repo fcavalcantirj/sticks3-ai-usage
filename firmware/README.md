@@ -90,3 +90,30 @@ A healthy boot and operation produces this sequence:
 - `[ERR]` fires on parse failures (`parse: <reason>`) or fatal errors.  After 12
   consecutive fetch failures the device reboots with
   `[ERR] restart after 12 failures`.
+
+## Screen geometry
+
+The M5StickS3 LCD is 240×135 landscape (rotation 1).  `drawPlan` lays out
+5 rows of 17 px each inside the card rectangle (x: 5–235, y: 25–113).
+
+### Row layout (ORDER #28 corrected)
+
+Each row is 17 px tall with a shared vertical centre for the label, bar, and
+value text:
+
+```
+rowY      = 29 + i * 17          # top of row i
+rowH      = 17                   # row height
+fontH     = M5.Display.fontHeight()  # 8 px (Font 1, setTextSize(1))
+textY     = rowY + (rowH - fontH) / 2   # = rowY + 4  — text cursor y
+barY      = rowY + (rowH - 8) / 2       # = rowY + 4  — bar top y
+```
+
+- **Left label** at `(12, textY)`, font TFT_WHITE (dimmed: grey 0x8410)
+- **Bar** at `(72, barY)`, width 100, height 8, radius 3 — track 0x2945
+- **Right value** right-aligned at `x = W - 12`, cursor y = `textY`
+
+The value text and label share `textY` (vertically centred in the row); the bar
+shares `barY` (also vertically centred).  Previously the text was top-datum
+(`rowY`) while the bar was at `rowY + 4`, making the value look like it belonged
+to the row above.
