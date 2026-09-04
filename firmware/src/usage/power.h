@@ -52,10 +52,7 @@ public:
 
     // Feed a raw VBUS reading (mV).  Returns the debounced vbusPresent.
     bool sample(uint32_t vbusMv) {
-        if (vbusMv == 0) {
-            // Suspect read (I2C failure) — don't consume, return settled state.
-            return m_settled;
-        }
+        // BUG 40c: 0 mV is a legitimate 'no USB' reading, not a glitch.
         if (vbusMv > 4000) {
             // USB confirmed: reset counter, settle true.
             m_batteryCount = 0;

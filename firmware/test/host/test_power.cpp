@@ -106,39 +106,47 @@ TEST(power_wake_grace_starts_at_render) {
                 == usage::PowerAction::SleepNow);
 }
 
-// --- VBUS debounce (ORDER #26) ------------------------------------------------
+// --- VBUS debounce (ORDER #26, corrected by ORDER #35 / BUG 40c) --------------
 
-// A single spurious "battery" sample (or a 0 mV I2C glitch) must NOT cause
-// powerDecide to return SleepNow.  The VbusDebouncer requires N consecutive
-// battery readings before settling to false; a 0 mV read is suspect and ignored.
-TEST(power_vbus_spurious_false_no_sleep) {
-    usage::VbusDebouncer debouncer(3);  // need 3 consecutive battery reads
+// 0 mV is the NORMAL battery reading on this board (measured: 0 mV on battery,
+// ~5234-5280 mV on USB, ~12 mV transiently just after an unplug).  It must be
+// counted as a battery sample like any other value below the threshold.  The
+// only glitch protection is the N-consecutive-samples rule.
+TEST(power_vbus_zero_is_battery_not_a_glitch) {
+    usage::VbusDebouncer debouncer(3);
 
-    // USB present: debouncer settles true.
+    // USB present: settles true.
     ASSERT_TRUE(debouncer.sample(5000) == true);
-    // Spurious 0 mV (I2C glitch): ignored, stays true.
-    ASSERT_TRUE(debouncer.sample(0) == true);
-    ASSERT_TRUE(debouncer.sample(0) == true);
-    // powerDecide sees vbusPresent=true → StayAwake even on "battery".
-    ASSERT_TRUE(usage::powerDecide(debouncer.vbusPresent(), 600000, 0, 20000)
-                == usage::PowerAction::StayAwake);
 
-    // Two spurious low readings do NOT flip to battery (need 3).
-    ASSERT_TRUE(debouncer.sample(3000) == true);  // count=1
-    ASSERT_TRUE(debouncer.sample(0) == true);     // ignored, count still 1
-    ASSERT_TRUE(debouncer.vbusPresent() == true);
-    ASSERT_TRUE(usage::powerDecide(debouncer.vbusPresent(), 600000, 0, 20000)
-                == usage::PowerAction::StayAwake);
-
-    // Third consecutive battery reading finally settles to false.
-    debouncer.sample(3000);  // count=2
-    debouncer.sample(3000);  // count=3 → settled=false
+    // Three consecutive 0 mV readings DO settle to battery.
+    ASSERT_TRUE(debouncer.sample(0) == true);   // count=1
+    ASSERT_TRUE(debouncer.sample(0) == true);   // count=2
+    ASSERT_TRUE(debouncer.sample(0) == false);  // count=3 -> battery
     ASSERT_TRUE(debouncer.vbusPresent() == false);
-    // Now powerDecide past grace → SleepNow (correct behaviour on real battery).
     ASSERT_TRUE(usage::powerDecide(debouncer.vbusPresent(), 600000, 0, 20000)
                 == usage::PowerAction::SleepNow);
+}
 
-    // One USB reading resets immediately.
+// A single spurious low sample between two USB readings must NOT flip the
+// verdict: that is what the debounce is for.
+TEST(power_vbus_single_spurious_sample_no_sleep) {
+    usage::VbusDebouncer debouncer(3);
+
     ASSERT_TRUE(debouncer.sample(5000) == true);
+    ASSERT_TRUE(debouncer.sample(0) == true);     // count=1, still USB
+    ASSERT_TRUE(debouncer.sample(5000) == true);  // resets the count
     ASSERT_TRUE(debouncer.vbusPresent() == true);
+    ASSERT_TRUE(usage::powerDecide(debouncer.vbusPresent(), 600000, 0, 20000)
+                == usage::PowerAction::StayAwake);
+
+    // Two low samples are still not enough.
+    ASSERT_TRUE(debouncer.sample(0) == true);   // count=1
+    ASSERT_TRUE(debouncer.sample(3000) == true);  // count=2
+    ASSERT_TRUE(debouncer.vbusPresent() == true);
+    ASSERT_TRUE(usage::powerDecide(debouncer.vbusPresent(), 600000, 0, 20000)
+                == usage::PowerAction::StayAwake);
+
+    // The third consecutive low sample settles to battery.
+    ASSERT_TRUE(debouncer.sample(0) == false);
+    ASSERT_TRUE(debouncer.vbusPresent() == false);
 }

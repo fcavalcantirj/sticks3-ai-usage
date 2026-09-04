@@ -47,12 +47,15 @@ uint16_t vbusMv() {
 // spike on the PM1 I2C bus can never make the device deep-sleep while on USB.
 bool vbusPresent() {
     static usage::VbusDebouncer debouncer(3);  // 3 consecutive battery reads
-    uint16_t mv = vbusMv();
-    if (mv == 0) {
-        // Suspect read: don't consume, return last settled state.
-        return debouncer.vbusPresent();
-    }
-    return debouncer.sample(mv);
+    // ORDER #35 / BUG 40c: 0 mV is the NORMAL battery reading on this board
+    // (captures: 0 mV on battery, ~5234-5280 mV on USB, ~12 mV transiently
+    // just after an unplug).  Treating it as a suspect I2C glitch made the
+    // device believe it was on USB forever and never sleep.  Feed every
+    // reading to the debouncer; the 3-consecutive-sample rule is the glitch
+    // protection.  The asymmetry matters: a false "battery" costs one
+    // unnecessary sleep that a button or the 60 s timer recovers, while a
+    // false "USB" costs a flat battery.
+    return debouncer.sample(vbusMv());
 }
 
 // --- screen off ------------------------------------------------------------
