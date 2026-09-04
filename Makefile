@@ -43,4 +43,7 @@ fw-test:
 fw-build:
 	cd firmware && pio run
 
+fw-ota:
+	@bash firmware/scripts/upload_ota.sh
+
 verify-all: verify fw-test fw-build

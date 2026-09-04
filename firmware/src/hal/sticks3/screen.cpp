@@ -125,4 +125,18 @@ void drawPlan(const usage::RenderPlan& plan, bool wifiOk) {
     M5.Display.println(footer);
 }
 
+void drawOtaStatus(uint8_t pct) {
+    M5.Display.fillScreen(TFT_BLACK);
+    M5.Display.setTextSize(2);
+    M5.Display.setTextColor(TFT_YELLOW);
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "OTA %d%%", (int)pct);
+    int16_t w = M5.Display.width();
+    int16_t h = M5.Display.height();
+    int16_t tw = M5.Display.textWidth(buf);
+    int16_t th = M5.Display.fontHeight();
+    M5.Display.setCursor((w - tw) / 2, (h - th) / 2);
+    M5.Display.println(buf);
+}
+
 } // namespace sticks3

@@ -8,6 +8,7 @@
 #include "usage/serial_proto.h"
 
 #include <cstdio>
+#include <cstring>
 
 namespace usage {
 
@@ -78,6 +79,30 @@ int fmtHeap(char* out, size_t n, uint32_t free, uint32_t min) {
     return std::snprintf(out, n, "[HEAP] free=%u min=%u",
                          static_cast<unsigned int>(free),
                          static_cast<unsigned int>(min));
+}
+
+// fmtOta formats an OTA event line.  kind selects the line shape:
+//   "start" ->  [OTA] start
+//   "pct"   ->  [OTA] pct=<param>     (param = 0..100)
+//   "end"   ->  [OTA] end
+//   "err"   ->  [OTA] err=<param>     (param = error code)
+int fmtOta(char* out, size_t n, const char* kind, unsigned int param) {
+    if (kind != nullptr && std::strcmp(kind, "pct") == 0) {
+        return std::snprintf(out, n, "[OTA] pct=%u",
+                             static_cast<unsigned int>(param));
+    }
+    if (kind != nullptr && std::strcmp(kind, "err") == 0) {
+        return std::snprintf(out, n, "[OTA] err=%u",
+                             static_cast<unsigned int>(param));
+    }
+    if (kind != nullptr && std::strcmp(kind, "start") == 0) {
+        return std::snprintf(out, n, "[OTA] start");
+    }
+    if (kind != nullptr && std::strcmp(kind, "end") == 0) {
+        return std::snprintf(out, n, "[OTA] end");
+    }
+    // Unknown kind: fall back to an error line.
+    return std::snprintf(out, n, "[OTA] err=0");
 }
 
 } // namespace usage

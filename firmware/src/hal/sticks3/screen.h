@@ -14,4 +14,8 @@ void drawBootScreen(const char* build);
 // wifiOk controls the top-bar dot colour.
 void drawPlan(const usage::RenderPlan& plan, bool wifiOk);
 
+// Paint a full-screen OTA status: "OTA <pct>%" centred.
+// Called every loop pass while a transfer is in flight.
+void drawOtaStatus(uint8_t pct);
+
 } // namespace sticks3

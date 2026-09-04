@@ -421,7 +421,7 @@
       "Add firmware/scripts/upload_ota.sh modelled on /Users/fcavalcanti/dev/Colibrino/sticks3/scripts/upload_ota.sh lines 52-71: resolve sticks3-usage.local by ping, read the ARP MAC, lowercase both sides and REFUSE unless it equals 14:c1:9f:d4:d5:34; run that guard TWICE, once before the build and again immediately before the upload, because DHCP can reassign the address during a multi-minute build. Then upload with pio using --upload-port sticks3-usage.local and the auth flag, extracting OTA_PASS from secrets.h with awk and never echoing it. Add a `make fw-ota` target. Keep a 180 s post-boot GRACE window in which the device stays awake with OTA armed so a bad image can always be replaced over the air (the ST_GRACE precedent in ptt.ino).",
       "Verify: `make fw-build` SUCCESS; `bash -n firmware/scripts/upload_ota.sh`; `make fw-test` Failed 0 including the new fmtOta tests; fresh-clone build still green; grep shows the MAC guard twice in the script. HARDWARE UAT (needs Felipe's explicit authorization; the cable is still attached): flash over USB, confirm `[NET] state=connected`, confirm sticks3-usage.local answers ping with MAC 14:c1:9f:d4:d5:34, then prove OTA by running `make fw-ota` with an unchanged image; it must upload and the device must reboot into the same build id. Paste the serial transcript into the room. Only then flip passes."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "firmware",

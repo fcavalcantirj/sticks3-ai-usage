@@ -116,3 +116,40 @@ TEST(serial_heap_zeros) {
     ASSERT_STREQ("[HEAP] free=0 min=0", buf);
     ASSERT_EQ(r, (int)std::strlen(buf));
 }
+
+// --- fmtOta ----------------------------------------------------------------
+
+TEST(serial_ota_start) {
+    char buf[64];
+    int r = usage::fmtOta(buf, sizeof(buf), "start", 0);
+    ASSERT_STREQ("[OTA] start", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+TEST(serial_ota_pct) {
+    char buf[64];
+    int r = usage::fmtOta(buf, sizeof(buf), "pct", 47);
+    ASSERT_STREQ("[OTA] pct=47", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+TEST(serial_ota_end) {
+    char buf[64];
+    int r = usage::fmtOta(buf, sizeof(buf), "end", 0);
+    ASSERT_STREQ("[OTA] end", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+TEST(serial_ota_err) {
+    char buf[64];
+    int r = usage::fmtOta(buf, sizeof(buf), "err", 2);
+    ASSERT_STREQ("[OTA] err=2", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+TEST(serial_ota_unknown_kind) {
+    char buf[64];
+    int r = usage::fmtOta(buf, sizeof(buf), "bogus", 9);
+    ASSERT_STREQ("[OTA] err=0", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}

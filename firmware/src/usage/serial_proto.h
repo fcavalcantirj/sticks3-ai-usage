@@ -39,4 +39,12 @@ int fmtErr(char* out, size_t n, const char* what);
 //   [HEAP] free=123456 min=65432
 int fmtHeap(char* out, size_t n, uint32_t free, uint32_t min);
 
+// fmtOta formats an OTA event line.  kind selects the line shape:
+//   "start" ->  [OTA] start
+//   "pct"   ->  [OTA] pct=<param>     (param = 0..100)
+//   "end"   ->  [OTA] end
+//   "err"   ->  [OTA] err=<param>     (param = error code)
+// Unknown kinds produce "[OTA] err=0".
+int fmtOta(char* out, size_t n, const char* kind, unsigned int param);
+
 } // namespace usage

@@ -227,6 +227,16 @@ void loop() {
     M5.update();
     uint32_t now = nowMs();
     netUpdate(now);
+
+    // Drive OTA — may block for the duration of a chunk.  While an OTA
+    // transfer is in flight, skip fetch/render/sleep entirely and paint
+    // "OTA <pct>%" on screen (a transfer runs synchronously through one loop).
+    otaHandle();
+    if (otaInProgress()) {
+        drawOtaStatus(otaPercent());
+        return;
+    }
+
     pollUpdate(now);
     buttonsUpdate(now);
     updateBrightness(now);
