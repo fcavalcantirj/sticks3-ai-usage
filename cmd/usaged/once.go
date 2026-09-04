@@ -20,6 +20,7 @@ import (
 	"usaged/internal/providers"
 	"usaged/internal/sched"
 	"usaged/internal/snapshot"
+	"usaged/internal/stats"
 )
 
 // nowFunc is the clock used by the once command. Overridden in tests for
@@ -62,6 +63,11 @@ func runOnce(args []string, stdout io.Writer) int {
 	ctx := context.Background()
 	clock := nowFunc
 	s := sched.NewScheduler(fetchers, cfg.Interval, statePath, clock, logger)
+	s.StatsCfg = stats.ScanConfig{
+		TZ:        cfg.TZ,
+		ClaudeDir: cfg.ClaudeDir,
+		CodexDir:  cfg.CodexDir,
+	}
 	s.PollOnce(ctx)
 
 	snap := s.Current()

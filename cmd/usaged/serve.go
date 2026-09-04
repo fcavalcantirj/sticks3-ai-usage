@@ -15,6 +15,7 @@ import (
 	"usaged/internal/config"
 	"usaged/internal/sched"
 	"usaged/internal/snapshot"
+	"usaged/internal/stats"
 )
 
 // runServe implements the `usaged serve` subcommand: load config, build
@@ -44,6 +45,15 @@ func runServe(args []string, stdout io.Writer) int {
 	clock := time.Now
 	s := sched.NewScheduler(fetchers, cfg.Interval, cfg.StatePath, clock, logger)
 
+	// Configure stats scanning.
+	s.StatsCfg = stats.ScanConfig{
+		TZ:        cfg.TZ,
+		ClaudeDir: cfg.ClaudeDir,
+		CodexDir:  cfg.CodexDir,
+	}
+	s.StatsScanPath = cfg.StatsIndexPath
+	s.StatsPath = cfg.StatsPath
+
 	// Restore state from disk: load and start fresh on corrupt.
 	if cfg.StatePath != "" {
 		state, loadErr := snapshot.Load(cfg.StatePath)
@@ -52,6 +62,14 @@ func runServe(args []string, stdout io.Writer) int {
 		} else {
 			s.LoadState(state)
 		}
+	}
+
+	// Load stats index and report from disk.
+	if cfg.StatsIndexPath != "" {
+		s.LoadStatsIndex(cfg.StatsIndexPath)
+	}
+	if cfg.StatsPath != "" {
+		s.LoadStatsReport(cfg.StatsPath)
 	}
 
 	// Start the background poller.

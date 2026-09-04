@@ -49,6 +49,7 @@ func New(s *sched.Scheduler, cfg config.Config, logger *slog.Logger) (*http.Serv
 	mux.HandleFunc("GET /healthz", srv.handleHealthz)
 	mux.HandleFunc("GET /v1/usage", srv.handleUsage)
 	mux.HandleFunc("GET /v1/usage.txt", srv.handleUsageTxt)
+	mux.HandleFunc("GET /v1/stats", srv.handleStats)
 	mux.HandleFunc("POST /v1/refresh", srv.handleRefresh)
 	mux.HandleFunc("/", srv.handleNotFound)
 
@@ -127,6 +128,36 @@ func (s *Server) handleUsageTxt(w http.ResponseWriter, _ *http.Request) {
 	snap := s.withNextSec(s.sched.Current())
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	format.RenderTable(snap, w, s.cfg.TZ)
+}
+
+// handleStats serves the local transcript stats report as JSON with an ETag
+// based on the report's GeneratedAt timestamp.
+func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
+	report := s.sched.CurrentStats()
+	if report == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"ok": "false", "error": "stats not ready"})
+		return
+	}
+
+	etag := `"` + fmt.Sprintf("%x", report.GeneratedAt) + `"`
+	if etagMatch(r.Header.Get("If-None-Match"), fmt.Sprintf("%x", report.GeneratedAt)) {
+		writeNotModified(w, etag)
+		return
+	}
+
+	body, err := json.Marshal(report)
+	if err != nil {
+		s.logger.Error("marshal stats report", "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"ok": "false", "error": "internal"})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("ETag", etag)
+	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+	w.WriteHeader(http.StatusOK)
+	w.Write(body)
 }
 
 // handleIndex serves the embedded dashboard at / and /index.html.

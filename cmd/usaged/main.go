@@ -44,6 +44,9 @@ func run(args []string, stdout io.Writer) int {
 	case "once":
 		return runOnce(rest, stdout)
 
+	case "stats":
+		return runStats(rest, stdout)
+
 	default:
 		fmt.Fprintf(stdout, "unknown subcommand: %s\n", name)
 		return 2

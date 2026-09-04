@@ -1,0 +1,430 @@
+package stats
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+)
+
+// testTZ is the timezone used in fixtures (matches config.DefaultTZ).
+var testTZ = mustLoadLocation("America/Sao_Paulo")
+
+// fixedScanNow matches the fixture timestamps: "today" is 2026-09-03.
+var fixedScanNow = time.Date(2026, 9, 3, 12, 0, 0, 0, testTZ)
+
+func mustLoadLocation(tz string) *time.Location {
+	loc, err := time.LoadLocation(tz)
+	if err != nil {
+		panic(err)
+	}
+	return loc
+}
+
+// fixtureDir returns the path to internal/stats/testdata/transcripts.
+func fixtureDir(t *testing.T) string {
+	t.Helper()
+	return filepath.Join("testdata", "transcripts")
+}
+
+// --- Tests ---
+
+func TestScanClaudeCodeDedupe(t *testing.T) {
+	dir := fixtureDir(t)
+	s := NewScanner(testTZ)
+	s.Clock = func() time.Time { return fixedScanNow }
+
+	cfg := ScanConfig{
+		TZ:        testTZ,
+		ClaudeDir: filepath.Join(dir, "claude"),
+	}
+
+	report, _, err := s.Scan(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+
+	src, ok := report.Sources["claude_code"]
+	if !ok {
+		t.Fatal("missing claude_code source")
+	}
+
+	// Fixtures: msg-001 (1000 in + 2000 out), msg-002 (500 in + 300 out + 200 cache_w) deduped,
+	// msg-003 on 2026-09-02 (800 in + 1200 out + 400 cache_r) — not today.
+	// Today total (msg-001 + msg-002 once): input=1500, output=2300, cache_write=200
+	wantTodayInput := int64(1500)
+	wantTodayOutput := int64(2300)
+	wantTodayCacheWrite := int64(200)
+
+	if src.Today.Tokens.Input != wantTodayInput {
+		t.Errorf("Today Input = %d, want %d (dedupe msg-002)", src.Today.Tokens.Input, wantTodayInput)
+	}
+	if src.Today.Tokens.Output != wantTodayOutput {
+		t.Errorf("Today Output = %d, want %d", src.Today.Tokens.Output, wantTodayOutput)
+	}
+	if src.Today.Tokens.CacheWrite != wantTodayCacheWrite {
+		t.Errorf("Today CacheWrite = %d, want %d", src.Today.Tokens.CacheWrite, wantTodayCacheWrite)
+	}
+	if src.Today.Requests != 2 {
+		t.Errorf("Today Requests = %d, want 2", src.Today.Requests)
+	}
+}
+
+func TestScanClaudeCodeModels(t *testing.T) {
+	dir := fixtureDir(t)
+	s := NewScanner(testTZ)
+	s.Clock = func() time.Time { return fixedScanNow }
+
+	cfg := ScanConfig{TZ: testTZ, ClaudeDir: filepath.Join(dir, "claude")}
+	report, _, err := s.Scan(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+
+	src := report.Sources["claude_code"]
+	if len(src.Models) != 2 {
+		t.Fatalf("len(Models) = %d, want 2", len(src.Models))
+	}
+
+	// Models sorted by total tokens desc: claude-opus (10200+400cr) vs claude-sonnet (1500+2300+200cw)
+	// opus total = 800+1200+0+400 = 2400; sonnet total = 1000+2000+500+300+200+0 = 4000
+	// Actually: msg-001: input=1000, output=2000 → total=3000
+	// msg-002 (deduped): input=500, output=300, cache_write=200 → total=1000
+	// msg-003: input=800, output=1200, cache_read=400 → total=2400
+	// sonnet = 3000 + 1000 = 4000; opus = 2400
+	// So sonnet (4000) > opus (2400), sonnet should be first.
+	if src.Models[0].Model != "claude-sonnet-4-20250514" {
+		t.Errorf("Models[0] = %q, want claude-sonnet-4-20250514 (sorted by total desc)", src.Models[0].Model)
+	}
+	if src.Models[1].Model != "claude-opus-4-20250514" {
+		t.Errorf("Models[1] = %q, want claude-opus-4-20250514", src.Models[1].Model)
+	}
+}
+
+func TestScanCodexDeltas(t *testing.T) {
+	dir := fixtureDir(t)
+	s := NewScanner(testTZ)
+	s.Clock = func() time.Time { return fixedScanNow }
+
+	cfg := ScanConfig{TZ: testTZ, CodexDir: filepath.Join(dir, "codex")}
+	report, _, err := s.Scan(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+
+	src, ok := report.Sources["codex"]
+	if !ok {
+		t.Fatal("missing codex source")
+	}
+
+	// Fixtures:
+	// gpt-4o: two events on 2026-09-03: (600 in + 150 out) + (100 in + 50 out) = 700 in + 200 out
+	// o1: one event on 2026-09-02: 2000 in + 500 cr + 3000 out + 1000 reasoning out
+	// Today only: gpt-4o → input=700, output=200
+	// Month: gpt-4o (700 in, 200 out) + o1 (2000 in, 500 cr, 4000 out) = 2700 in, 500 cr, 4200 out
+	if src.Today.Tokens.Input != 700 {
+		t.Errorf("Today Input = %d, want 700", src.Today.Tokens.Input)
+	}
+	if src.Today.Tokens.Output != 200 {
+		t.Errorf("Today Output = %d, want 200", src.Today.Tokens.Output)
+	}
+	if src.Today.Requests != 2 {
+		t.Errorf("Today Requests = %d, want 2", src.Today.Requests)
+	}
+
+	// Month should include o1 (2026-09-02 is in the same month).
+	if src.Month.Tokens.Output != 4200 {
+		t.Errorf("Month Output = %d, want 4200", src.Month.Tokens.Output)
+	}
+}
+
+func TestScanDayBucketingTZ(t *testing.T) {
+	// Use UTC instead of São Paulo to verify TZ affects day bucketing.
+	dir := fixtureDir(t)
+	s := NewScanner(time.UTC)
+	s.Clock = func() time.Time {
+		return time.Date(2026, 9, 3, 12, 0, 0, 0, time.UTC)
+	}
+
+	cfg := ScanConfig{TZ: time.UTC, ClaudeDir: filepath.Join(dir, "claude")}
+	report, _, err := s.Scan(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+
+	src := report.Sources["claude_code"]
+
+	// In UTC, the 2026-09-03 events are "today" (Sep 3), and the 2026-09-02
+	// event is yesterday — not in today but in the month.
+	// In São Paulo (UTC-3), 2026-09-03T10:00Z = 07:00 local (still Sep 3),
+	// 2026-09-02T20:00Z = 17:00 Sep 2 local (not today).
+	// With UTC, 2026-09-03T10:00Z and T11:00Z are today, T20:00Z on Sep 2 is yesterday.
+	// Same result. Let's test with a TZ where Sep 3 T10:00 becomes Sep 4.
+	s2 := NewScanner(mustLoadLocation("Asia/Tokyo")) // UTC+9
+	s2.Clock = func() time.Time {
+		return time.Date(2026, 9, 3, 12, 0, 0, 0, time.UTC)
+	}
+
+	cfg2 := ScanConfig{TZ: mustLoadLocation("Asia/Tokyo"), ClaudeDir: filepath.Join(dir, "claude")}
+	report2, _, err := s2.Scan(context.Background(), cfg2, nil)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+
+	src2 := report2.Sources["claude_code"]
+
+	// In Tokyo (UTC+9): 2026-09-03T10:00Z = Sep 3 19:00 Tokyo,
+	// 2026-09-02T20:00Z = Sep 3 05:00 Tokyo → so msg-003 moves to "today" in Tokyo.
+	// Today input = 1000 (msg-001) + 500 (msg-002) + 800 (msg-003) = 2300.
+	if src2.Today.Tokens.Input != 2300 {
+		t.Errorf("Tokyo Today Input = %d, want 2300 (msg-003 shifts to today at UTC+9)", src2.Today.Tokens.Input)
+	}
+
+	// In São Paulo, msg-003 is on Sep 2 → not today.
+	if src.Today.Tokens.Input != 1500 {
+		t.Errorf("SAO Today Input = %d, want 1500 (msg-003 not today)", src.Today.Tokens.Input)
+	}
+}
+
+func TestScanIncrementalAppend(t *testing.T) {
+	dir := fixtureDir(t)
+	claudeDir := filepath.Join(dir, "claude")
+
+	// First scan: empty index.
+	s := NewScanner(testTZ)
+	s.Clock = func() time.Time { return fixedScanNow }
+	cfg := ScanConfig{TZ: testTZ, ClaudeDir: claudeDir}
+
+	_, idx1, err := s.Scan(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatalf("first scan: %v", err)
+	}
+
+	// Should have indexed the sample file.
+	if len(idx1) != 1 {
+		t.Fatalf("after first scan: len(idx) = %d, want 1", len(idx1))
+	}
+
+	// Second scan: same files unchanged → no file entries updated, same totals.
+	report2, idx2, err := s.Scan(context.Background(), cfg, idx1)
+	if err != nil {
+		t.Fatalf("second scan: %v", err)
+	}
+
+	src := report2.Sources["claude_code"]
+	if src.Today.Tokens.Input != 1500 {
+		t.Errorf("second scan Today Input = %d, want 1500 (unchanged file should still be counted)", src.Today.Tokens.Input)
+	}
+
+	// The index should still have 1 entry.
+	if len(idx2) != 1 {
+		t.Errorf("after second scan: len(idx) = %d, want 1", len(idx2))
+	}
+}
+
+func TestScanIncrementalAppendOnly(t *testing.T) {
+	dir := fixtureDir(t)
+	claudeDir := filepath.Join(dir, "test_inc")
+
+	// Create a temp copy of the claude fixture.
+	src := filepath.Join(dir, "claude", "sample.jsonl")
+	dst := filepath.Join(claudeDir, "inc.jsonl")
+	if err := os.MkdirAll(claudeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dst, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(claudeDir) })
+
+	s := NewScanner(testTZ)
+	s.Clock = func() time.Time { return fixedScanNow }
+	cfg := ScanConfig{TZ: testTZ, ClaudeDir: claudeDir}
+
+	// First scan.
+	report1, idx1, err := s.Scan(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatalf("first scan: %v", err)
+	}
+	src1 := report1.Sources["claude_code"]
+	total1 := src1.Today.Tokens.Total()
+
+	// Append a new line.
+	extra := `{"type":"assistant","timestamp":"2026-09-03T15:00:00Z","requestId":"req-999","message":{"id":"msg-999","model":"claude-sonnet-4-20250514","usage":{"input_tokens":100,"output_tokens":100,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}` + "\n"
+	// Make a copy of data to avoid aliasing issues with append.
+	appended := make([]byte, len(data)+len(extra))
+	copy(appended, data)
+	copy(appended[len(data):], extra)
+	if err := os.WriteFile(dst, appended, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Second scan: should read only the appended line (incremental seek),
+	// merging the cached FileResult with the delta — total = cached + 200.
+	report2, idx2, err := s.Scan(context.Background(), cfg, idx1)
+	if err != nil {
+		t.Fatalf("second scan: %v", err)
+	}
+	src2 := report2.Sources["claude_code"]
+	total2 := src2.Today.Tokens.Total()
+
+	// The second scan returns the full total: cached (total1) + appended delta (200).
+	if total2 != total1+200 {
+		t.Errorf("incremental total: total2=%d, want %d (cached %d + delta 200)", total2, total1+200, total1)
+	}
+
+	// The appended delta alone is 200 tokens (100 in + 100 out).
+	delta := total2 - total1
+	if delta != 200 {
+		t.Errorf("incremental delta: %d, want 200 (only appended line read)", delta)
+	}
+
+	// Index should reflect the new size.
+	fi1 := idx1[dst]
+	fi2 := idx2[dst]
+	if fi2.Size <= fi1.Size {
+		t.Errorf("index size not updated: old=%d new=%d", fi1.Size, fi2.Size)
+	}
+
+	// The cached FileResult should be preserved in the new index.
+	if fi2.Result == nil {
+		t.Error("cached FileResult should be non-nil after incremental scan")
+	}
+}
+
+func TestScanCostZeroForUnknownModel(t *testing.T) {
+	dir := fixtureDir(t)
+
+	// Create a temp fixture with an unknown model.
+	claudeDir := filepath.Join(dir, "test_unknown")
+	if err := os.MkdirAll(claudeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	unknownJSONL := `{"type":"assistant","timestamp":"2026-09-03T10:00:00Z","requestId":"req-x","message":{"id":"msg-x","model":"claude-unknown-model-xyz","usage":{"input_tokens":1000,"output_tokens":2000,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}` + "\n"
+	dst := filepath.Join(claudeDir, "unknown.jsonl")
+	if err := os.WriteFile(dst, []byte(unknownJSONL), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(claudeDir) })
+
+	s := NewScanner(testTZ)
+	s.Clock = func() time.Time { return fixedScanNow }
+	cfg := ScanConfig{TZ: testTZ, ClaudeDir: claudeDir}
+
+	report, _, err := s.Scan(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+
+	src := report.Sources["claude_code"]
+	if src.Today.Cost != 0 {
+		t.Errorf("Today Cost = %f, want 0 (unknown model has no price)", src.Today.Cost)
+	}
+	// But tokens should still be counted.
+	if src.Today.Tokens.Input != 1000 {
+		t.Errorf("Today Input = %d, want 1000", src.Today.Tokens.Input)
+	}
+}
+
+func TestScanCostKnownModel(t *testing.T) {
+	dir := fixtureDir(t)
+	s := NewScanner(testTZ)
+	s.Clock = func() time.Time { return fixedScanNow }
+	cfg := ScanConfig{TZ: testTZ, ClaudeDir: filepath.Join(dir, "claude")}
+
+	report, _, err := s.Scan(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+
+	src, ok := report.Sources["claude_code"]
+	if !ok {
+		t.Fatalf("missing claude_code source in cost test")
+	}
+	// Today: msg-001 (1000 in + 2000 out, claude-sonnet-4-20250514) +
+	//        msg-002 deduped (500 in + 300 out + 200 cw, claude-sonnet-4-20250514)
+	// Price for sonnet: input=0.003, output=0.015, cache_read=0.00075, cache_write=0
+	// Cost = (1500*0.003 + 2300*0.015 + 0*0.00075 + 200*0) / 1e6
+	// = (4.5 + 34.5) / 1e6 = 39 / 1e6 = 0.000039
+	wantCost := (float64(1500)*0.003 + float64(2300)*0.015) / 1e6
+	if src.Today.Cost != wantCost {
+		t.Errorf("Today Cost = %f, want %f", src.Today.Cost, wantCost)
+	}
+}
+
+func TestScanDaysListOldestFirst(t *testing.T) {
+	dir := fixtureDir(t)
+	s := NewScanner(testTZ)
+	s.Clock = func() time.Time { return fixedScanNow }
+	cfg := ScanConfig{TZ: testTZ, ClaudeDir: filepath.Join(dir, "claude")}
+
+	report, _, err := s.Scan(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+
+	src := report.Sources["claude_code"]
+	// Should have days for Sep 2 and Sep 3 (in São Paulo TZ).
+	if len(src.Days) < 2 {
+		t.Fatalf("len(Days) = %d, want >= 2", len(src.Days))
+	}
+	// Oldest first.
+	if src.Days[0].Date > src.Days[1].Date {
+		t.Errorf("Days not sorted oldest-first: [0]=%s [1]=%s", src.Days[0].Date, src.Days[1].Date)
+	}
+
+	// Find Sep 2 day.
+	for _, d := range src.Days {
+		if d.Date == "2026-09-02" {
+			if d.Tokens.Input != 800 {
+				t.Errorf("Sep 2 Input = %d, want 800", d.Tokens.Input)
+			}
+			if d.Tokens.CacheRead != 400 {
+				t.Errorf("Sep 2 CacheRead = %d, want 400", d.Tokens.CacheRead)
+			}
+		}
+	}
+}
+
+func TestScanReportGeneratedAt(t *testing.T) {
+	dir := fixtureDir(t)
+	s := NewScanner(testTZ)
+	s.Clock = func() time.Time { return fixedScanNow }
+	cfg := ScanConfig{TZ: testTZ, ClaudeDir: filepath.Join(dir, "claude")}
+
+	report, _, err := s.Scan(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+
+	expected := fixedScanNow.Unix()
+	if report.GeneratedAt != expected {
+		t.Errorf("GeneratedAt = %d, want %d", report.GeneratedAt, expected)
+	}
+}
+
+func TestScanSkipOldFiles(t *testing.T) {
+	// With SkipOld=true, files older than MaxAge are skipped.
+	dir := fixtureDir(t)
+	s := NewScanner(testTZ)
+	s.Clock = func() time.Time { return fixedScanNow }
+	s.SkipOld = true
+
+	// The fixtures are from 2026-09-03, which is within MaxAge of fixedScanNow.
+	cfg := ScanConfig{TZ: testTZ, ClaudeDir: filepath.Join(dir, "claude")}
+
+	report, _, err := s.Scan(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+
+	src := report.Sources["claude_code"]
+	if src.Today.Tokens.Input == 0 {
+		t.Error("SkipOld should not skip files within MaxAge")
+	}
+}

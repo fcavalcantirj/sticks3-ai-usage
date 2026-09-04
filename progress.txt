@@ -105,3 +105,4 @@ Task-by-task status (one line per task, matches spec.json passes):
   53: pending — OPTIONAL v3: Claude rate_limits via statusline shell
   54: pending — OPTIONAL v3: remote HTTPS snapshot publish
   55: pending — OPTIONAL v3: task-hub rows POST /v1/rows
+  44: done — Local usage stats: internal/stats/ package (incremental scan with per-file FileResult cache, /v1/stats with ETag, `usaged stats` CLI). 11 tests PASS, make verify green, real scan 5.7s first / 0.68s second, /v1/stats ETag 304 confirmed.

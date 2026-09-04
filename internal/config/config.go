@@ -16,6 +16,7 @@ const (
 	DefaultIntervalSec = 900
 	DefaultDeviceToken = "change-me-32-chars"
 	DefaultStatePath   = "$HOME/.local/state/usaged/state.json"
+	DefaultStatsPath   = "$HOME/.local/state/usaged/stats.json"
 	DefaultTZ          = "America/Sao_Paulo"
 	MinIntervalSec     = 300
 )
@@ -30,10 +31,15 @@ type Config struct {
 	OpenRouterKeys map[string]string // "main", "fallback"
 	GroqKey        string
 	GroqProbe      bool   // probe rate-limit headroom on Groq
+	FixstDir       string // offline mode: serve everything from here
 	FixturesDir    string // offline mode: serve everything from here
 	Scenario       string // fixture scenario overlay (from testdata/scenarios/)
 	LogLevel       slog.Level
-	JSONOutput     bool // once command: emit snapshot as indented JSON
+	JSONOutput     bool   // once command: emit snapshot as indented JSON
+	ClaudeDir      string // Claude Code transcript dir (default ~/.claude/projects/)
+	CodexDir       string // Codex rollout dir (default ~/.codex/sessions/)
+	StatsIndexPath string // on-disk stats index file (default ~/.local/state/usaged/stats-index.json)
+	StatsPath      string // on-disk stats report (default ~/.local/state/usaged/stats.json)
 }
 
 // Load reads environment variables (via getenv), then overrides with flags
@@ -48,6 +54,7 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 	cfg.Interval = time.Duration(DefaultIntervalSec) * time.Second
 	cfg.DeviceToken = DefaultDeviceToken
 	cfg.StatePath = DefaultStatePath
+	cfg.StatsPath = DefaultStatsPath
 	cfg.GroqProbe = false
 	cfg.LogLevel = slog.LevelInfo
 
@@ -103,6 +110,18 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 			return cfg, err
 		}
 		cfg.LogLevel = level
+	}
+	if v := getenv("USAGED_CLAUDE_DIR"); v != "" {
+		cfg.ClaudeDir = expandHome(getenv("HOME"), v)
+	}
+	if v := getenv("USAGED_CODEX_DIR"); v != "" {
+		cfg.CodexDir = expandHome(getenv("HOME"), v)
+	}
+	if v := getenv("USAGED_STATS_INDEX"); v != "" {
+		cfg.StatsIndexPath = expandHome(getenv("HOME"), v)
+	}
+	if v := getenv("USAGED_STATS_PATH"); v != "" {
+		cfg.StatsPath = expandHome(getenv("HOME"), v)
 	}
 
 	// Flags override env vars
@@ -161,6 +180,19 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 	if home != "" {
 		cfg.StatePath = strings.ReplaceAll(cfg.StatePath, "$HOME", home)
 	}
+	if home != "" {
+		cfg.StatsPath = strings.ReplaceAll(cfg.StatsPath, "$HOME", home)
+	}
+	// Defaults for stats dirs (after home is known).
+	if cfg.ClaudeDir == "" {
+		cfg.ClaudeDir = expandHome(home, "~/.claude/projects/")
+	}
+	if cfg.CodexDir == "" {
+		cfg.CodexDir = expandHome(home, "~/.codex/sessions/")
+	}
+	if cfg.StatsIndexPath == "" {
+		cfg.StatsIndexPath = expandHome(home, "~/.local/state/usaged/stats-index.json")
+	}
 
 	// Validation
 	if cfg.Interval < time.Duration(MinIntervalSec)*time.Second {
@@ -181,6 +213,7 @@ func (c Config) Redacted() map[string]any {
 		"interval_sec": int(c.Interval.Seconds()),
 		"device_token": fmt.Sprintf("set(len=%d)", len(c.DeviceToken)),
 		"state_path":   c.StatePath,
+		"stats_path":   c.StatsPath,
 		"tz":           c.TZ.String(),
 		"groq_probe":   c.GroqProbe,
 		"log_level":    c.LogLevel.String(),
@@ -226,4 +259,19 @@ func osUserHome() string {
 		return u.HomeDir
 	}
 	return ""
+}
+
+// expandHome replaces ~ or $HOME with the given home directory.
+func expandHome(home, path string) string {
+	if path == "" {
+		return ""
+	}
+	if home == "" {
+		home = osUserHome()
+	}
+	if home != "" {
+		path = strings.ReplaceAll(path, "~", home)
+		path = strings.ReplaceAll(path, "$HOME", home)
+	}
+	return path
 }

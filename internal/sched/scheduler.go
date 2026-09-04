@@ -11,6 +11,7 @@ import (
 	"usaged/internal/format"
 	"usaged/internal/providers"
 	"usaged/internal/snapshot"
+	"usaged/internal/stats"
 )
 
 // Scheduler polls a set of provider Fetchers concurrently, merges their
@@ -24,6 +25,13 @@ type Scheduler struct {
 	Logger    *slog.Logger
 	mu        sync.RWMutex // protects State
 	pollMu    sync.Mutex   // serialises PollOnce/Refresh
+
+	// Stats scanning
+	StatsCfg      stats.ScanConfig
+	StatsIndex    stats.Index
+	StatsReport   *stats.Report
+	StatsScanPath string // path to persist the stats index
+	StatsPath     string // path to persist the stats report (stats.json)
 }
 
 // NewScheduler creates a Scheduler with sane defaults. If clock is nil,
@@ -181,6 +189,86 @@ func (s *Scheduler) pollOnce(ctx context.Context) {
 			slog.Debug("sched: save state error", "err", err)
 		}
 	}
+	s.mu.Unlock()
+
+	// Run local stats scan after poll (bounded, non-fatal on error).
+	if s.StatsCfg.ClaudeDir != "" || s.StatsCfg.CodexDir != "" {
+		s.scanStats(ctx, now)
+	}
+}
+
+// scanStats runs the transcript scanner and stores the result.
+func (s *Scheduler) scanStats(ctx context.Context, now time.Time) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	sc := stats.NewScanner(s.StatsCfg.TZ)
+	sc.Clock = func() time.Time { return now }
+
+	s.mu.RLock()
+	index := s.StatsIndex
+	s.mu.RUnlock()
+
+	report, index, err := sc.Scan(ctx, s.StatsCfg, index)
+	if err != nil {
+		slog.Debug("sched: stats scan error", "err", err)
+	}
+
+	s.mu.Lock()
+	s.StatsReport = &report
+	s.StatsIndex = index
+	s.mu.Unlock()
+
+	// Persist the updated index.
+	if s.StatsScanPath != "" {
+		s.mu.RLock()
+		idxData := s.StatsIndex
+		s.mu.RUnlock()
+		_ = stats.SaveIndex(s.StatsScanPath, idxData)
+	}
+
+	// Persist the report for quick startup.
+	if s.StatsPath != "" {
+		_ = stats.SaveReport(s.StatsPath, &report)
+	}
+}
+
+// CurrentStats returns a copy of the last stats report.
+func (s *Scheduler) CurrentStats() *stats.Report {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.StatsReport == nil {
+		return nil
+	}
+	r := *s.StatsReport
+	return &r
+}
+
+// LoadStatsIndex loads the stats index from disk.
+func (s *Scheduler) LoadStatsIndex(path string) {
+	idx, err := stats.LoadIndex(path)
+	if err != nil {
+		slog.Debug("sched: load stats index error", "err", err)
+		return
+	}
+	s.mu.Lock()
+	s.StatsIndex = idx
+	s.mu.Unlock()
+}
+
+// LoadStatsReport loads a previously persisted stats report from disk so the
+// API can serve stale data immediately before the first poll completes.
+func (s *Scheduler) LoadStatsReport(path string) {
+	report, err := stats.LoadReport(path)
+	if err != nil {
+		slog.Debug("sched: load stats report error", "err", err)
+		return
+	}
+	if report == nil {
+		return
+	}
+	s.mu.Lock()
+	s.StatsReport = report
 	s.mu.Unlock()
 }
 
