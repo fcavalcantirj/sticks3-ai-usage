@@ -40,9 +40,14 @@
 39	2026-09-04T03:11:44Z task 39 done — ArduinoOTA on unit #2 (last USB flash): fmtOta (4 formats + 6 tests PASS), net.cpp OTA armed on NET_CONNECTED via otaBegin() (re-arms every join), otaHandle/otaInProgress/otaPercent in main.cpp loop (skip fetch/render during transfer + drawOtaStatus "OTA %"), OTA_PASS in secrets.h.example + secrets.h (#error guard if undefined), firmware/scripts/upload_ota.sh (MAC guard 14:c1:9f:d4:d5:34 twice: ping+ARP, espota.py upload with --auth), make fw-ota target; Verify: make fw-test 32 PASS+Failed 0, make fw-build SUCCESS RAM 16.4%, fresh-clone build green, bash -n OK, grep verify_target=2; HARDWARE UAT: USB flash OK, [NET] state=connected ip=192.168.0.136, sticks3-usage.local ping 0% loss, arp MAC=14:c1:9f:d4:d5:34, make fw-ota unchanged build=61a90ee+dirty → [OTA] start/pct=1..100/end → RTC_SW_CPU_RST → [BOOT] build=61a90ee+dirty (same id) → [NET] connected → [FETCH] 200 rev=0906ceba → [RENDER] → [HEAP] free=268872; spec.json[39] passes flipped, task count=50
 2026-09-04T08:36:00Z task 42 done — README.md (114 lines: ASCII arch, quick start, CLI, API table, v1 contract, firmware section, troubleshooting); docs/SOURCES.md Policy + Attribution (sheepxux/Taskhub, Colibrino/ptt.ino, ArduinoJson MIT); verify: grep /v1/usage=3 ≥2, Attribution=1 ≥1, make verify=0; commit ed8433a
 
+40b	2026-09-04T09:30:00Z task 40 ORDER #29 follow-up: deleted entire PM1 GPIO1 IRQ block from armWakeSources (SDA conflict), removed ext0 arm, 60s timer on battery, kept VbusDebouncer + g_powerGuard counter (monitor-only), rewrote spec.json task 40 steps/UAT to match; docs/DEVICES.md power/wake errata added. Verify: fw-test 46 PASS+Failed 0, fw-build SUCCESS RAM 16.5% 0wrn, fresh-clone build green, make verify=0. passes NOT flipped (UAT pending). commit bde930c→ORDER#29
+2026-09-04T12:00:00Z task 40 ORDER #30+#31 (commit pending): grace-anchor semantics in power.h/.cpp (graceAnchorMs replaces lastActivityMs, caller owns anchor; USB\u2192battery transition resets anchor+activates grace; grace starts at first render/fetch-fail not boot so slow Wi-Fi cannot sleep before paint) + warm-boot paint-on-boot fix in main.cpp (restore model but do NOT pre-seed g_view.lastRev; seed only g_lastRev for If-None-Match; set needsRedraw on all wake causes; g_paintedThisBoot flag forces exactly one cached paint; timer wake paints cached snapshot then re-sleeps after grace); 2 new ORDER #30 host tests in test_power.cpp + 1 new ORDER #31 onSnapshot test in test_render_plan.cpp; verify: make fw-test 35 PASS+Failed 0, make fw-build SUCCESS RAM ~16.52026-09-04T12:00:00Z task 40 ORDER #30+#31 (commit pending): grace-anchor semantics in power.h/.cpp (graceAnchorMs replaces lastActivityMs, caller owns anchor; USB→battery transition resets anchor+activates grace; grace starts at first render/fetch-fail not boot so slow Wi-Fi cannot sleep before paint) + warm-boot paint-on-boot fix in main.cpp (restore model but do NOT pre-seed g_view.lastRev; seed only g_lastRev for If-None-Match; set needsRedraw on all wake causes; g_paintedThisBoot flag forces exactly one cached paint; timer wake paints cached snapshot then re-sleeps after grace); 2 new ORDER #30 host tests in test_power.cpp + 1 new ORDER #31 onSnapshot test in test_render_plan.cpp; verify: make fw-test 35 PASS+Failed 0, make fw-build SUCCESS RAM ~16.5% 0wrn, fresh-clone build green
+2026-09-04T12:30:00Z task 40 follow-up ORDER #30+#31 (commit f818f71): fw-test 46 PASS+Failed 0, fw-build SUCCESS RAM 16.5% 0wrn, fresh-clone 46 PASS+Failed 0, OTA flash OK, serial: boot f818f71 → 200 rev=2d18de11 → RENDER → [300s later] 304 rev=2d18de11 → NO RENDER (redraw only on change); passes NOT flipped (UAT pending Felipe unplug/replug)
+2026-09-04T14:45:46Z task 40 UAT PASSED (seq 173): Felipe ran all three steps on f818f71 — CABLE OUT 14:45:46, device off the LAN at t+22s (ORDER #30 grace anchor works, waits ~20s from the UNPLUG not boot); BtnA wake painted the USAGE SCREEN not the splash (ORDER #31 fixed); CABLE IN 14:46:21 back on the LAN immediately. Serial re-proves: repeated [FETCH] code=304 with NO [RENDER], then [FETCH] code=200 rev=7b62c455 followed by exactly one [RENDER]. passes flipped to true.
+
 ## Reconciliation
 
-Reconciled 2026-09-04. Ledger: 51 tasks, 41 passed (spec.json passes=true count).
+Reconciled 2026-09-04. Ledger: 55 tasks, 43 passed (spec.json passes=true count).
 
 Task-by-task status (one line per task, matches spec.json passes):
   1: done
@@ -84,19 +89,19 @@ Task-by-task status (one line per task, matches spec.json passes):
   37: done
   38: done
   39: done
-  40: UAT-FAILED — BUG 40b (seq 157): PM1 GPIO1 push-pull IRQ output conflicts with SDA, hangs PMIC I2C after wake. ORDER #29 fix committed bde930c: deleted entire PM1 GPIO1 IRQ block from armWakeSources, removed ext0 arm, 60s timer on battery, kept VbusDebouncer + guard counter (monitor-only), rewrote spec.json steps. Awaiting Felipe OTA authorization to re-flash + UAT.
-  41: done
-  42: done
-  43: done — AGENTS.md finalised (real tree, all Make targets, serial protocol, status), progress.txt reconciled
-  44: pending — Local usage stats /v1/stats (scan Claude/Codex transcripts incrementally)
-  45: pending — Desktop dashboard polish (AIUsage-style stat pills, heatmaps, models table)
-  46: pending — IMU gestures (shake refresh, double tap flip)
-  47: pending — Battery percentage on top bar (PTT gauge, pure core + host tests)
-  48: pending — OPTIONAL v3: codex app-server JSON-RPC spike
-  49: pending — OPTIONAL v3: Claude rate_limits via statusline shell
-  50: pending — OPTIONAL v3: remote HTTPS snapshot publish
-  51: pending — OPTIONAL v3: task-hub rows POST /v1/rows
-40b	2026-09-04T09:30:00Z task 40 ORDER #29 follow-up: deleted entire PM1 GPIO1 IRQ block from armWakeSources (SDA conflict), removed ext0 arm, 60s timer on battery, kept VbusDebouncer + g_powerGuard counter (monitor-only), rewrote spec.json task 40 steps/UAT to match; docs/DEVICES.md power/wake errata added. Verify: fw-test 46 PASS+Failed 0, fw-build SUCCESS RAM 16.5% 0wrn, fresh-clone build green, make verify=0. passes NOT flipped (UAT pending). commit bde930c→ORDER#29
-2026-09-04T12:00:00Z task 40 ORDER #30+#31 (commit pending): grace-anchor semantics in power.h/.cpp (graceAnchorMs replaces lastActivityMs, caller owns anchor; USB\u2192battery transition resets anchor+activates grace; grace starts at first render/fetch-fail not boot so slow Wi-Fi cannot sleep before paint) + warm-boot paint-on-boot fix in main.cpp (restore model but do NOT pre-seed g_view.lastRev; seed only g_lastRev for If-None-Match; set needsRedraw on all wake causes; g_paintedThisBoot flag forces exactly one cached paint; timer wake paints cached snapshot then re-sleeps after grace); 2 new ORDER #30 host tests in test_power.cpp + 1 new ORDER #31 onSnapshot test in test_render_plan.cpp; verify: make fw-test 35 PASS+Failed 0, make fw-build SUCCESS RAM ~16.52026-09-04T12:00:00Z task 40 ORDER #30+#31 (commit pending): grace-anchor semantics in power.h/.cpp (graceAnchorMs replaces lastActivityMs, caller owns anchor; USB→battery transition resets anchor+activates grace; grace starts at first render/fetch-fail not boot so slow Wi-Fi cannot sleep before paint) + warm-boot paint-on-boot fix in main.cpp (restore model but do NOT pre-seed g_view.lastRev; seed only g_lastRev for If-None-Match; set needsRedraw on all wake causes; g_paintedThisBoot flag forces exactly one cached paint; timer wake paints cached snapshot then re-sleeps after grace); 2 new ORDER #30 host tests in test_power.cpp + 1 new ORDER #31 onSnapshot test in test_render_plan.cpp; verify: make fw-test 35 PASS+Failed 0, make fw-build SUCCESS RAM ~16.5% 0wrn, fresh-clone build green
-2026-09-04T12:30:00Z task 40 follow-up ORDER #30+#31 (commit f818f71): fw-test 46 PASS+Failed 0, fw-build SUCCESS RAM 16.5% 0wrn, fresh-clone 46 PASS+Failed 0, OTA flash OK, serial: boot f818f71 → 200 rev=2d18de11 → RENDER → [300s later] 304 rev=2d18de11 → NO RENDER (redraw only on change); passes NOT flipped (UAT pending Felipe unplug/replug)
-2026-09-04T14:45:46Z task 40 UAT PASSED (seq 173): Felipe ran all three steps on f818f71 — CABLE OUT 14:45:46, device off the LAN at t+22s (ORDER #30 grace anchor works, waits ~20s from the UNPLUG not boot); BtnA wake painted the USAGE SCREEN not the splash (ORDER #31 fixed); CABLE IN 14:46:21 back on the LAN immediately. Serial re-proves: repeated [FETCH] code=304 with NO [RENDER], then [FETCH] code=200 rev=7b62c455 followed by exactly one [RENDER]. passes flipped to true.
+  40: done — UAT PASSED on f818f71 after three failed attempts (BUG 40 ext0 instant-wake, BUG 40b PM1/SDA hang, ORDER #30/#31 grace/paint fixes). Felipe: cable out 14:45:46 → t+22s off-LAN, BtnA wake paints usage screen not splash, cable in 14:46:21 immediate; serial 304 no-render → 200 rev=7b62c455 + one RENDER.
+  41: done — fresh-clone gate + secret scan
+  42: done — README.md 114 lines + docs/SOURCES.md
+  43: done — AGENTS.md finalised (real tree, Make targets, serial protocol, Status) + progress.txt reconciled
+  44: pending — Local usage stats /v1/stats (internal/stats/ package, 11 host tests PASS, scheduler+API+CLI wiring; awaiting commit)
+  45: pending — Desktop dashboard polish (stat pills, heatmaps, models table, attention list)
+  46: pending — Host: ChatGPT credits unit fix + GPT rst row + severity ok/warn/crit on snapshot + Groq tier row + kind field (ORDER #36)
+  47: pending — config.yaml (per-provider toggles/labels/thresholds; strict subset parser, no key literals)
+  48: pending — Firmware: IMU double-tap 180° flip (NVS-persistent) + BtnA long-press (shake dropped per ORDER #32)
+  49: pending — Firmware: battery percentage on top bar (PTT gauge, USB '+' indicator)
+  50: pending — Firmware: alert banner (red crit / amber warn, every page, optional beep)
+  51: pending — Firmware: device pages split by kind (plan/credit/free, distinct look per kind, version in top bar) — ORDER #36, same batched flash
+  52: pending — OPTIONAL v3: codex app-server JSON-RPC spike
+  53: pending — OPTIONAL v3: Claude rate_limits via statusline shell
+  54: pending — OPTIONAL v3: remote HTTPS snapshot publish
+  55: pending — OPTIONAL v3: task-hub rows POST /v1/rows

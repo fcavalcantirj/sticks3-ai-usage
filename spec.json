@@ -463,7 +463,7 @@
       "Update `AGENTS.md`: the real project tree (`find . -type f -not -path './.git/*' -not -path './firmware/.pio/*' -not -path './firmware/build/*' -not -path './bin/*' | sort` trimmed to directories + key files), all Make targets, the serial protocol summary, the seven house rules (unchanged), and a `Status` line naming which optional tasks below are not done. Read `progress.txt` end-to-end and append a `## Reconciliation` block listing every ledger task number with done/pending/UAT-pending and the reason for any pending one.",
       "Verify: `grep -c 'Reconciliation' progress.txt` ≥ 1; `python3 -c \"import json;t=json.load(open('spec.json'));print(sum(1 for x in t if x['passes']))\"` prints the number of passed tasks and it equals the count of `done` lines in the reconciliation block; `make verify` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "host",

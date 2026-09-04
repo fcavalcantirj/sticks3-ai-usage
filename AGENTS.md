@@ -10,7 +10,7 @@ through the Keychain and `~/.codex/auth.json`.
 ## Project tree
 
 ```
-cmd/usaged/            CLI: serve, once, version
+cmd/usaged/            CLI: serve, once, version, stats
 internal/
   config/              env vars + flags, .env.example loading, fixtures mode
   snapshot/            v1 types, rev hash, state persistence
@@ -19,16 +19,18 @@ internal/
   format/              timezone-aware reset text, tiers, money, table rendering
   providers/           Claude, Codex, OpenRouter, Groq fetchers
   sched/               concurrent scheduler, last-good, cooldowns, state save
-  api/                 HTTP routes: /healthz /v1/usage /v1/usage.txt /v1/refresh /
+  api/                 HTTP routes: /healthz /v1/usage /v1/usage.txt /v1/refresh / + /v1/stats
   web/                 embedded single-file dashboard (go:embed)
   stats/               local transcript scanner for /v1/stats (tasks 44+)
 testdata/              fixtures (claude/codex/openrouter/groq JSON), scenarios
 scripts/               run.sh, install.sh, uninstall.sh, smoke.sh, lint.sh
 launchd/               com.fcavalcanti.usaged.plist
-firmware/              PlatformIO M5StickS3 project (board.h/screen.h/net.h/fetch.h/power.h)
+firmware/              PlatformIO M5StickS3 project
+  src/main.cpp         entry point (cooperative loop, OTA + heap watchdog)
   src/usage/           pure C++17 core (model, power, render_plan, serial_proto, textfit)
   src/hal/sticks3/     M5/Arduino HAL (board, screen, net, fetch, power)
-  test/host/           CMake host-test harness + framework.h
+  test/host/           CMake host-test harness + framework.h + 7 test files
+  scripts/             build_id.py, gen_fixtures.py, upload_ota.sh
 docs/                  DEVICES.md, GROUND_RULES.md, SOAK.md, SOURCES.md
 README.md              user-facing docs
 sticks3-ai-usage.md    OLD research report — reference only, not a spec
@@ -101,7 +103,14 @@ Every task: read the last 20 room messages before starting.
 
 ## Status
 
-Ledger: 51 tasks, 41 passed. Optional v3 tasks (48-51) not started. Task 40
-UAT-pending — ORDER #29 follow-up committed (ext0 disabled, 60s timer, VbusDebouncer
-retained); awaiting Felipe OTA authorization to re-flash bde930c→ORDER#29 and redo
-UAT. See `progress.txt` Reconciliation block.
+Ledger: 55 tasks, 43 passed. Optional v3 tasks (52-55) not started.
+Task 40 UAT PASSED (seq 173) — Felipe confirmed on f818f71: cable-out grace anchor
+works (t+22 s off-LAN), BtnA wake paints usage screen not splash (ORDER #31 fix),
+cable-in immediate (t+14:46:21), serial proves 304 no-render → 200+render. Three
+failed UATs (ext0 instant-wake, PM1/SDA hang, grace/paint) resolved. BUG 40c
+(device never sleeps — vbusPresent mv==0 special case) is ORDER #35, folded into
+the firmware trio (tasks 48-50): battery pct, alert banner, double-tap flip.
+ORDER #36 (seq 185-186) adds task 51: device pages split by kind (plan/credit/free)
+as part of the SAME combined firmware flash. Task 44 (stats /v1/stats) code written,
+11 host tests pass, wiring in scheduler+API+CLI pending commit.
+See `progress.txt` Reconciliation block.
