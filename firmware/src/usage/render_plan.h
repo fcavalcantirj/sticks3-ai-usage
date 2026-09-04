@@ -15,6 +15,7 @@ struct Line {
     char right[12];       // txt, ≤11 chars + NUL
     uint8_t tier;         // 0 ok, 1 warn, 2 crit, 3 off
     uint8_t dim;          // 1 when provider is stale/auth/error
+    uint8_t warn;         // 1 when provider severity is warn (tint label amber)
 };
 
 // RenderPlan: the full frame buffer for one screen page.
@@ -26,6 +27,8 @@ struct RenderPlan {
     uint8_t lineCount;
     Line lines[5];        // max 5 lines per page
     char footer[25];      // msg of first non-ok provider on this page, else ""
+    char banner[25];      // crit/warn banner text (24 chars + NUL), "" when none
+    uint8_t bannerTier;   // 0 none, 1 warn, 2 crit
 };
 
 // View: persistent UI state across snapshots.

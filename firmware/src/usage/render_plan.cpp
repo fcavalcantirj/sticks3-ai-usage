@@ -73,6 +73,43 @@ static bool providerIsDim(uint8_t status) {
     return status == 1 || status == 2 || status == 3; // stale, auth, error
 }
 
+// --- banner severity scanning (ORDER #36 / task 50) --------------------------
+
+// Returns the worst severity across ALL providers (0 ok, 1 warn, 2 crit, 3 off).
+// The banner decision is global: every page shows the same banner.
+static uint8_t worstSeverity(const Model& m) {
+    uint8_t worst = 0;
+    for (uint8_t i = 0; i < m.providerCount; i++) {
+        if (m.providers[i].severity > worst)
+            worst = m.providers[i].severity;
+    }
+    return worst;
+}
+
+// Returns the first provider with severity == sev, or nullptr.
+static const Provider* firstProviderWithSeverity(const Model& m, uint8_t sev) {
+    for (uint8_t i = 0; i < m.providerCount; i++) {
+        if (m.providers[i].severity == sev)
+            return &m.providers[i];
+    }
+    return nullptr;
+}
+
+// Appends '!' to a row label, truncating to fit within n bytes (incl. NUL).
+// e.g. "ORmain bal" (10 chars) → "ORmain ba!" (10 chars) in a 11-byte buffer.
+static void appendWarnBang(char* label, size_t n) {
+    if (n == 0) return;
+    size_t len = std::strlen(label);
+    if (len + 1 >= n) { // no room for '!' + NUL
+        len = n - 2;    // leave 2 bytes for '!' + NUL
+        label[len] = '!';
+        label[len + 1] = '\0';
+    } else {
+        label[len] = '!';
+        label[len + 1] = '\0';
+    }
+}
+
 void buildPlan(const Model& model, uint8_t page, RenderPlan& out) {
     std::memset(&out, 0, sizeof(out));
     copyStr(out.title, "AI USAGE", sizeof(out.title));
@@ -83,6 +120,28 @@ void buildPlan(const Model& model, uint8_t page, RenderPlan& out) {
     char asOfBuf[12];
     std::snprintf(asOfBuf, sizeof(asOfBuf), "seq %u", model.seq);
     copyStr(out.asOf, asOfBuf, sizeof(out.asOf));
+
+    // --- alert banner (ORDER #36 / task 50) ---
+    // When ANY provider is crit, show a red banner on EVERY page (including
+    // page 2) and shrink the row area to 4 lines.  When the worst is warn,
+    // append '!' to the warn provider's rows and tint them amber — no banner.
+    uint8_t worst = worstSeverity(model);
+    if (worst >= 2) {
+        out.bannerTier = 2;
+        const Provider* cp = firstProviderWithSeverity(model, 2);
+        if (cp) {
+            char combined[25];
+            if (cp->msg[0] != '\0') {
+                std::snprintf(combined, sizeof(combined), "%s %s",
+                              cp->label, cp->msg);
+            } else {
+                copyStr(combined, cp->label, sizeof(combined));
+            }
+            copyStr(out.banner, combined, sizeof(out.banner));
+        }
+    }
+
+    uint8_t maxLines = (worst >= 2) ? 4 : 5;
 
     uint8_t lineIdx = 0;
     const char* footerMsg = nullptr;
@@ -98,7 +157,7 @@ void buildPlan(const Model& model, uint8_t page, RenderPlan& out) {
             footerMsg = prov.msg;
         }
 
-        for (uint8_t r = 0; r < prov.rowCount && lineIdx < 5; r++) {
+        for (uint8_t r = 0; r < prov.rowCount && lineIdx < maxLines; r++) {
             const Row& row = prov.rows[r];
             // bal rows never go on page 1.
             if (page == 0 && std::strcmp(row.k, "bal") == 0) {
@@ -110,6 +169,14 @@ void buildPlan(const Model& model, uint8_t page, RenderPlan& out) {
             copyStr(line.right, row.txt, sizeof(line.right));
             line.tier = row.tier;
             line.dim = (uint8_t)(providerIsDim(prov.status) ? 1 : 0);
+
+            // Warn: append '!' and flag for amber tint — only when warn is
+            // the global worst (no crit provider present).
+            if (worst == 1 && prov.severity == 1) {
+                appendWarnBang(line.left, sizeof(line.left));
+                line.warn = 1;
+            }
+
             lineIdx++;
         }
     }

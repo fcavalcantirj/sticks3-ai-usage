@@ -41,6 +41,7 @@ TEST(model_parses_example) {
     ASSERT_STREQ("claude", claude.id);
     ASSERT_STREQ("Claude", claude.label);
     ASSERT_EQ(0, (int)claude.status);  // ok
+    ASSERT_EQ(0, (int)claude.severity);  // ok
     ASSERT_EQ(3, (int)claude.rowCount);
 
     // CLAUDE 5h: pct 19, tier 0 (ok)
@@ -58,6 +59,7 @@ TEST(model_parses_example) {
     // Codex provider.
     const Provider& codex = m.providers[1];
     ASSERT_STREQ("codex", codex.id);
+    ASSERT_EQ(2, (int)codex.severity);  // crit — triggers the alert banner
     ASSERT_EQ(3, (int)codex.rowCount);
 
     // GPT 5h: pct 100, tier 2 (crit)
@@ -87,9 +89,12 @@ TEST(model_parses_full) {
     ASSERT_STREQ("codex", m.providers[1].id);
     ASSERT_STREQ("openrouter:main", m.providers[2].id);
     ASSERT_STREQ("OpenRouter main", m.providers[2].label);
+    ASSERT_EQ(1, (int)m.providers[2].severity);  // warn
     ASSERT_STREQ("openrouter:fallback", m.providers[3].id);
     ASSERT_STREQ("OpenRouter fallback", m.providers[3].label);
+    ASSERT_EQ(1, (int)m.providers[3].severity);  // warn
     ASSERT_STREQ("groq", m.providers[4].id);
+    ASSERT_EQ(0, (int)m.providers[4].severity);  // groq: ok
 
     // OpenRouter main: bal pct 99, tier 2 (crit)
     const Row& orBal = m.providers[2].rows[0];

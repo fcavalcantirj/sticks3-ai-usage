@@ -24,6 +24,7 @@ struct Provider {
     char id[24];      // up to 23 chars + NUL  (e.g. "openrouter:main")
     char label[24];   // up to 23 chars + NUL  (e.g. "OpenRouter main", "OpenRouter fallback")
     char plan[12];    // up to 11 chars + NUL  (e.g. "max_20x", "plus", "free")
+    uint8_t severity; // 0 ok, 1 warn, 2 crit, 3 off
     uint8_t status;   // 0 ok, 1 stale, 2 auth, 3 error, 4 off
     char msg[25];     // up to 24 chars + NUL  (e.g. "run claude", "no key")
     uint8_t rowCount;

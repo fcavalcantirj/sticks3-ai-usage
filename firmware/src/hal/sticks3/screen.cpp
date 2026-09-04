@@ -88,10 +88,23 @@ void drawPlan(const usage::RenderPlan& plan, bool wifiOk,
     // --- card background ---
     M5.Display.fillRoundRect(5, 25, 230, 88, 7, 0x1082);
 
+    // ORDER #36 / task 50: alert banner.  When any provider is crit, draw a
+    // full-width red banner as the TOP row of the card (every page), pushing
+    // usage rows down by one slot (4 rows instead of 5).
+    int16_t rowYOffset = 0;
+    if (plan.bannerTier == 2 && plan.banner[0] != '\0') {
+        M5.Display.fillRect(5, 29, 230, 17, 0xF800);  // red banner row
+        M5.Display.setTextColor(TFT_BLACK);
+        M5.Display.setCursor(12, 29 + (17 - 8) / 2);  // vertically centred
+        M5.Display.println(plan.banner);
+        M5.Display.setTextColor(TFT_WHITE);
+        rowYOffset = 17;  // shift rows down by one slot
+    }
+
     // --- rows ---
     for (uint8_t i = 0; i < plan.lineCount; i++) {
         const usage::Line& line = plan.lines[i];
-        int16_t rowY = 29 + i * 17;
+        int16_t rowY = 29 + i * 17 + rowYOffset;
         int16_t rowH = 17;
 
         // ORDER #28: one shared vertical centre for label, bar and value.
@@ -102,8 +115,10 @@ void drawPlan(const usage::RenderPlan& plan, bool wifiOk,
         int16_t textY = rowY + (rowH - fontH) / 2;
         int16_t barY  = rowY + (rowH - 8) / 2;
 
-        // Left label.
-        uint16_t labelColor = line.dim ? 0x8410 : TFT_WHITE;  // grey / white
+        // Left label: grey when dim, amber when warn-flagged, white otherwise.
+        uint16_t labelColor = line.dim     ? 0x8410
+                          : line.warn     ? 0xFD20  // warn tint (ORDER #36 task 50)
+                          : TFT_WHITE;
         M5.Display.setTextColor(labelColor);
         M5.Display.setCursor(12, textY);
         M5.Display.println(line.left);

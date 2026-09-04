@@ -26,10 +26,14 @@ TEST(plan_page1_order) {
     RenderPlan plan;
     usage::buildPlan(m, 0, plan);
     ASSERT_EQ(1u, plan.pageCount);
-    ASSERT_EQ(5, (int)plan.lineCount);
     ASSERT_EQ(1u, plan.page); // 1-indexed
 
-    // Expected order: CLAUDE 5h, CLAUDE 7d, FABLE 7d, GPT 5h, GPT 7d
+    // Codex has severity "crit" → red banner on every page, 4 rows instead of 5.
+    ASSERT_EQ(2u, plan.bannerTier);
+    ASSERT_STREQ("ChatGPT", plan.banner);
+    ASSERT_EQ(4, (int)plan.lineCount);
+
+    // Expected order: CLAUDE 5h, CLAUDE 7d, FABLE 7d, GPT 5h (GPT 7d cut by banner).
     ASSERT_STREQ("CLAUDE 5h", plan.lines[0].left);
     ASSERT_EQ(19, plan.lines[0].pct);
 
@@ -44,14 +48,11 @@ TEST(plan_page1_order) {
     ASSERT_EQ(100, plan.lines[3].pct);
     ASSERT_EQ(2, (int)plan.lines[3].tier);
 
-    ASSERT_STREQ("GPT 7d", plan.lines[4].left);
-    ASSERT_EQ(31, plan.lines[4].pct);
-
     // GPT bal is excluded from page 1.
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 4; i++) {
         ASSERT_TRUE(std::strcmp(plan.lines[i].left, "GPT bal") != 0);
     }
-    // Footer empty (all providers ok).
+    // Footer empty (all providers ok status).
     ASSERT_STREQ("", plan.footer);
 }
 
@@ -95,6 +96,11 @@ TEST(plan_page2_full) {
     ASSERT_EQ(2u, plan.pageCount);
     ASSERT_EQ(2u, plan.page); // 1-indexed
 
+    // Crit provider (codex) makes the banner appear on EVERY page.
+    ASSERT_EQ(2u, plan.bannerTier);
+    ASSERT_STREQ("ChatGPT", plan.banner);
+    ASSERT_EQ(4, (int)plan.lineCount); // 4 rows (banner steals one slot)
+
     // Page 2 begins with openrouter:main's bal row.
     ASSERT_STREQ("ORmain bal", plan.lines[0].left);
     ASSERT_EQ(99, plan.lines[0].pct);
@@ -103,7 +109,7 @@ TEST(plan_page2_full) {
     // Fallback account row label is distinct.
     ASSERT_STREQ("ORfbk bal", plan.lines[2].left);
     ASSERT_STREQ("ORfbk day", plan.lines[3].left);
-    ASSERT_STREQ("GROQ key", plan.lines[4].left);
+    // GROQ key is cut (4 rows only with banner).
 }
 
 // --- ORDER #31: warm-boot wake produces exactly one render ------------------
@@ -191,4 +197,101 @@ TEST(plan_tier_names) {
     ASSERT_STREQ("crit", usage::tierName(2));
     ASSERT_STREQ("off", usage::tierName(3));
     ASSERT_STREQ("ok", usage::tierName(99));
+}
+
+// --- banner: crit (ORDER #36 / task 50) -------------------------------------
+
+TEST(plan_banner_crit) {
+    // kSnapshotExample has codex with severity "crit", msg "".
+    Model m;
+    char err[256];
+    bool ok = usage::parseSnapshot(kSnapshotExample, strlen(kSnapshotExample),
+                                   m, err, sizeof(err));
+    ASSERT_TRUE(ok);
+
+    RenderPlan plan;
+    usage::buildPlan(m, 0, plan);
+    ASSERT_EQ(2u, plan.bannerTier);
+    ASSERT_STREQ("ChatGPT", plan.banner);
+    // Crit banner steals one row slot → 4 usage rows, not 5.
+    ASSERT_EQ(4, (int)plan.lineCount);
+}
+
+// --- banner: warn label "!" (no banner row) ---------------------------------
+
+TEST(plan_warn_label_no_banner) {
+    // Hand-built JSON: openrouter:main is warn, no crit provider anywhere.
+    // turn_context lines use the real top-level type (BUG 48 format).
+    const char* json =
+        "{\"v\":1,\"seq\":5,\"rev\":\"deadbeef\",\"generated_at\":0,"
+        "\"next_sec\":900,"
+        "\"providers\":["
+        "{\"id\":\"openrouter:main\",\"label\":\"OpenRouter main\","
+        "\"plan\":\"paid\",\"severity\":\"warn\",\"status\":\"ok\","
+        "\"msg\":\"low $0.07\","
+        "\"rows\":[{\"k\":\"bal\",\"label\":\"ORmain bal\",\"pct\":99,"
+        "\"txt\":\"$0.07\",\"tier\":\"crit\",\"reset_at\":null},"
+        "{\"k\":\"day\",\"label\":\"ORmain day\",\"pct\":null,"
+        "\"txt\":\"$0.00\",\"tier\":\"ok\",\"reset_at\":null}]}, "
+        "{\"id\":\"groq\",\"label\":\"Groq\",\"plan\":\"on_demand\","
+        "\"severity\":\"ok\",\"status\":\"ok\",\"msg\":\"\","
+        "\"rows\":[{\"k\":\"key\",\"label\":\"GROQ key\",\"pct\":null,"
+        "\"txt\":\"ok\",\"tier\":\"ok\",\"reset_at\":null}]}]}";
+
+    Model m;
+    char err[256];
+    bool ok = usage::parseSnapshot(json, strlen(json), m, err, sizeof(err));
+    ASSERT_TRUE(ok);
+
+    RenderPlan plan;
+    usage::buildPlan(m, 1, plan);  // page 2 (openrouter + groq)
+
+    // Worst is warn → no banner, bannerTier stays 0.
+    ASSERT_EQ(0u, plan.bannerTier);
+    ASSERT_STREQ("", plan.banner);
+    // All 5 row slots are available.
+    ASSERT_EQ(3, (int)plan.lineCount);
+
+    // Warn provider rows get "!" appended (truncated to fit 10-char label).
+    ASSERT_STREQ("ORmain ba!", plan.lines[0].left);
+    ASSERT_EQ(1, (int)plan.lines[0].warn);
+
+    ASSERT_STREQ("ORmain da!", plan.lines[1].left);
+    ASSERT_EQ(1, (int)plan.lines[1].warn);
+
+    // Ok provider rows do NOT get "!" or the warn flag.
+    ASSERT_STREQ("GROQ key", plan.lines[2].left);
+    ASSERT_EQ(0, (int)plan.lines[2].warn);
+}
+
+// --- banner: all-ok yields today's exact layout ----------------------------
+
+TEST(plan_all_ok_no_banner) {
+    const char* json =
+        "{\"v\":1,\"seq\":5,\"rev\":\"abcd1234\",\"generated_at\":0,"
+        "\"next_sec\":900,"
+        "\"providers\":["
+        "{\"id\":\"claude\",\"label\":\"Claude\",\"plan\":\"max_20x\","
+        "\"severity\":\"ok\",\"status\":\"ok\",\"msg\":\"\","
+        "\"rows\":[{\"k\":\"5h\",\"label\":\"CLAUDE 5h\",\"pct\":50,"
+        "\"txt\":\"05:09\",\"tier\":\"ok\",\"reset_at\":0},"
+        "{\"k\":\"7d\",\"label\":\"CLAUDE 7d\",\"pct\":60,"
+        "\"txt\":\"Mon\",\"tier\":\"ok\",\"reset_at\":0}]}]}";
+
+    Model m;
+    char err[256];
+    bool ok = usage::parseSnapshot(json, strlen(json), m, err, sizeof(err));
+    ASSERT_TRUE(ok);
+
+    RenderPlan plan;
+    usage::buildPlan(m, 0, plan);
+
+    // All-ok: no banner, 5-row layout exactly as today.
+    ASSERT_EQ(0u, plan.bannerTier);
+    ASSERT_STREQ("", plan.banner);
+    ASSERT_EQ(2, (int)plan.lineCount);
+    ASSERT_STREQ("CLAUDE 5h", plan.lines[0].left);
+    ASSERT_EQ(0, (int)plan.lines[0].warn);
+    ASSERT_STREQ("CLAUDE 7d", plan.lines[1].left);
+    ASSERT_EQ(0, (int)plan.lines[1].warn);
 }
