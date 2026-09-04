@@ -5,6 +5,7 @@
 #include <M5Unified.h>
 
 #include "hal/sticks3/board.h"
+#include "hal/sticks3/net.h"
 #include "hal/sticks3/screen.h"
 #include "usage/serial_proto.h"
 
@@ -19,11 +20,12 @@ void setup() {
     serialLine(buf);
 
     drawBootScreen(buildId());
+    netBegin();
 }
 
 void loop() {
     M5.update();
     uint32_t now = nowMs();
-    /* state machines come in later tasks */
+    netUpdate(now);
     delay(1);
 }

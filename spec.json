@@ -358,7 +358,7 @@
       "Create `firmware/src/hal/sticks3/net.h/.cpp` modelled on Colibrino's always-on variant (read /Users/fcavalcanti/dev/Colibrino/sticks3/src/main.cpp functions `startOtaNetworking` and `updateOta` for the shape, WITHOUT OTA): `void netBegin()` \u2192 `WiFi.persistent(false); WiFi.mode(WIFI_STA); WiFi.setHostname(\"sticks3-usage\"); WiFi.setAutoReconnect(true); WiFi.setSleep(true); WiFi.begin(WIFI_SSID, WIFI_PASS);` (secrets.h; if `firmware/include/secrets.h` is missing the build must fail with a clear `#error copy include/secrets.h.example to include/secrets.h`); `void netUpdate(uint32_t nowMs)` \u2192 tracks state {connecting, connected, lost}, re-issues `WiFi.begin` every 30 s while not connected, emits `[NET]` lines only on state transitions (via serial_proto), exposes `bool netUp()` and `const char* netIp(char* buf, size_t n)`. Draw a tiny wifi dot in the top bar later (screen task). For the builder's compile check, create `firmware/include/secrets.h` ONLY IF ABSENT with placeholder values copied from the example (it is git-ignored) \u2014 never overwrite an existing one.",
       "Verify: `make fw-build` ends with `SUCCESS`; `grep -n 'setHostname(\"sticks3-usage\")' firmware/src/hal/sticks3/net.cpp` matches; `git status --short | grep -c secrets.h$` prints 0 (ignored). No upload."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "hal",
