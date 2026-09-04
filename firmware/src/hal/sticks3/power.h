@@ -26,6 +26,9 @@ uint16_t vbusMv();
 // True if USB is plugged in.
 bool vbusPresent();
 
+// Read the battery percentage (0..100), or -1 if the sensor reports unknown.
+int batteryLevel();
+
 // Turn the screen fully off: display sleep + flush + cut the PM1 GPIO2
 // (LCD panel) rail.  M5GFX re-asserts the rail on the next boot.
 void screenOff();

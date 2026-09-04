@@ -65,4 +65,9 @@ int fmtGesture(char* out, size_t n, uint8_t rot);
 //   [BTN] a_click page
 int fmtBtn(char* out, size_t n, const char* event);
 
+// fmtBatt formats a battery change line:
+//   [BATT] pct=87 usb=1
+//   [BATT] pct=27 usb=0
+int fmtBatt(char* out, size_t n, int pct, int usb);
+
 } // namespace usage

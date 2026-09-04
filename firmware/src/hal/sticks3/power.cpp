@@ -43,6 +43,10 @@ uint16_t vbusMv() {
     return M5.Power.getVBUSVoltage();
 }
 
+int batteryLevel() {
+    return M5.Power.getBatteryLevel();
+}
+
 // ORDER #26: debounce VBUS reads so a single I2C glitch (0 mV) or noise
 // spike on the PM1 I2C bus can never make the device deep-sleep while on USB.
 bool vbusPresent() {

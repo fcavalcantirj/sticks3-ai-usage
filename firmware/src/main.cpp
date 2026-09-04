@@ -27,6 +27,7 @@
 #include "usage/render_plan.h"
 #include "usage/serial_proto.h"
 #include "usage/gesture.h"
+#include "usage/battery.h"
 
 #include <cstdio>
 #include <cstring>
@@ -99,6 +100,14 @@ static sticks3::gesture::DoubleTapDetector g_gesture;
 static const uint32_t kImuPollMs = 20;
 static uint32_t g_lastImuPoll = 0;
 
+// --- battery polling (task 49) ------------------------------------------------
+// PTT-style gauge on the top bar; polled every 30 s, redrawn on change.
+static const uint32_t kBatteryPollMs = 30000;  // 30 seconds
+static battery::BatteryView g_batt;
+static battery::BatteryView g_prevBatt;
+static bool g_battEverPolled = false;
+static uint32_t g_lastBatteryPoll = 0;
+
 // --- helpers ----------------------------------------------------------------
 
 // Exponential backoff: 30 s, 60 s, 120 s, 240 s, then capped at kPollMs (300 s).
@@ -116,7 +125,7 @@ static uint32_t pollInterval() {
 static void redraw() {
     usage::RenderPlan plan;
     usage::buildPlan(g_model, g_view.page, plan);
-    drawPlan(plan, netUp());
+    drawPlan(plan, netUp(), g_batt);
 
     char buf[64];
     usage::fmtRender(buf, sizeof(buf), plan.page, plan.lineCount,
@@ -133,6 +142,37 @@ static void redraw() {
     for (size_t i = 0; i < 8; i++)
         g_view.lastRev[i] = g_model.rev[i];
     g_view.lastRev[8] = '\0';
+}
+
+// --- battery polling ----------------------------------------------------------
+
+// Poll the HAL battery level + VBUS once per kBatteryPollMs, emit [BATT] on
+// change, and force a redraw to refresh the top-bar gauge.
+static void pollBattery(uint32_t now) {
+    if (g_lastBatteryPoll != 0 &&
+        (int32_t)(now - g_lastBatteryPoll) < (int32_t)kBatteryPollMs) {
+        return;
+    }
+    g_lastBatteryPoll = now;
+
+    int pct = battery::batteryPctClamped(batteryLevel());
+    bool onUsb = vbusMv() > 4000;
+    battery::BatteryView current{pct, onUsb, pct >= 0};
+
+    bool changed = !g_battEverPolled ||
+                   current.pct != g_prevBatt.pct ||
+                   current.onUsb != g_prevBatt.onUsb;
+    if (changed) {
+        char buf[64];
+        usage::fmtBatt(buf, sizeof(buf), current.pct,
+                       current.onUsb ? 1 : 0);
+        serialLine(buf);
+        g_view.needsRedraw = true;
+        g_lastActivity = now;  // cable plug/unplug: keep screen lit
+    }
+    g_prevBatt = current;
+    g_batt = current;
+    g_battEverPolled = true;
 }
 
 // Fetch /v1/usage and apply the result.  Resets failCount on 200.
@@ -394,6 +434,7 @@ void loop() {
     buttonsUpdate(now);
     updateBrightness(now);
     heapWatchdog(now);
+    pollBattery(now);
 
     // ORDER #30: detect USB→battery transition.  Unplugging is "activity" —
     // reset the grace anchor to now so the device stays awake 20 s after the

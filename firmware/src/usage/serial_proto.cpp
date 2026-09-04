@@ -135,4 +135,12 @@ int fmtBtn(char* out, size_t n, const char* event) {
                          event != nullptr ? event : "");
 }
 
+// fmtBatt formats a battery change line:
+//   [BATT] pct=87 usb=1
+//   [BATT] pct=27 usb=0
+int fmtBatt(char* out, size_t n, int pct, int usb) {
+    return std::snprintf(out, n, "[BATT] pct=%d usb=%d",
+                         pct, usb);
+}
+
 } // namespace usage

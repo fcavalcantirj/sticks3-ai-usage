@@ -1,6 +1,7 @@
 // firmware/src/hal/sticks3/screen.cpp — display HAL implementation.
 #include "hal/sticks3/screen.h"
 
+#include "usage/battery.h"   // BatteryView (pure C++17, testable on host)
 #include "usage/textfit.h"   // fitRight (pure C++17, testable on host)
 
 #include <M5Unified.h>
@@ -48,7 +49,8 @@ static void fitPrintRight(int xRight, int16_t y, const char* text, int maxPx) {
 
 // --- drawPlan ---------------------------------------------------------------
 
-void drawPlan(const usage::RenderPlan& plan, bool wifiOk) {
+void drawPlan(const usage::RenderPlan& plan, bool wifiOk,
+              const sticks3::battery::BatteryView& batt) {
     M5.Display.fillScreen(TFT_BLACK);
     int16_t W = M5.Display.width();
 
@@ -63,6 +65,9 @@ void drawPlan(const usage::RenderPlan& plan, bool wifiOk) {
     int16_t aw = M5.Display.textWidth(plan.asOf);
     M5.Display.setCursor(W - 70 - aw, 7);
     M5.Display.println(plan.asOf);
+
+    // Battery gauge (left of the wifi dot).
+    drawBatteryGauge(batt.pct, batt.onUsb, batt.known);
 
     // Wifi dot at (W-12, 14).
     uint16_t dotColor = wifiOk ? 0x07E0 : 0xFD20;   // green / amber
@@ -146,6 +151,60 @@ void drawOtaStatus(uint8_t pct) {
     int16_t th = M5.Display.fontHeight();
     M5.Display.setCursor((w - tw) / 2, (h - th) / 2);
     M5.Display.println(buf);
+}
+
+// --- battery gauge -----------------------------------------------------------
+
+// drawBatteryGauge draws a PTT-style 32×13 rectangle with a 3×5 nub at the
+// right end, filled proportionally to the level, with a colour tier and
+// numeric percent label.  On USB, a '+' suffix is appended.
+void drawBatteryGauge(int pct, bool onUsb, bool known) {
+    int16_t W = M5.Display.width();
+
+    // Position: right-aligned, to the left of the wifi dot at (W-12, 14).
+    // Wifi dot is 3px radius at x=W-12; leave 6px gap, then 32px gauge + label.
+    int16_t gaugeX = W - 12 - 6 - 32 - 6;  // left of gauge (32px wide + 6px label gap)
+    int16_t gaugeY = 10;  // vertically centred in the 22px top bar
+    int16_t gaugeW = 32;
+    int16_t gaugeH = 13;
+
+    // Colour tier: green >40%, yellow >20%, red <=20%.
+    uint16_t color;
+    if (!known) {
+        color = 0x8410;  // grey
+    } else if (pct > 40) {
+        color = 0x07E0;  // green
+    } else if (pct > 20) {
+        color = 0xFD20;  // amber/yellow
+    } else {
+        color = 0xF800;  // red
+    }
+
+    // Fill (proportional to pct).
+    if (known && pct > 0) {
+        uint8_t fillW = (gaugeW * pct) / 100;
+        if (fillW < 1) fillW = 1;  // always at least 1px when >0%
+        M5.Display.fillRect(gaugeX + 1, gaugeY + 1, fillW - 1, gaugeH - 2, color);
+    }
+
+    // Outline rectangle with nub.
+    M5.Display.drawRect(gaugeX, gaugeY, gaugeW, gaugeH, color);
+    // Nub (3x5 at right side, centred vertically).
+    M5.Display.fillRect(gaugeX + gaugeW, gaugeY + 4, 3, 5, color);
+
+    // Numeric label to the left of the gauge.
+    char label[8];
+    if (!known) {
+        std::snprintf(label, sizeof(label), "--");
+    } else if (onUsb) {
+        std::snprintf(label, sizeof(label), "%d%%+", pct);
+    } else {
+        std::snprintf(label, sizeof(label), "%d%%", pct);
+    }
+    int16_t labelW = M5.Display.textWidth(label);
+    M5.Display.setTextColor(color);
+    M5.Display.setCursor(gaugeX - labelW - 2, gaugeY + 4);
+    M5.Display.println(label);
 }
 
 } // namespace sticks3

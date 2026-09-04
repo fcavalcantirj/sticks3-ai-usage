@@ -210,3 +210,19 @@ TEST(serial_btn_a_click_page) {
     ASSERT_STREQ("[BTN] a_click page", buf);
     ASSERT_EQ(r, (int)std::strlen(buf));
 }
+
+// --- fmtBatt -----------------------------------------------------------------
+
+TEST(serial_batt_known_usb) {
+    char buf[64];
+    int r = usage::fmtBatt(buf, sizeof(buf), 87, 1);
+    ASSERT_STREQ("[BATT] pct=87 usb=1", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+TEST(serial_batt_known_battery) {
+    char buf[64];
+    int r = usage::fmtBatt(buf, sizeof(buf), 27, 0);
+    ASSERT_STREQ("[BATT] pct=27 usb=0", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
