@@ -8,17 +8,16 @@
 namespace usage {
 
 PowerAction powerDecide(bool vbusPresent, uint32_t nowMs,
-                        uint32_t lastActivityMs, uint32_t graceMs) {
+                        uint32_t graceAnchorMs, uint32_t graceMs) {
     // On USB: never sleep.  The device is always powered and the user may
     // be actively using the Mac it's propped against.
     if (vbusPresent) {
         return PowerAction::StayAwake;
     }
 
-    // On battery: sleep after the grace window since the last meaningful
-    // activity (fetch, render, or button press).
+    // On battery: sleep after the grace window since the caller-set anchor.
     // (int32_t) cast makes the subtraction safe across the uint32_t wrap.
-    if ((int32_t)(nowMs - lastActivityMs) >= (int32_t)graceMs) {
+    if ((int32_t)(nowMs - graceAnchorMs) >= (int32_t)graceMs) {
         return PowerAction::SleepNow;
     }
 

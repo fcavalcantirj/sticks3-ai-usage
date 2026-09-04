@@ -106,6 +106,36 @@ TEST(plan_page2_full) {
     ASSERT_STREQ("GROQ key", plan.lines[4].left);
 }
 
+// --- ORDER #31: warm-boot wake produces exactly one render ------------------
+
+// On warm boot from deep sleep, g_view.lastRev is NOT pre-seeded (empty).
+// The first onSnapshot after restoring the cached model must see the rev
+// change (empty vs model.rev) and set needsRedraw — exactly one render to
+// paint the cached snapshot.  The next identical fetch (304 or 200-same-rev)
+// must produce no additional render.
+TEST(plan_wake_one_render_same_rev) {
+    Model m;
+    char err[256];
+    bool ok = usage::parseSnapshot(kSnapshotExample, strlen(kSnapshotExample),
+                                   m, err, sizeof(err));
+    ASSERT_TRUE(ok);
+
+    // Simulate warm boot: lastRev is zeroed (not pre-seeded), needsRedraw
+    // was cleared by the cached paint that already ran in redraw().
+    View view;
+    std::memset(&view, 0, sizeof(view));
+    view.page = 0;
+
+    // First onSnapshot after wake: lastRev empty vs model.rev → one render.
+    usage::onSnapshot(view, m);
+    ASSERT_TRUE(view.needsRedraw);
+    ASSERT_STREQ(m.rev, view.lastRev);
+
+    // Second identical fetch: revs match → no render.
+    usage::onSnapshot(view, m);
+    ASSERT_TRUE(!view.needsRedraw);
+}
+
 // --- nextPage wraps --------------------------------------------------------
 
 TEST(plan_next_page_wraps) {

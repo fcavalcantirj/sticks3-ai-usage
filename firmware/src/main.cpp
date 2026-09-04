@@ -12,8 +12,8 @@
 //   buttonsUpdate(now)       — BtnA page, BtnB refresh
 //   updateBrightness(now)    — dim after 30 min idle, restore on activity
 //   heapWatchdog(now)        — [HEAP] line every 60 s
-//   if (view.needsRedraw) { buildPlan → drawPlan → [RENDER]; needsRedraw = false }
-//   powerDecide(vbus, now, lastActivity) → SleepNow? powerSleep()
+//   if (view.needsRedraw || (!paintedThisBoot && hasModel)) { redraw }
+//   powerDecide(vbus, now, graceActive ? lastActivity : now) → SleepNow? powerSleep()
 //   delay(1)
 #include <M5Unified.h>
 
@@ -77,9 +77,19 @@ static uint32_t g_failCount = 0;
 
 // --- brightness / watchdog state --------------------------------------------
 
-static uint32_t g_lastActivity = 0;  // last rev change or button press
+static uint32_t g_lastActivity = 0;  // last render/fetch-fail/button/USB→battery transition
 static uint32_t g_lastHeapMs = 0;    // last [HEAP] emit
 static bool g_brightnessDimmed = false;
+
+// ORDER #30: grace-window state.  On wake the grace is NOT active until the
+// first render or a fetch failure — pre-render the caller passes `now` as the
+// anchor so powerDecide always returns StayAwake (slow Wi-Fi can't sleep the
+// device before paint).  USB→battery transition resets the anchor to now and
+// activates grace.
+// ORDER #31: g_paintedThisBoot forces exactly one cached-snapshot paint.
+static bool g_graceActive = false;     // grace window started (first render/fetch-fail on this boot)
+static bool g_paintedThisBoot = false; // at least one redraw() completed
+static bool g_prevVbusPresent = false; // for USB→battery transition detection
 
 // --- helpers ----------------------------------------------------------------
 
@@ -106,6 +116,15 @@ static void redraw() {
     serialLine(buf);
 
     g_view.needsRedraw = false;
+    g_paintedThisBoot = true;   // ORDER #31: exactly one paint per boot
+    // ORDER #30: any render starts/extends the grace window.
+    g_graceActive = true;
+    g_lastActivity = nowMs();
+    // Sync g_view.lastRev with the painted model so the next same-rev fetch
+    // (304 or 200) doesn't trigger an unnecessary redraw.
+    for (size_t i = 0; i < 8; i++)
+        g_view.lastRev[i] = g_model.rev[i];
+    g_view.lastRev[8] = '\0';
 }
 
 // Fetch /v1/usage and apply the result.  Resets failCount on 200.
@@ -128,6 +147,9 @@ static void doFetch() {
                 usage::onSnapshot(g_view, model);
                 if (g_view.needsRedraw) {
                     g_lastActivity = nowMs();
+                    // ORDER #30: new data arriving starts/extends the grace
+                    // window so the screen stays lit after a fetch+render.
+                    g_graceActive = true;
                 }
                 g_model = model;
                 g_hasModel = true;
@@ -147,6 +169,10 @@ static void doFetch() {
     } else {
         // Fetch error: exponential backoff.
         g_failCount++;
+        // ORDER #30: fetch failure starts the grace window so the device
+        // stays awake to retry rather than sleeping mid-connect.
+        g_graceActive = true;
+        g_lastActivity = nowMs();
         if (g_failCount >= kMaxFails) {
             char buf[80];
             usage::fmtErr(buf, sizeof(buf), "restart after 12 failures");
@@ -260,25 +286,23 @@ void setup() {
         // paints instantly without re-fetching.
         g_model = g_wakeSnapshot.model;
         g_hasModel = true;
+        // ORDER #31: seed only the HTTP If-None-Match ETag cache (g_lastRev),
+        // NOT g_view.lastRev.  Pre-seeding lastRev was the stuck-on-splash bug:
+        // onSnapshot then saw "same rev" and skipped the paint.  Leaving lastRev
+        // empty guarantees the first 200-fetch triggers exactly one redraw.
         for (size_t i = 0; i < 8; i++)
             g_lastRev[i] = g_model.rev[i];
         g_lastRev[8] = '\0';
-        for (size_t i = 0; i < 8; i++)
-            g_view.lastRev[i] = g_model.rev[i];
-        g_view.lastRev[8] = '\0';
 
-        // Button wake: flag a redraw so the cached snapshot is painted.
-        if (wakeCause == WakeCause::Ext1) {
-            g_view.needsRedraw = true;
-        }
+        // ORDER #31: force one cached-snapshot paint on every warm boot,
+        // regardless of wake cause (timer, ext1, or power-on after RTC magic).
+        g_view.needsRedraw = true;
     }
 
-    // Timer wake on battery with no USB: skip the screen and go right back
-    // to sleep.  A missed IRQ or button press will wake us again.
-    // powerSleep() emits [SLEEP] internally and never returns.
-    if (wakeCause == WakeCause::Timer && !vbusPresent()) {
-        powerSleep();
-    }
+    // ORDER #30/#31: timer wake on battery no longer sleeps immediately.
+    // The device paints the cached snapshot (needsRedraw was set above),
+    // then the 60 s timer backstop re-arms after the grace window expires.
+    // This ensures the screen is fresh on every wake cycle.
 
     netBegin();
 
@@ -286,6 +310,10 @@ void setup() {
     // fire relative to boot, not relative to the zero millis().
     g_lastActivity = nowMs();
     g_lastHeapMs = nowMs();
+    // Establish the VBUS baseline so the first loop iteration doesn't
+    // misdetect a transition.  Non-RTC statics are zero (false) here, which
+    // is the correct baseline for a battery wake.
+    g_prevVbusPresent = vbusPresent();
 }
 
 void loop() {
@@ -307,15 +335,27 @@ void loop() {
     updateBrightness(now);
     heapWatchdog(now);
 
-    // Redraw only when the view flagged it (rev change or page cycle).
-    if (g_view.needsRedraw) {
+    // ORDER #30: detect USB→battery transition.  Unplugging is "activity" —
+    // reset the grace anchor to now so the device stays awake 20 s after the
+    // cable is pulled, letting the user see the last frame.
+    bool vbusNow = vbusPresent();
+    if (g_prevVbusPresent && !vbusNow) {
+        g_graceActive = true;
+        g_lastActivity = now;
+    }
+    g_prevVbusPresent = vbusNow;
+
+    // ORDER #31: paint on warm-boot wake (needsRedraw) or the first boot
+    // paint of the cached snapshot (paintedThisBoot guard).
+    if (g_view.needsRedraw || (!g_paintedThisBoot && g_hasModel)) {
         redraw();
     }
 
-    // Power management: on battery, deep sleep after the grace window
-    // (20 s since last fetch/render/button).  vbusPresent() is a cheap
-    // register read; powerDecide() is pure and never sleeps on USB.
-    if (usage::powerDecide(vbusPresent(), now, g_lastActivity)
+    // ORDER #30: when grace is not yet active (pre-first-render on wake),
+    // pass `now` as the anchor so powerDecide always returns StayAwake —
+    // the device must not sleep before it has painted.
+    uint32_t anchor = g_graceActive ? g_lastActivity : now;
+    if (usage::powerDecide(vbusNow, now, anchor)
             == usage::PowerAction::SleepNow) {
         powerSleep();  // emits [SLEEP], teardown, arm wakes, never returns
     }

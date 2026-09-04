@@ -19,16 +19,21 @@ enum class PowerAction : uint8_t {
 //
 //   - ON USB (vbusPresent = true):  always StayAwake — screen on, 300 s poll,
 //     OTA armed, never sleep.
-//   - ON BATTERY within grace (nowMs - lastActivityMs < graceMs): StayAwake
+//   - ON BATTERY within grace (nowMs - graceAnchorMs < graceMs): StayAwake
 //     — finish the current fetch/render, keep the screen lit for a short
 //     post-activity grace so the user sees the result.
 //   - ON BATTERY past grace: SleepNow — cut leaks, arm wake sources, deep sleep.
+//
+// The caller owns the grace anchor: it is reset to nowMs on a USB→battery
+// transition, on the first render after a wake, or on a fetch failure
+// (ORDER #30).  Passing nowMs as graceAnchorMs while grace is not yet active
+// yields StayAwake — see main.cpp.
 //
 // The 20 s default grace mirrors the "paint cached snapshot" window from
 // ptt.ino ST_LOOK → ST_READY.  Callers pass a smaller graceMs for the
 // post-sleep-paint timer.
 PowerAction powerDecide(bool vbusPresent, uint32_t nowMs,
-                        uint32_t lastActivityMs, uint32_t graceMs = 20000);
+                        uint32_t graceAnchorMs, uint32_t graceMs = 20000);
 
 // VbusDebouncer filters single-sample VBUS glitches so a one-off I2C read
 // failure (returns 0 mV) or noise spike can never make the device deep-sleep
