@@ -84,7 +84,7 @@ Task-by-task status (one line per task, matches spec.json passes):
   37: done
   38: done
   39: done
-  40: UAT-FAILED — BUG 40 (seq 155): ext0 instant-wake loop on battery. Root cause: rtc_gpio_pulldown_dis(GPIO_NUM_13) missing in armWakeSources (power.cpp:103-104), so the pulldown keeps GPIO13 low and ext0 fires instantly. Also ORDER #26 (vbusPresent single-read glitch) and ORDER #27 (pin config order, irq-line-high pre-check, ext0 disabled-after-3-wakes guard, VBUS debounce) pending. Fix committed, awaiting Felipe OTA authorization to re-flash + UAT.
+  40: UAT-FAILED — BUG 40b (seq 157): PM1 GPIO1 push-pull IRQ output conflicts with SDA, hangs PMIC I2C after wake. ORDER #29 fix committed bde930c: deleted entire PM1 GPIO1 IRQ block from armWakeSources, removed ext0 arm, 60s timer on battery, kept VbusDebouncer + guard counter (monitor-only), rewrote spec.json steps. Awaiting Felipe OTA authorization to re-flash + UAT.
   41: done
   42: done
   43: done — AGENTS.md finalised (real tree, all Make targets, serial protocol, status), progress.txt reconciled
@@ -96,3 +96,4 @@ Task-by-task status (one line per task, matches spec.json passes):
   49: pending — OPTIONAL v3: Claude rate_limits via statusline shell
   50: pending — OPTIONAL v3: remote HTTPS snapshot publish
   51: pending — OPTIONAL v3: task-hub rows POST /v1/rows
+40b	2026-09-04T09:30:00Z task 40 ORDER #29 follow-up: deleted entire PM1 GPIO1 IRQ block from armWakeSources (SDA conflict), removed ext0 arm, 60s timer on battery, kept VbusDebouncer + g_powerGuard counter (monitor-only), rewrote spec.json task 40 steps/UAT to match; docs/DEVICES.md power/wake errata added. Verify: fw-test 46 PASS+Failed 0, fw-build SUCCESS RAM 16.5% 0wrn, fresh-clone build green, make verify=0. passes NOT flipped (UAT pending). commit bde930c→ORDER#29

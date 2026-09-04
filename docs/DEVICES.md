@@ -37,6 +37,30 @@ With this flag, `Serial.begin(115200)` publishes to the USB-CDC interface
 and the monitor shows `[BOOT]`, `[NET]`, `[FETCH]`, `[RENDER]`, `[HEAP]`
 lines.
 
+### Power / wake errata (ORDER #29)
+
+**USB-insert ext0 wake is disabled.** Driving PM1 GPIO1 as a push-pull IRQ
+output to signal 5VIN insertion to ESP32 GPIO13 causes the line to conflict
+with the PM1 I2C SDA pin. After deep-sleep wake, the first `getVBUSVoltage()`
+(I2C read of PM1 regs 0x24/0x25) hangs because SDA is held by the IRQ driver,
+freezing the device. The firmware never writes PM1 GPIO1 IRQ registers in
+the sleep path.
+
+**Current wake design:** ext1 buttons (GPIO11/12, pullup+pulldown pair) and a
+60-second timer backstop. On USB the device never sleeps (`vbusPresent()` via
+`VbusDebouncer`). Cable insertion is noticed within one minute via the timer.
+
+**Instant-wake guard (monitor-only):** `g_powerGuard.ext0InstantWakeCount`
+in `main.cpp` counts consecutive ext0 wakes with vbus < 4000. Ext0 is not
+armed, so the counter stays 0 in normal operation — it is retained for the
+follow-up experiment that re-enables ext0 via PM1 I2C IRQ register reads.
+
+**Follow-up experiment (not yet implemented):** test whether the PM1
+already asserts its IRQ line on 5VIN insertion with its default configuration.
+If so, `esp_sleep_enable_ext0_wakeup(GPIO_NUM_13, 0)` with the standard
+pullup/pulldown pair may work without writing any PM1 IRQ registers. This
+must be validated on hardware before any code change.
+
 ### ROM latch escape
 
 A StickS3 can sit latched in ROM download-wait: the flash reports success

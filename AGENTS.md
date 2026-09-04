@@ -101,5 +101,7 @@ Every task: read the last 20 room messages before starting.
 
 ## Status
 
-Ledger: 51 tasks, 41 passed. Optional v3 tasks (48-51) not started. Task 40 UAT-pending (source
-committed, hardware unplug/replug awaiting founder). See `progress.txt` Reconciliation block.
+Ledger: 51 tasks, 41 passed. Optional v3 tasks (48-51) not started. Task 40
+UAT-pending — ORDER #29 follow-up committed (ext0 disabled, 60s timer, VbusDebouncer
+retained); awaiting Felipe OTA authorization to re-flash bde930c→ORDER#29 and redo
+UAT. See `progress.txt` Reconciliation block.

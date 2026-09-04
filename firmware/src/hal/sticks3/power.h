@@ -11,9 +11,9 @@ namespace sticks3 {
 // Why the device woke from deep sleep.
 enum class WakeCause : uint8_t {
     PowerOn,  // cold boot (no valid magic in RTC memory)
-    Ext0,     // USB insert (PM1 IRQ on GPIO13, ext0)
+    Ext0,     // USB insert (PM1 IRQ on GPIO13) — ORDER #29: not armed, kept for monitoring
     Ext1,     // Button (BtnA GPIO11 / BtnB GPIO12, ext1)
-    Timer,    // 1 h backstop timer
+    Timer,    // 60 s backstop timer (ORDER #29)
     Unknown,  // unrecognised ESP-IDF wake cause
 };
 
@@ -30,14 +30,16 @@ bool vbusPresent();
 // (LCD panel) rail.  M5GFX re-asserts the rail on the next boot.
 void screenOff();
 
-// Full teardown (screen, radio, codec, IMU, PA rail) + arm the three wake
-// sources (USB-insert ext0, buttons ext1, 1-h timer) + esp_deep_sleep_start().
-// Never returns.  Call when powerDecide() returns SleepNow.
+// Full teardown (screen, radio, codec, IMU, PA rail) + arm the wake sources
+// (buttons ext1, 60 s timer) + esp_deep_sleep_start().  Never returns.
+// Call when powerDecide() returns SleepNow.
 //
-// If disableExt0 is true, ext0 (USB-insert IRQ) is NOT armed — only timer
-// and ext1 (buttons).  Used when the IRQ line was stuck low or has fired
-// too many instant-wake cycles (ORDER #27 guard).
-void powerSleep(bool disableExt0 = false);
+// ORDER #29: ext0 (USB-insert IRQ via PM1 GPIO1) is NOT armed — driving
+// GPIO1 push-pull conflicts with SDA and hangs PMIC I2C after wake.
+// The instant-wake guard counter (g_powerGuard in main.cpp) is retained
+// as a monitor for the follow-up ext0 experiment; it has no effect on the
+// normal sleep path.
+void powerSleep();
 
 // Read the ESP-IDF wake cause from boot registers.
 WakeCause readWakeCause();
