@@ -409,7 +409,7 @@
       "With the LaunchAgent running (`curl -s http://127.0.0.1:8765/healthz`), the device on Wi-Fi and `firmware/include/secrets.h` holding USAGED_HOST=192.168.0.150, USAGED_PORT=8765 and the token from `.env`: watch the monitor for ≥ 11 minutes: expect `[FETCH] code=200 rev=R seq=N` once, `[RENDER] page=1 lines=5 rev=R` once, then `[FETCH] code=304 rev=R` at +5 and +10 minutes with NO `[RENDER]` in between. Then force a content change without editing `.env` or restarting the agent: use `POST /v1/refresh` after a genuine change: run one short Claude Code prompt on the Mac (the 5 h percentage moves) then `curl -s -X POST -H \"X-Device-Token: …\" http://127.0.0.1:8765/v1/refresh | python3 -c 'import json,sys;print(json.load(sys.stdin)[\"rev\"])'`; if rev changed, press BtnB on the device → `[FETCH] code=200 rev=R2 seq=N+1` followed by `[RENDER] … rev=R2`; if rev did not change (percent rounding), `[FETCH] code=304` is the correct outcome — note it and retry once later. Photograph the screen (phone camera or the claude-code-eyes skill if configured) and compare the five rows with claude.ai and chatgpt.com Usage pages.",
       "Verify (UAT in progress.txt): transcript excerpt with the 200 → 304 → 304 sequence and the post-change 200 + RENDER; the percentages on the LCD equal the web pages (±1 %); `[HEAP] free=` values do not trend down across the session (first vs last within 10 %). If no device: NOT passed, `UAT pending: no device`."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "firmware",
