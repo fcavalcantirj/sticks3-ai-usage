@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"os/user"
 	"strconv"
 	"strings"
@@ -40,13 +41,27 @@ type Config struct {
 	CodexDir       string // Codex rollout dir (default ~/.codex/sessions/)
 	StatsIndexPath string // on-disk stats index file (default ~/.local/state/usaged/stats-index.json)
 	StatsPath      string // on-disk stats report (default ~/.local/state/usaged/stats.json)
+
+	// Alert thresholds (from YAML config file; used by snapshot formatting)
+	AlertOpenRouterLowUSD float64
+	AlertQuotaWarnPct     int
+
+	// ProviderConfigs from YAML: toggles, labels, and key_env names, keyed
+	// by provider ID (e.g. "openrouter:main"). A provider with Enabled=false
+	// is dropped from the snapshot entirely.
+	ProviderConfigs map[string]YamlProvider
 }
 
-// Load reads environment variables (via getenv), then overrides with flags
-// parsed from args. Flags are only applied when explicitly set.
+// DefaultConfigFile is the default path for the optional YAML config.
+const DefaultConfigFile = "$HOME/.config/usaged/config.yaml"
+
+// Load reads configuration in precedence order: defaults, then an optional
+// YAML file (--config or the default path), then environment variables,
+// then command-line flags. Only explicitly-set flags override.
 func Load(args []string, getenv func(string) string) (Config, error) {
 	cfg := Config{
-		OpenRouterKeys: map[string]string{},
+		OpenRouterKeys:  map[string]string{},
+		ProviderConfigs: map[string]YamlProvider{},
 	}
 
 	// Defaults
@@ -57,6 +72,8 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 	cfg.StatsPath = DefaultStatsPath
 	cfg.GroqProbe = false
 	cfg.LogLevel = slog.LevelInfo
+	cfg.AlertOpenRouterLowUSD = 1.00 // sensible default for OpenRouter low-balance warning
+	cfg.AlertQuotaWarnPct = 95
 
 	tz, err := time.LoadLocation(DefaultTZ)
 	if err != nil {
@@ -64,7 +81,57 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 	}
 	cfg.TZ = tz
 
-	// Environment variables
+	// Expand $HOME early (needed for default config path and path defaults).
+	home := getenv("HOME")
+	if home == "" {
+		home = osUserHome()
+	}
+
+	// Flags (parsed early so --config can locate the YAML file).
+	fs := flag.NewFlagSet("usaged", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	flagConfig := fs.String("config", "", "config file path (default: ~/.config/usaged/config.yaml)")
+	flagListen := fs.String("listen", "", "HTTP listen address")
+	flagInterval := fs.Int("interval", 0, "poll interval in seconds")
+	flagState := fs.String("state", "", "state file path")
+	flagFixtures := fs.String("fixtures", "", "fixtures directory for offline mode")
+	flagScenario := fs.String("scenario", "", "fixture scenario overlay (from testdata/scenarios/)")
+	flagTZ := fs.String("tz", "", "timezone for display (e.g. America/Sao_Paulo)")
+	flagJSON := fs.Bool("json", false, "once only: emit the snapshot as indented JSON")
+
+	if err := fs.Parse(args); err != nil {
+		return cfg, err
+	}
+
+	setFlags := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) {
+		setFlags[f.Name] = true
+	})
+
+	// --- File config (below env, below flags in precedence) ---
+	configPath := ""
+	if setFlags["config"] {
+		configPath = *flagConfig
+	} else {
+		defaultConfigPath := strings.ReplaceAll(DefaultConfigFile, "$HOME", home)
+		if _, statErr := os.Stat(defaultConfigPath); statErr == nil {
+			configPath = defaultConfigPath
+		}
+	}
+
+	if configPath != "" {
+		text, readErr := os.ReadFile(configPath)
+		if readErr != nil {
+			return cfg, fmt.Errorf("config file %s: %w", configPath, readErr)
+		}
+		fc, parseErr := ParseYAML(string(text))
+		if parseErr != nil {
+			return cfg, fmt.Errorf("config file %s: %w", configPath, parseErr)
+		}
+		applyFileConfig(&cfg, &fc, home)
+	}
+
+	// Environment variables (override file)
 	if v := getenv("USAGED_LISTEN"); v != "" {
 		cfg.Listen = v
 	}
@@ -112,40 +179,22 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 		cfg.LogLevel = level
 	}
 	if v := getenv("USAGED_CLAUDE_DIR"); v != "" {
-		cfg.ClaudeDir = expandHome(getenv("HOME"), v)
+		cfg.ClaudeDir = expandHome(home, v)
 	}
 	if v := getenv("USAGED_CODEX_DIR"); v != "" {
-		cfg.CodexDir = expandHome(getenv("HOME"), v)
+		cfg.CodexDir = expandHome(home, v)
 	}
 	if v := getenv("USAGED_STATS_INDEX"); v != "" {
-		cfg.StatsIndexPath = expandHome(getenv("HOME"), v)
+		cfg.StatsIndexPath = expandHome(home, v)
 	}
 	if v := getenv("USAGED_STATS_PATH"); v != "" {
-		cfg.StatsPath = expandHome(getenv("HOME"), v)
+		cfg.StatsPath = expandHome(home, v)
 	}
 
-	// Flags override env vars
-	fs := flag.NewFlagSet("usaged", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-	flagListen := fs.String("listen", "", "HTTP listen address")
-	flagInterval := fs.Int("interval", 0, "poll interval in seconds")
-	flagState := fs.String("state", "", "state file path")
-	flagFixtures := fs.String("fixtures", "", "fixtures directory for offline mode")
-	flagScenario := fs.String("scenario", "", "fixture scenario overlay (from testdata/scenarios/)")
-	flagTZ := fs.String("tz", "", "timezone for display (e.g. America/Sao_Paulo)")
-	flagJSON := fs.Bool("json", false, "once only: emit the snapshot as indented JSON")
-
-	if err := fs.Parse(args); err != nil {
-		return cfg, err
+	// Flags override env
+	if setFlags["config"] {
+		_ = *flagConfig // already consumed above
 	}
-
-	// flag.Visit only calls fn for flags that were explicitly set on the
-	// command line (not those left at their default).
-	setFlags := map[string]bool{}
-	fs.Visit(func(f *flag.Flag) {
-		setFlags[f.Name] = true
-	})
-
 	if setFlags["listen"] {
 		cfg.Listen = *flagListen
 	}
@@ -172,11 +221,7 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 		cfg.JSONOutput = *flagJSON
 	}
 
-	// Expand $HOME
-	home := getenv("HOME")
-	if home == "" {
-		home = osUserHome()
-	}
+	// Expand $HOME in path defaults
 	if home != "" {
 		cfg.StatePath = strings.ReplaceAll(cfg.StatePath, "$HOME", home)
 	}
@@ -205,6 +250,37 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 	return cfg, nil
 }
 
+// applyFileConfig copies values from the parsed FileConfig into the Config.
+// Only non-zero/non-empty values from the file are applied; env vars and
+// flags (applied later by the caller) will override these.
+func applyFileConfig(cfg *Config, fc *FileConfig, home string) {
+	if fc.IntervalSec > 0 {
+		cfg.Interval = time.Duration(fc.IntervalSec) * time.Second
+	}
+	if fc.Listen != "" {
+		cfg.Listen = fc.Listen
+	}
+	if fc.DeviceToken != "" {
+		cfg.DeviceToken = fc.DeviceToken
+	}
+	if fc.TZ != "" {
+		if loc, err := time.LoadLocation(fc.TZ); err == nil {
+			cfg.TZ = loc
+		}
+	}
+	if len(fc.Alerts) > 0 {
+		if v, ok := fc.Alerts["openrouter_low_usd"]; ok {
+			cfg.AlertOpenRouterLowUSD = v
+		}
+		if v, ok := fc.Alerts["quota_warn_pct"]; ok {
+			cfg.AlertQuotaWarnPct = int(v)
+		}
+	}
+	for _, p := range fc.Providers {
+		cfg.ProviderConfigs[p.ID] = p
+	}
+}
+
 // Redacted returns a map safe for logging: all secret values are
 // replaced with "set(len=N)" where N is the secret's length.
 func (c Config) Redacted() map[string]any {
@@ -219,7 +295,21 @@ func (c Config) Redacted() map[string]any {
 		"log_level":    c.LogLevel.String(),
 		"fixtures_dir": c.FixturesDir,
 		"scenario":     c.Scenario,
+		"alerts": map[string]any{
+			"openrouter_low_usd": c.AlertOpenRouterLowUSD,
+			"quota_warn_pct":     c.AlertQuotaWarnPct,
+		},
 	}
+	provConfigs := make(map[string]map[string]any, len(c.ProviderConfigs))
+	for id, p := range c.ProviderConfigs {
+		provConfigs[id] = map[string]any{
+			"enabled": p.Enabled,
+			"label":   p.Label,
+			"key_env": p.KeyEnv,
+			"probe":   p.Probe,
+		}
+	}
+	m["provider_configs"] = provConfigs
 	if c.OpenRouterKeys != nil {
 		keys := make(map[string]string, len(c.OpenRouterKeys))
 		for k, v := range c.OpenRouterKeys {

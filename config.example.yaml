@@ -1,0 +1,47 @@
+# Example usaged configuration file.
+# Copy to ~/.config/usaged/config.yaml and edit as needed.
+# See internal/config/yaml.go for the parser and the full schema.
+#
+# Precedence (highest to lowest): flags > env vars > this file > built-in defaults.
+# Every secret (device_token, key_env target) is read from an ENVIRONMENT VARIABLE —
+# the YAML must NEVER contain a literal key value. A literal 'key' field or a value
+# starting with sk-/gsk_ is a hard parse error.
+
+# Polling interval in seconds (minimum 300).
+interval_sec: 900
+
+# HTTP listen address.
+listen: "0.0.0.0:8765"
+
+# Device token for non-loopback clients (keep this short; use an env var
+# for the real secret — see key_env naming below).
+device_token: "change-me-32-chars"
+
+# Display timezone.
+tz: "America/Sao_Paulo"
+
+# Alert thresholds (used by the snapshot/web rendering tasks that follow).
+alerts:
+  openrouter_low_usd: 1.00    # warn when an OpenRouter credit balance drops below this
+  quota_warn_pct: 95          # warn when any quota row reaches this percentage
+
+# Provider toggles. `enabled: false` removes the provider from the snapshot
+# entirely. `key_env` names the ENVIRONMENT VARIABLE that holds the API key —
+# the YAML must contain only the env var name, never the key itself.
+providers:
+  - id: claude
+    enabled: true
+  - id: codex
+    enabled: true
+  - id: openrouter:main
+    enabled: true
+    label: "OpenRouter main"
+    key_env: OPENROUTER_API_KEY
+  - id: openrouter:fallback
+    enabled: true
+    label: "OpenRouter fallback"
+    key_env: OPENROUTER_API_KEY_FALLBACK
+  - id: groq
+    enabled: true
+    probe: false
+    key_env: GROQ_API_KEY

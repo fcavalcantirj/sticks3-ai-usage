@@ -512,7 +512,7 @@
       "Wire it: config.Load gains a file layer beneath env and flags; `usaged config` prints the effective merged configuration with every secret shown as set(len=N); an unreadable or invalid file is a startup ERROR (exit 2 with the line number), never a silent fallback, because a typo that silently disables a provider is exactly the failure Felipe would not notice.",
       "Verify: `go test ./internal/config -v 2>&1 | grep -c '^--- PASS'` grows by at least 8 — parse the full example; reject bad indentation, a tab, an unknown key, a literal key value, and a truncated list; env overrides file; flag overrides env; `enabled: false` drops the provider from the snapshot and changes the rev. `make verify` exits 0, `make smoke` exits 0. Then run `go run ./cmd/usaged config` and paste the redacted output into the room."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "firmware",

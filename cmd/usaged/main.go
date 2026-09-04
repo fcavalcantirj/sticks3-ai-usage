@@ -47,6 +47,9 @@ func run(args []string, stdout io.Writer) int {
 	case "stats":
 		return runStats(rest, stdout)
 
+	case "config":
+		return runConfig(rest, stdout)
+
 	default:
 		fmt.Fprintf(stdout, "unknown subcommand: %s\n", name)
 		return 2

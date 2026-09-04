@@ -394,13 +394,26 @@ func (s *Scanner) scanClaudeCode(ctx context.Context, dir string, index Index, n
 // --- Codex ---
 
 // codexEventLine is the subset of a Codex rollout JSONL line we need.
+// The model id lives two places in real Codex data:
+//   - on "turn_context" events at payload.model
+//   - on "thread_settings_applied" events at payload.thread_settings.model
+//
+// The token_count event carries "unknown" as the model, so we track the
+// most recent model from either source (carry-forward across session turns).
 type codexEventLine struct {
 	Type      string `json:"type"`
 	Timestamp string `json:"timestamp"`
 	Payload   struct {
 		Type string `json:"type"`
+		// Model on turn_context events (payload.model, NOT payload.info.model).
+		Model string `json:"model"`
+		// ThreadSettings on thread_settings_applied events.
+		ThreadSettings struct {
+			Model string `json:"model"`
+		} `json:"thread_settings"`
+		// Info.LastTokenUsage on token_count events.
 		Info struct {
-			Model          string `json:"model"`
+			Model          string `json:"model"` // "unknown" on token_count lines
 			LastTokenUsage struct {
 				InputTokens           int64 `json:"input_tokens"`
 				CachedInputTokens     int64 `json:"cached_input_tokens"`
@@ -494,12 +507,21 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 				continue
 			}
 
-			// Track the current model from turn_context events. The
-			// token_count events may carry "unknown" as the model id — the
-			// real id lives in the preceding turn_context/session_meta payload.
+			// Track the current model from turn_context and
+			// thread_settings_applied events. The token_count events carry
+			// "unknown" as the model id — the real id lives on the preceding
+			// turn_context (payload.model) or thread_settings_applied
+			// (payload.thread_settings.model) line. We carry the most recent
+			// forward since a session can switch models mid-way.
 			if line.Payload.Type == "turn_context" {
-				if line.Payload.Info.Model != "" {
-					currentModel = line.Payload.Info.Model
+				if line.Payload.Model != "" {
+					currentModel = line.Payload.Model
+				}
+				continue
+			}
+			if line.Payload.Type == "thread_settings_applied" {
+				if line.Payload.ThreadSettings.Model != "" {
+					currentModel = line.Payload.ThreadSettings.Model
 				}
 				continue
 			}

@@ -140,6 +140,76 @@ func TestScanCodexDeltas(t *testing.T) {
 	}
 }
 
+// TestScanCodexModelExtraction verifies that the Codex model id is correctly
+// extracted from turn_context (payload.model) and thread_settings_applied
+// (payload.thread_settings.model) events, and carried forward to token_count
+// lines that only contain "unknown" as the model.
+func TestScanCodexModelExtraction(t *testing.T) {
+	codexDir := filepath.Join(fixtureDir(t), "test_models")
+	if err := os.MkdirAll(codexDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(codexDir) })
+
+	lines := []string{
+		// Session 1 uses gpt-4o (from thread_settings_applied + turn_context).
+		`{"type":"event_msg","timestamp":"2026-09-03T10:00:00Z","payload":{"type":"thread_settings_applied","thread_settings":{"model":"gpt-4o"}}}`,
+		`{"type":"event_msg","timestamp":"2026-09-03T10:01:00Z","payload":{"type":"turn_context","model":"gpt-4o"}}`,
+		`{"type":"event_msg","timestamp":"2026-09-03T10:01:00Z","payload":{"type":"token_count","info":{"model":"unknown","last_token_usage":{"input_tokens":100,"cached_input_tokens":0,"output_tokens":50,"reasoning_output_tokens":0}}}}`,
+
+		// Session 2 switches to o1 (from thread_settings_applied only).
+		`{"type":"event_msg","timestamp":"2026-09-03T11:00:00Z","payload":{"type":"thread_settings_applied","thread_settings":{"model":"o1"}}}`,
+		`{"type":"event_msg","timestamp":"2026-09-03T11:01:00Z","payload":{"type":"token_count","info":{"model":"unknown","last_token_usage":{"input_tokens":200,"cached_input_tokens":10,"output_tokens":80,"reasoning_output_tokens":0}}}}`,
+	}
+	dst := filepath.Join(codexDir, "two_models.jsonl")
+	if err := os.WriteFile(dst, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	s := NewScanner(testTZ)
+	s.Clock = func() time.Time { return fixedScanNow }
+	cfg := ScanConfig{TZ: testTZ, CodexDir: codexDir}
+
+	report, _, err := s.Scan(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+
+	src, ok := report.Sources["codex"]
+	if !ok {
+		t.Fatal("missing codex source")
+	}
+
+	// Both models should be tracked, resolved via aliases to priced entries.
+	if len(src.Models) != 2 {
+		t.Fatalf("len(Models) = %d, want 2", len(src.Models))
+	}
+
+	modelIDs := make(map[string]bool)
+	for _, m := range src.Models {
+		modelIDs[m.Model] = true
+	}
+	if !modelIDs["gpt-4o"] {
+		t.Errorf("expected model gpt-4o in results, got %v", modelIDs)
+	}
+	if !modelIDs["o1"] {
+		t.Errorf("expected model o1 in results, got %v", modelIDs)
+	}
+
+	// gpt-4o: 100 in + 50 out = 150 tokens
+	// o1: 200 in + 10 cr + 80 out = 290 tokens
+	// Total today: 440 tokens, 2 requests
+	if src.Today.Tokens.Input != 300 {
+		t.Errorf("Today Input = %d, want 300 (100+200)", src.Today.Tokens.Input)
+	}
+	if src.Today.Tokens.CacheRead != 10 {
+		t.Errorf("Today CacheRead = %d, want 10", src.Today.Tokens.CacheRead)
+	}
+	if src.Today.Requests != 2 {
+		t.Errorf("Today Requests = %d, want 2", src.Today.Requests)
+	}
+}
+
 func TestScanDayBucketingTZ(t *testing.T) {
 	// Use UTC instead of São Paulo to verify TZ affects day bucketing.
 	dir := fixtureDir(t)

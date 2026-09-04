@@ -71,6 +71,12 @@ type Source struct {
 	Peak           Peak     `json:"peak"`
 	UnpricedModels []string `json:"unpriced_models,omitempty"` // model IDs with unknown prices
 	Partial        bool     `json:"partial,omitempty"`         // true if any model is unpriced
+
+	// Billed indicates whether the source's cost is a real per-token charge
+	// (true) or a subscription-equivalent estimate (false). Cliques on a
+	// Plus/Max plan are billed via subscription, so their cost is labelled
+	// "API-equiv" in the CLI rather than shown as a bare dollar amount.
+	Billed bool `json:"billed"`
 }
 
 // Report is the top-level stats report returned by Scan and served at
