@@ -19,6 +19,7 @@ import (
 	"usaged/internal/providers"
 	"usaged/internal/sched"
 	"usaged/internal/snapshot"
+	"usaged/internal/stats"
 )
 
 // testLoc is the display timezone matching config.DefaultTZ.
@@ -197,6 +198,80 @@ func TestUsageNotModified(t *testing.T) {
 	defer resp5.Body.Close()
 	if resp5.StatusCode != http.StatusOK {
 		t.Errorf("mismatched etag: status = %d, want 200", resp5.StatusCode)
+	}
+}
+
+// TestStatsETag serves /v1/stats from the stats-demo fixture and verifies
+// ETag / 304 semantics: the first request returns 200 with a quoted ETag and
+// JSON body, and a second request with a matching If-None-Match (quoted or
+// bare) returns 304 with an empty body.
+func TestStatsETag(t *testing.T) {
+	dir := setupFixtures(t)
+	ts, s, _ := newFixtureServer(t, dir)
+
+	statsFixture := filepath.Join(fixturesRoot, "..", "scenarios", "stats-demo", "stats.json")
+	if _, err := os.Stat(statsFixture); err != nil {
+		t.Skipf("stats-demo fixture not found: %v", err)
+	}
+	s.LoadStatsReport(statsFixture)
+
+	// First request → 200 with ETag and JSON body.
+	resp1, err := http.Get(ts.URL + "/v1/stats")
+	if err != nil {
+		t.Fatalf("GET /v1/stats: %v", err)
+	}
+	if resp1.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp1.StatusCode)
+	}
+	etag := resp1.Header.Get("ETag")
+	if len(etag) < 3 || etag[0] != '"' || etag[len(etag)-1] != '"' {
+		t.Errorf("ETag = %q, want quoted hex of generated_at", etag)
+	}
+	if ct := resp1.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Errorf("Content-Type = %q, want application/json", ct)
+	}
+	body1, _ := io.ReadAll(resp1.Body)
+	resp1.Body.Close()
+	var report stats.Report
+	if err := json.Unmarshal(body1, &report); err != nil {
+		t.Fatalf("decode stats: %v\n%s", err, body1)
+	}
+	if report.GeneratedAt == 0 {
+		t.Error("generated_at is 0")
+	}
+	if len(report.Sources) != 2 {
+		t.Errorf("sources = %d, want 2", len(report.Sources))
+	}
+
+	// Second request with matching If-None-Match → 304, same ETag, empty body.
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/stats", nil)
+	req.Header.Set("If-None-Match", etag)
+	resp2, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp2.Body.Close()
+	if resp2.StatusCode != http.StatusNotModified {
+		t.Errorf("status = %d, want 304", resp2.StatusCode)
+	}
+	if etag2 := resp2.Header.Get("ETag"); etag2 != etag {
+		t.Errorf("304 ETag = %q, want %q", etag2, etag)
+	}
+	body2, _ := io.ReadAll(resp2.Body)
+	if len(body2) != 0 {
+		t.Errorf("304 body = %q, want empty", body2)
+	}
+
+	// Bare (unquoted) If-None-Match → 304.
+	req2, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/stats", nil)
+	req2.Header.Set("If-None-Match", strings.Trim(etag, `"`))
+	resp3, err := http.DefaultClient.Do(req2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp3.Body.Close()
+	if resp3.StatusCode != http.StatusNotModified {
+		t.Errorf("bare etag: status = %d, want 304", resp3.StatusCode)
 	}
 }
 

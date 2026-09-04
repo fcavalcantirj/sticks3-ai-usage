@@ -144,4 +144,30 @@ run_scenario "claude-429"     '"status":"error"'
 run_scenario "codex-expired"  '"status":"auth"'
 run_scenario "all-down"      '"status":"error"\|"status":"stale"'
 
+# stats-demo: the dashboard at / must reference the stats heatmap element IDs
+# when served with --scenario stats-demo.
+STATS_STATE="/tmp/usaged-smoke-stats-demo.json"
+rm -f "$STATS_STATE"
+bin/usaged serve --fixtures testdata/fixtures --scenario stats-demo \
+    --listen "127.0.0.1:${SCENARIO_PORT}" --state "$STATS_STATE" &
+STATS_PID=$!
+for _ in $(seq 1 20); do
+    if curl -sf "${SCENARIO_BASE}/healthz" >/dev/null 2>&1; then
+        break
+    fi
+    sleep 0.25
+done
+STATS_BODY=$(curl -s "${SCENARIO_BASE}/")
+if ! echo "$STATS_BODY" | grep -q 'heatmap-codex'; then
+    echo "FAIL: stats-demo dashboard missing heatmap-codex id"
+    kill "$STATS_PID" 2>/dev/null || true
+    wait "$STATS_PID" 2>/dev/null || true
+    rm -f "$STATS_STATE"
+    exit 1
+fi
+kill "$STATS_PID" 2>/dev/null || true
+wait "$STATS_PID" 2>/dev/null || true
+rm -f "$STATS_STATE"
+echo "OK: scenario stats-demo"
+
 echo "SMOKE OK"

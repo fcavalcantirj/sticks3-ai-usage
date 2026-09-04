@@ -9,6 +9,7 @@
       --bg: #0f172a; --card: #1e293b; --border: #33415e;
       --text: #e2e8f0; --muted: #94a3b8;
       --ok: #3b82f6; --warn: #f59e0b; --crit: #ef4444; --off: #6b7280;
+      --plan-blue: #3b82f6; --credit-green: #22c55e; --free-grey: #94a3b8;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -17,7 +18,8 @@
       padding: 24px; min-height: 100vh;
     }
     h1 { font-size: 20px; font-weight: 600; margin-bottom: 16px; }
-    .cards { display: flex; flex-direction: column; gap: 16px; max-width: 720px; }
+    h2 { font-size: 18px; font-weight: 600; margin: 24px 0 12px; }
+    .cards { display: flex; flex-direction: column; gap: 16px; }
     .card {
       background: var(--card); border: 1px solid var(--border);
       border-radius: 12px; padding: 16px;
@@ -45,7 +47,7 @@
     .bar-fill { height: 100%; border-radius: 4px; }
     .usage { min-width: 90px; font-size: 12px; color: var(--muted); text-align: right; }
     .reset { min-width: 150px; font-size: 12px; color: var(--muted); text-align: right; }
-    .footer-bar { margin-top: 20px; display: flex; justify-content: space-between; align-items: center; max-width: 720px; }
+    .footer-bar { margin-top: 20px; display: flex; justify-content: space-between; align-items: center; }
     .footer-bar .info { font-size: 12px; color: var(--muted); }
     button {
       background: var(--card); border: 1px solid var(--border); color: var(--text);
@@ -62,6 +64,59 @@
       background: var(--bg); color: var(--text); font-size: 13px;
     }
     .token-row button { background: var(--ok); color: var(--bg); border: none; }
+
+    /* --- Stats dashboard polish --- */
+    .pills { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
+    .pill {
+      background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px 18px; min-width: 140px; text-align: center;
+    }
+    .pill .num { font-size: 22px; font-weight: 700; color: var(--text); }
+    .pill .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-top: 2px; }
+    .pill .est { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+    .quota-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+    @media (min-width: 960px) { .quota-grid { grid-template-columns: 1fr 1fr; } }
+
+    /* Heatmap */
+    .heatmap { display: grid; grid-template-columns: repeat(52, 1fr); gap: 2px; }
+    .heat-cell {
+      width: 10px; height: 10px; border-radius: 2px;
+      background: #1e293b; border: 0.5px solid #0f172a;
+    }
+    .heat-cell:hover { border-color: var(--muted); }
+    .heat-label { font-size: 10px; color: var(--muted); }
+    .heat-0 { background: #0f172a; }
+    .heat-1 { background: #1e293b; }
+    .heat-2 { background: #33415e; }
+    .heat-3 { background: #3b82f6; }
+    .heat-4 { background: #2563eb; }
+    .heat-today { border: 1.5px solid var(--text); }
+
+    /* Models table */
+    table.models { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.models th { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+    table.models td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
+    table.models .model-name { font-family: monospace; font-size: 12px; }
+
+    /* Attention list */
+    .attention-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .attention-item:last-child { border-bottom: none; }
+    .chip { padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .chip-critical { background: rgba(239,68,68,0.15); color: var(--crit); }
+    .chip-watch { background: rgba(245,158,11,0.15); color: var(--warn); }
+    .chip-stale { background: rgba(100,116,140,0.15); color: var(--muted); }
+
+    /* Mobile */
+    @media (max-width: 959px) {
+      .pills { flex-direction: column; }
+      .quota-grid { grid-template-columns: 1fr; }
+      .heatmap { grid-template-columns: repeat(52, 1fr); overflow-x: auto; }
+      table.models, table.models thead, table.models tbody, table.models tr, table.models td, table.models th { display: block; width: 100%; }
+      table.models tr { border-bottom: 1px solid var(--border); }
+      table.models td { display: inline-block; min-width: 45%; }
+      .heat-month-label { display: none; }
+    }
   </style>
 </head>
 <body>
@@ -71,24 +126,53 @@
     <input type="password" id="token-field" placeholder="Enter device token" autocomplete="off">
     <button id="token-save">Save</button>
   </div>
-  <div id="cards" class="cards"></div>
+
+  <!-- Stat pills -->
+  <div id="stat-pills" class="pills">
+    <div class="pill"><div class="num" id="pill-today-tok">—</div><div class="lbl">Tokens today</div></div>
+    <div class="pill"><div class="num" id="pill-month-tok">—</div><div class="lbl">Tokens this month</div></div>
+    <div class="pill"><div class="num" id="pill-today-cost">$—</div><div class="lbl">Cost today</div><div class="est">est.</div></div>
+    <div class="pill"><div class="num" id="pill-month-cost">$—</div><div class="lbl">Cost this month</div><div class="est">est.</div></div>
+  </div>
+
+  <!-- Quota cards (providers) -->
+  <h2>Quota</h2>
+  <div id="cards" class="quota-grid cards"></div>
+
+  <!-- Activity heatmaps -->
+  <h2>Activity</h2>
+  <div id="activity" class="cards">
+    <div id="heatmap-claude_code" class="card" style="display:none;"></div>
+    <div id="heatmap-codex" class="card" style="display:none;"></div>
+  </div>
+
+  <!-- Models table -->
+  <h2>Models used</h2>
+  <table id="models-table" class="models">
+    <thead><tr><th>Model</th><th>Tokens today</th><th>Tokens month</th><th>Est. cost month</th><th>Requests</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <!-- Needs attention -->
+  <h2>Needs attention</h2>
+  <div id="attention" class="cards"></div>
+
   <div class="footer-bar">
-    <span id="footer-text" class="info">Data as of \u2014 \u00b7 checked \u2014 \u00b7 rev \u2014 \u00b7 seq \u2014</span>
+    <span id="footer-text" class="info">Data as of — · checked — · rev — · seq —</span>
     <button id="refresh-btn">Refresh now</button>
   </div>
 
 <script>
 /*
- * AI Usage dashboard \u2014 vanilla JS, no build step, one file.
- * Pure helpers (tierColor, resetText, fmtTime, pctText) are named and side-effect
- * free so a future test harness could import them.
+ * AI Usage dashboard — vanilla JS, no build step, one file.
+ * Pure helpers (tierColor, resetText, fmtTime, pctText, fmtTokens) are named
+ * and side-effect free so a future test harness could import them.
  *
- * Protocol: poll /v1/usage every 60 s with If-None-Match; on 304 update the
- * "checked" time from /healthz; on 200 re-render only the provider cards whose
- * JSON block changed. Reset texts tick every 30 s client-side. Token is read
- * from ?token= (\u2192 localStorage usaged_token), sent as X-Device-Token on
- * every /v1/* call; 401 surfaces an inline token input. No inline event
- * handlers (\u2717 \u2713) for CSP-friendliness.
+ * Protocol: poll /v1/usage every 60 s with If-None-Match; poll /v1/stats every
+ * 5 min with its own ETag. On 304 update the "checked" time from /healthz;
+ * on 200 re-render only the changed sections. Reset texts tick every 30 s.
+ * Token is read from ?token= (→ localStorage usaged_token), sent as
+ * X-Device-Token on every /v1/* call; 401 surfaces an inline token input.
  */
 
 // ---- Pure helpers ----
@@ -107,7 +191,7 @@ function planLabel(plan) {
 function statusBadge(status, msg) {
   if (status === "ok") return "";
   if (status === "off") return badge("off", "no key");
-  if (status === "stale") return badge("stale", "stale \u00b7 " + msg);
+  if (status === "stale") return badge("stale", "stale · " + msg);
   if (status === "auth")  return badge("auth",  msg);
   if (status === "error") return badge("error", msg);
   return "";
@@ -118,16 +202,11 @@ function badge(cls, text) {
 }
 
 function fmtTime(unixSec) {
-  if (!unixSec) return "\u2014";
+  if (!unixSec) return "—";
   var d = new Date(unixSec * 1000);
   return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
 
-// Reset text from reset_at (unix seconds) or fallback to txt.
-// When pct is null the caller passes empty so the reset column stays blank.
-// > 24 h remaining \u2192 "Resets Mon 05:00" (browser locale).
-// \u2264 24 h remaining \u2192 "Resets in Xh Ym".
-// past or null  \u2192 fallbackTxt.
 function resetText(resetAt, fallbackTxt) {
   if (!resetAt) return fallbackTxt || "";
   var now = Math.floor(Date.now() / 1000);
@@ -151,6 +230,17 @@ function esc(s) {
   return String(s).replace(/[&<>"']/g, function(c) {
     return { "&": "&#38;", "<": "&#60;", ">": "&#62;", '"': "&#34;", "'": "&#39;" }[c];
   });
+}
+
+function fmtTokens(n) {
+  if (n >= 1e9) return (n / 1e9).toFixed(1) + "B";
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
+  return String(n);
+}
+
+function fmtCost(n) {
+  return "$" + n.toFixed(2);
 }
 
 // ---- Token handling ----
@@ -180,7 +270,8 @@ function stripTokenFromUrl() {
 // ---- State ----
 
 var lastRev = null;       // full ETag header value, e.g. '"abcd1234"'
-var lastProviderJson = {}; // id \u2192 JSON string of last-rendered provider
+var lastProviderJson = {}; // id → JSON string of last-rendered provider
+var lastStatsJson = null;  // JSON string of last-rendered stats report
 
 // ---- Fetch ----
 
@@ -190,6 +281,22 @@ function loadUsage() {
   return fetch("/v1/usage", { headers: headers }).then(function(resp) {
     if (resp.status === 401) { showTokenInput(); return null; }
     if (resp.status === 304)  { loadHealthz(); return null; }
+    return resp.json();
+  });
+}
+
+function loadStats() {
+  var headers = authHeaders();
+  var ifNone = null;
+  if (lastStatsJson) {
+    var prevEtag = localStorage.getItem("stats_etag");
+    if (prevEtag) headers["If-None-Match"] = prevEtag;
+  }
+  return fetch("/v1/stats", { headers: headers }).then(function(resp) {
+    if (resp.status === 401) { showTokenInput(); return null; }
+    if (resp.status === 304)  { return null; }
+    var etag = resp.headers.get("ETag");
+    if (etag) localStorage.setItem("stats_etag", etag);
     return resp.json();
   });
 }
@@ -266,19 +373,169 @@ function renderRow(row, isStale) {
 function updateFooter(snap) {
   var asOf = fmtTime(snap.generated_at);
   var el = document.getElementById("footer-text");
-  el.textContent = "Data as of " + asOf + " \u00b7 checked " + asOf +
-    " \u00b7 rev " + (snap.rev || "\u2014") + " \u00b7 seq " + (snap.seq != null ? snap.seq : "\u2014");
+  el.textContent = "Data as of " + asOf + " · checked " + asOf +
+    " · rev " + (snap.rev || "—") + " · seq " + (snap.seq != null ? snap.seq : "—");
 }
 
 function updateFooterChecked(h) {
   var el = document.getElementById("footer-text");
-  var parts = el.textContent.split(" \u00b7 ");
+  var parts = el.textContent.split(" · ");
   if (parts.length >= 4) {
     parts[1] = "checked " + fmtTime(h.checked_at);
     if (h.rev) parts[2] = "rev " + h.rev;
     if (h.seq != null) parts[3] = "seq " + h.seq;
-    el.textContent = parts.join(" \u00b7 ");
+    el.textContent = parts.join(" · ");
   }
+}
+
+// ---- Stats rendering ----
+
+function tokensTotal(t) {
+  if (!t) return 0;
+  return (t.input || 0) + (t.output || 0) + (t.cache_read || 0) + (t.cache_write || 0);
+}
+
+function renderStats(report) {
+  // Stat pills
+  var todayTok = 0, monthTok = 0, todayCost = 0, monthCost = 0;
+  for (var srcName in report.sources) {
+    var src = report.sources[srcName];
+    todayTok += tokensTotal(src.today.tokens);
+    monthTok += tokensTotal(src.month.tokens);
+    todayCost += src.today.cost;
+    monthCost += src.month.cost;
+  }
+  document.getElementById("pill-today-tok").textContent = fmtTokens(todayTok);
+  document.getElementById("pill-month-tok").textContent = fmtTokens(monthTok);
+  document.getElementById("pill-today-cost").textContent = fmtCost(todayCost);
+  document.getElementById("pill-month-cost").textContent = fmtCost(monthCost);
+
+  // Heatmap cards
+  var srcNames = Object.keys(report.sources);
+  srcNames.forEach(function(name) {
+    var src = report.sources[name];
+    var cardEl = document.getElementById("heatmap-" + name);
+    if (!cardEl) return;
+    var label = name === "claude_code" ? "Claude Code" : "Codex";
+    cardEl.className = "card";
+    cardEl.style.display = "block";
+    cardEl.innerHTML = '<div class="card-header"><span class="card-title">' + label + ' activity</span></div>' +
+      heatmapHtml(src, name);
+  });
+  // Hide any heatmap cards for sources that don't have data.
+  ["claude_code", "codex"].forEach(function(name) {
+    var el = document.getElementById("heatmap-" + name);
+    if (el && srcNames.indexOf(name) === -1) el.style.display = "none";
+  });
+
+  // Models table
+  var tbody = document.querySelector("#models-table tbody");
+  tbody.innerHTML = "";
+  var models = [];
+  for (var sn in report.sources) {
+    var s = report.sources[sn];
+    s.models.forEach(function(m) {
+      models.push({ name: m.model, dayTok: tokensTotal(m.tokens), monthTok: 0, cost: m.cost, reqs: m.requests });
+    });
+  }
+  // Sort by month tokens desc — approximate with day tokens for now
+  models.sort(function(a, b) { return b.dayTok - a.dayTok; });
+  models.forEach(function(m) {
+    var tr = document.createElement("tr");
+    tr.innerHTML = '<td class="model-name">' + esc(m.name) + '</td>' +
+      '<td>' + fmtTokens(m.dayTok) + '</td>' +
+      '<td>' + fmtTokens(m.monthTok) + '</td>' +
+      '<td>' + fmtCost(m.cost) + '</td>' +
+      '<td>' + m.reqs + '</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function heatmapHtml(src, srcName) {
+  var days = src.days || [];
+  var cells = "";
+
+  // Build a 52-column x 7-row grid (weeks × days). Today is outlined.
+  var now = new Date();
+  var today = now.toISOString().slice(0, 10);
+
+  // Group days by week
+  var weeks = [];
+  for (var i = 0; i < days.length; i++) {
+    var day = days[i];
+    var weekIdx = Math.floor(i / 7);
+    while (weeks.length <= weekIdx) weeks.push([]);
+    weeks[weekIdx].push(day);
+  }
+  while (weeks.length < 26) weeks.push([]); // pad to 26 weeks
+
+  // Find max tokens for intensity scaling
+  var maxTok = 1;
+  for (var d = 0; d < days.length; d++) {
+    var t = tokensTotal(days[d].tokens);
+    if (t > maxTok) maxTok = t;
+  }
+
+  weeks.forEach(function(week, wi) {
+    week.forEach(function(day, di) {
+      var tok = tokensTotal(day.tokens);
+      var level = tok === 0 ? 0 : tok / maxTok;
+      var cls = "heat-cell heat-" + (level < 0.01 ? 0 : level < 0.25 ? 1 : level < 0.5 ? 2 : level < 0.75 ? 3 : 4);
+      var isToday = day.date === today ? " heat-today" : "";
+      var title = day.date + ": " + fmtTokens(tok) + " tokens";
+      cells += '<div class="' + cls + isToday + '" title="' + esc(title) + '"></div>';
+    });
+  });
+
+  var summary = "Total " + fmtTokens(function() {
+    var t = 0;
+    for (var i in src.days) {
+      t += tokensTotal(src.days[i].tokens);
+    }
+    return t;
+  }()) + " tokens, " + src.active_days + " active days, peak " +
+    fmtTokens(src.peak.tokens) + " on " + src.peak.date;
+
+  return '<div class="heatmap">' + cells + '</div>' +
+    '<div class="heat-label" style="margin-top:8px">' + esc(summary) + '</div>';
+}
+
+// ---- Attention rendering ----
+
+function renderAttention(snap, statsReport) {
+  var container = document.getElementById("attention");
+  container.innerHTML = "";
+
+  if (!snap) return;
+
+  snap.providers.forEach(function(p) {
+    var maxPct = 0;
+    for (var i = 0; i < (p.rows || []).length; i++) {
+      if (p.rows[i].pct != null && p.rows[i].pct > maxPct) maxPct = p.rows[i].pct;
+    }
+
+    if (p.status === "auth" || p.status === "error") {
+      container.insertAdjacentHTML("beforeend", attentionItem(p.label, "Critical", "chip-critical",
+        "auth or error"));
+    } else if (maxPct >= 80) {
+      var cls = maxPct >= 95 ? "chip-critical" : "chip-watch";
+      var label = maxPct >= 95 ? "Critical" : "Watch";
+      container.insertAdjacentHTML("beforeend", attentionItem(p.label, label, cls,
+        pctText(maxPct, "")));
+    }
+    if (p.status === "stale") {
+      container.insertAdjacentHTML("beforeend", attentionItem(p.label, "Stale", "chip-stale",
+        p.msg || ""));
+    }
+  });
+}
+
+function attentionItem(label, chipText, chipClass, detail) {
+  return '<div class="attention-item">' +
+    '<span class="chip ' + chipClass + '">' + esc(chipText) + '</span>' +
+    '<span>' + esc(label) + '</span>' +
+    '<span style="color:var(--muted);font-size:12px;margin-left:auto">' + esc(detail) + '</span>' +
+    '</div>';
 }
 
 // ---- Actions ----
@@ -286,7 +543,7 @@ function updateFooterChecked(h) {
 function showTokenInput() {
   var msg = document.getElementById("auth-error");
   msg.style.display = "block";
-  msg.textContent = "401 Unauthorized \u2014 enter your device token to view usage data.";
+  msg.textContent = "401 Unauthorized — enter your device token to view usage data.";
   document.getElementById("token-input").style.display = "flex";
 }
 
@@ -297,6 +554,7 @@ function saveToken() {
     document.getElementById("token-input").style.display = "none";
     document.getElementById("auth-error").style.display = "none";
     loadUsage().then(function(snap) { if (snap) renderSnapshot(snap); });
+    loadStats().then(function(rep) { if (rep) renderStats(rep); });
   }
 }
 
@@ -321,14 +579,28 @@ function doRefresh() {
 function init() {
   stripTokenFromUrl();
   loadUsage().then(function(snap) { if (snap) renderSnapshot(snap); });
+  loadStats().then(function(rep) { if (rep) renderStats(rep); });
+  renderAttention(null, null);
   document.getElementById("refresh-btn").addEventListener("click", doRefresh);
   document.getElementById("token-save").addEventListener("click", saveToken);
   setInterval(pollUsage, 60000);   // 60 s poll with If-None-Match
+  setInterval(pollStats, 300000);  // 5 min stats poll with own ETag
   setInterval(tickResets, 30000);  // 30 s countdown refresh
 }
 
 function pollUsage() {
-  loadUsage().then(function(snap) { if (snap) renderSnapshot(snap); });
+  loadUsage().then(function(snap) {
+    if (snap) {
+      renderSnapshot(snap);
+      renderAttention(snap);
+    }
+  });
+}
+
+function pollStats() {
+  loadStats().then(function(rep) {
+    if (rep) renderStats(rep);
+  });
 }
 
 function tickResets() {
