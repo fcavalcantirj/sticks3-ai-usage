@@ -47,8 +47,8 @@ func TestOnceTableFixtures(t *testing.T) {
 	// Column widths are sized from the data (ORDER #17): the provider column
 	// expands to 19 chars for "OpenRouter fallback", so the padding differs
 	// from the old fixed-width output.
-	wantClaude := "Claude              CLAUDE 5h   19%  02:09   ok"
-	wantCodex := "ChatGPT             GPT 5h     100%  23:13   ok"
+	wantClaude := "Claude              CLAUDE 5h   19%  02:09  ok"
+	wantCodex := "ChatGPT             GPT 5h     100%  23:13  ok"
 
 	for _, line := range strings.Split(out, "\n") {
 		t.Logf("LINE: %q", line)

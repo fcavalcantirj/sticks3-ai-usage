@@ -7,7 +7,7 @@ import (
 
 // goldenRev is the known rev of exampleSnapshot() providers, computed once
 // and pinned so future refactors cannot silently change the hashing.
-const goldenRev = "db2b7d8f"
+const goldenRev = "40a2c74b"
 
 func TestRevIdentical(t *testing.T) {
 	pct := 19
@@ -102,6 +102,24 @@ func TestRevChangesFields(t *testing.T) {
 	}
 	if Rev(base) == Rev(diffPlan) {
 		t.Error("rev should change when plan changes")
+	}
+
+	// kind changed
+	diffKind := []Provider{
+		{ID: "claude", Status: "ok", Plan: "max_20x", Kind: "plan", Severity: "ok",
+			Rows: []Row{{K: "5h", Pct: intPtr(19), Txt: "05:09", Tier: "ok"}}},
+	}
+	if Rev(base) == Rev(diffKind) {
+		t.Error("rev should change when kind changes")
+	}
+
+	// severity changed
+	diffSev := []Provider{
+		{ID: "claude", Status: "ok", Plan: "max_20x", Kind: "plan", Severity: "warn",
+			Rows: []Row{{K: "5h", Pct: intPtr(19), Txt: "05:09", Tier: "ok"}}},
+	}
+	if Rev(base) == Rev(diffSev) {
+		t.Error("rev should change when severity changes")
 	}
 }
 

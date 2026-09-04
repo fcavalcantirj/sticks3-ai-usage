@@ -58,6 +58,8 @@ func (p *claudeProvider) block(status, msg, plan string, rows []snapshot.Row, fe
 		ID:        claudeID,
 		Label:     claudeLabel,
 		Plan:      plan,
+		Kind:      "plan",
+		Severity:  format.Severity(status, rows),
 		Status:    status,
 		Msg:       msg,
 		FetchedAt: fetchedAt,

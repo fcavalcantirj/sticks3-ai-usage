@@ -56,6 +56,15 @@ func TestOpenRouterProviderHappyPath(t *testing.T) {
 	if !outcome.CooldownUntil.IsZero() {
 		t.Error("CooldownUntil should be zero for happy path")
 	}
+	if result.Kind != "credit" {
+		t.Errorf("Kind = %q, want credit", result.Kind)
+	}
+	if result.Severity != "warn" {
+		t.Errorf("Severity = %q, want warn (balance $0.07 < $1)", result.Severity)
+	}
+	if result.Msg != "low $0.07" {
+		t.Errorf("Msg = %q, want 'low $0.07'", result.Msg)
+	}
 }
 
 func TestOpenRouterProviderCredits403(t *testing.T) {
@@ -143,6 +152,41 @@ func TestOpenRouterProviderFallbackLabel(t *testing.T) {
 	}
 	if result.Rows[1].Label != "ORfbk day" {
 		t.Errorf("day Label = %q, want ORfbk day", result.Rows[1].Label)
+	}
+	if result.Kind != "credit" {
+		t.Errorf("Kind = %q, want credit", result.Kind)
+	}
+	if result.Severity != "warn" {
+		t.Errorf("Severity = %q, want warn (balance $0.07 < $1)", result.Severity)
+	}
+}
+
+func TestOpenRouterProviderEmptyBalanceCrit(t *testing.T) {
+	dir := t.TempDir()
+
+	// Override credits to return a zero balance (empty → crit).
+	zeroCredits := `{"data":{"total_credits":10.0,"total_usage":10.0}}`
+	os.WriteFile(filepath.Join(dir, "zero_credits.json"), []byte(zeroCredits), 0644)
+	routes := `{"GET openrouter.ai/api/v1/credits": {"file": "zero_credits.json"}}`
+	os.WriteFile(filepath.Join(dir, "routes.json"), []byte(routes), 0644)
+	copyFixture(t, dir, "openrouter_key.json")
+
+	client := newFixtureClient(dir)
+	p := NewOpenRouter(client, "openrouter:main", "OpenRouter main", "test-key")
+
+	result, _ := p.Fetch(context.Background(), testNow())
+
+	if result.Status != "ok" {
+		t.Fatalf("Status = %q, want ok", result.Status)
+	}
+	if result.Kind != "credit" {
+		t.Errorf("Kind = %q, want credit", result.Kind)
+	}
+	if result.Severity != "crit" {
+		t.Errorf("Severity = %q, want crit (balance $0.00)", result.Severity)
+	}
+	if result.Msg != "EMPTY - free blocked" {
+		t.Errorf("Msg = %q, want 'EMPTY - free blocked'", result.Msg)
 	}
 }
 

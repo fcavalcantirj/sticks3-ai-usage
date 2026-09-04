@@ -7,10 +7,10 @@ import (
 )
 
 // Rev computes the canonical 8-hex-char revision hash over the provider
-// blocks. Only id, status, plan, and the row tuple [k, pct, txt, tier]
-// participate — reset_at, msg, label, fetched_at, checked_at and
-// generated_at are deliberately excluded so that countdowns and
-// last-fetched timestamps never change rev.
+// blocks. Only id, status, plan, kind, severity, and the row tuple
+// [k, pct, txt, tier] participate — reset_at, msg, label, fetched_at,
+// checked_at and generated_at are deliberately excluded so that countdowns
+// and last-fetched timestamps never change rev.
 func Rev(providers []Provider) string {
 	arr := make([]interface{}, len(providers))
 	for i, p := range providers {
@@ -18,7 +18,7 @@ func Rev(providers []Provider) string {
 		for j, r := range p.Rows {
 			rows[j] = []interface{}{r.K, r.Pct, r.Txt, r.Tier}
 		}
-		arr[i] = []interface{}{p.ID, p.Status, p.Plan, rows}
+		arr[i] = []interface{}{p.ID, p.Status, p.Plan, p.Kind, p.Severity, rows}
 	}
 
 	data, err := json.Marshal(arr)

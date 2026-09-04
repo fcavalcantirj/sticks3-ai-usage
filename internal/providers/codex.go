@@ -44,6 +44,8 @@ func (p *codexProvider) block(status, msg, plan string, rows []snapshot.Row, fet
 		ID:        codexID,
 		Label:     codexLabel,
 		Plan:      plan,
+		Kind:      "plan",
+		Severity:  format.Severity(status, rows),
 		Status:    status,
 		Msg:       msg,
 		FetchedAt: fetchedAt,
@@ -112,9 +114,10 @@ func (p *codexProvider) Fetch(ctx context.Context, now time.Time) (snapshot.Prov
 // --- response parsing ---
 
 type codexUsageResponse struct {
-	PlanType  string         `json:"plan_type"`
-	RateLimit codexRateLimit `json:"rate_limit"`
-	Credits   codexCredits   `json:"credits"`
+	PlanType     string            `json:"plan_type"`
+	RateLimit    codexRateLimit    `json:"rate_limit"`
+	Credits      codexCredits      `json:"credits"`
+	ResetCredits codexResetCredits `json:"rate_limit_reset_credits"`
 }
 
 type codexRateLimit struct {
@@ -132,6 +135,14 @@ type codexCredits struct {
 	HasCredits bool   `json:"has_credits"`
 	Unlimited  bool   `json:"unlimited"`
 	Balance    string `json:"balance"`
+}
+
+// codexResetCredits is the rate_limit_reset_credits block: when
+// available_count > 0, ChatGPT owes the user a free reset of their daily
+// and 5-hour usage counters. We only READ it — never POST to consume.
+type codexResetCredits struct {
+	AvailableCount           int `json:"available_count"`
+	ApplicableAvailableCount int `json:"applicable_available_count"`
 }
 
 // parseCodexRows converts the wham/usage response into snapshot rows.
@@ -180,19 +191,40 @@ func parseCodexRows(body codexUsageResponse, now time.Time, loc *time.Location) 
 		})
 	}
 
-	// Credits balance row.
+	// Credits balance row. ChatGPT balance is a CREDIT COUNT, not dollars
+	// (chatgpt.com Settings shows e.g. '123 credits left'). The API returns
+	// the balance as a decimal string; round to the nearest whole credit,
+	// keeping one decimal only when below 10.
 	if body.Credits.HasCredits && !body.Credits.Unlimited {
 		balance, err := strconv.ParseFloat(body.Credits.Balance, 64)
 		if err != nil {
 			slog.Debug("codex: parse balance error", "err", err)
 			balance = 0
 		}
-		cents := format.Cents(balance)
 		rows = append(rows, snapshot.Row{
 			K:       "bal",
-			Label:   "GPT bal",
+			Label:   "GPT cr",
 			Pct:     nil,
-			Txt:     format.Money(cents),
+			Txt:     format.Credits(balance),
+			Tier:    "ok",
+			ResetAt: nil,
+		})
+	}
+
+	// Reset-credits row: ChatGPT owes a free usage reset when
+	// available_count > 0. The label is 'GPT rst'; txt is '<n> reset' or
+	// '<n> resets'. NEVER POST to the consume endpoint.
+	if body.ResetCredits.AvailableCount > 0 {
+		count := body.ResetCredits.AvailableCount
+		resetTxt := "reset"
+		if count != 1 {
+			resetTxt = "resets"
+		}
+		rows = append(rows, snapshot.Row{
+			K:       "rst",
+			Label:   "GPT rst",
+			Pct:     nil,
+			Txt:     fmt.Sprintf("%d %s", count, resetTxt),
 			Tier:    "ok",
 			ResetAt: nil,
 		})

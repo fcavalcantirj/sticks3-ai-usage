@@ -41,6 +41,12 @@ func TestCodexProviderHappyPath(t *testing.T) {
 	if result.Plan != "plus" {
 		t.Errorf("Plan = %q, want plus", result.Plan)
 	}
+	if result.Kind != "plan" {
+		t.Errorf("Kind = %q, want plan", result.Kind)
+	}
+	if result.Severity != "crit" {
+		t.Errorf("Severity = %q, want crit (GPT 5h pct=100 >= 95)", result.Severity)
+	}
 	if result.ID != "codex" {
 		t.Errorf("ID = %q, want codex", result.ID)
 	}
@@ -63,9 +69,9 @@ func TestCodexProviderHappyPath(t *testing.T) {
 		t.Errorf("Row 1 = {K:%q Label:%q Pct:%v Tier:%q}", r1.K, r1.Label, *r1.Pct, r1.Tier)
 	}
 
-	// Row 2: balance / pct null / $178.10
+	// Row 2: balance / pct null / 178 cr (credits count, not dollars)
 	r2 := result.Rows[2]
-	if r2.K != "bal" || r2.Label != "GPT bal" || r2.Pct != nil || r2.Txt != "$178.10" {
+	if r2.K != "bal" || r2.Label != "GPT cr" || r2.Pct != nil || r2.Txt != "178 cr" {
 		t.Errorf("Row 2 = {K:%q Label:%q Pct:%v Txt:%q}", r2.K, r2.Label, r2.Pct, r2.Txt)
 	}
 
@@ -152,6 +158,12 @@ func TestCodexProviderSwappedWindows(t *testing.T) {
 	if result.Status != "ok" {
 		t.Fatalf("Status = %q, want ok", result.Status)
 	}
+	if result.Kind != "plan" {
+		t.Errorf("Kind = %q, want plan", result.Kind)
+	}
+	if result.Severity != "crit" {
+		t.Errorf("Severity = %q, want crit (GPT 5h pct=100 >= 95)", result.Severity)
+	}
 	if len(result.Rows) != 3 {
 		t.Fatalf("len(Rows) = %d, want 3", len(result.Rows))
 	}
@@ -181,6 +193,12 @@ func TestCodexProvider401(t *testing.T) {
 
 	if result.Status != "auth" {
 		t.Errorf("Status = %q, want auth", result.Status)
+	}
+	if result.Severity != "crit" {
+		t.Errorf("Severity = %q, want crit (auth status)", result.Severity)
+	}
+	if result.Kind != "plan" {
+		t.Errorf("Kind = %q, want plan", result.Kind)
 	}
 	if result.Msg != "run codex" {
 		t.Errorf("Msg = %q, want run codex", result.Msg)

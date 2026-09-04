@@ -1,4 +1,5 @@
-{"type":"event_msg","timestamp":"2026-09-03T14:00:00Z","payload":{"type":"turn_context","info":{"model":"gpt-4o"}}}
-{"type":"event_msg","timestamp":"2026-09-03T14:01:00Z","payload":{"type":"token_count","info":{"model":"gpt-4o","last_token_usage":{"input_tokens":600,"cached_input_tokens":0,"output_tokens":150,"reasoning_output_tokens":0}}}}
-{"type":"event_msg","timestamp":"2026-09-03T14:02:00Z","payload":{"type":"token_count","info":{"model":"gpt-4o","last_token_usage":{"input_tokens":100,"cached_input_tokens":0,"output_tokens":50,"reasoning_output_tokens":0}}}}
-{"type":"event_msg","timestamp":"2026-09-02T22:00:00Z","payload":{"type":"token_count","info":{"model":"o1","last_token_usage":{"input_tokens":2000,"cached_input_tokens":500,"output_tokens":3000,"reasoning_output_tokens":1000}}}}
+{"type": "event_msg", "timestamp": "2026-09-03T14:00:00Z", "payload": {"type": "turn_context", "info": {"model": "gpt-4o"}}}
+{"type": "event_msg", "timestamp": "2026-09-03T14:01:00Z", "payload": {"type": "token_count", "info": {"model": "unknown", "last_token_usage": {"input_tokens": 600, "cached_input_tokens": 0, "output_tokens": 150, "reasoning_output_tokens": 0}}}}
+{"type": "event_msg", "timestamp": "2026-09-03T14:02:00Z", "payload": {"type": "token_count", "info": {"model": "unknown", "last_token_usage": {"input_tokens": 100, "cached_input_tokens": 0, "output_tokens": 50, "reasoning_output_tokens": 0}}}}
+{"type": "event_msg", "timestamp": "2026-09-02T22:00:00Z", "payload": {"type": "turn_context", "info": {"model": "o1"}}}
+{"type": "event_msg", "timestamp": "2026-09-02T22:01:00Z", "payload": {"type": "token_count", "info": {"model": "unknown", "last_token_usage": {"input_tokens": 2000, "cached_input_tokens": 500, "output_tokens": 3000, "reasoning_output_tokens": 1000}}}}

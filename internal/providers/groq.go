@@ -46,10 +46,20 @@ func NewGroq(client *httpx.Client, key string, probe bool) Fetcher {
 func (p *groqProvider) ID() string { return groqID }
 
 func (p *groqProvider) block(status, msg, plan string, rows []snapshot.Row, fetchedAt int64) snapshot.Provider {
+	// Groq defaults to kind "free" (no per-request cost to the user on the
+	// free tier); if the probe ever reports a paid plan, the Fetch method
+	// overrides this to "credit".
+	kind := "free"
+	severity := format.Severity(status, rows)
+	if plan == "paid" {
+		kind = "credit"
+	}
 	return snapshot.Provider{
 		ID:        groqID,
 		Label:     groqLabel,
 		Plan:      plan,
+		Kind:      kind,
+		Severity:  severity,
 		Status:    status,
 		Msg:       msg,
 		FetchedAt: fetchedAt,
@@ -105,6 +115,13 @@ func (p *groqProvider) Fetch(ctx context.Context, now time.Time) (snapshot.Provi
 
 // parseGroqRateLimits parses x-ratelimit-* headers from a Groq response into
 // snapshot rows. rpd = requests per day, tpm = tokens per minute.
+//
+// Header semantics (verified by live probing, 31 endpoints): the x-ratelimit-
+// limit/remaining-requests headers are RPD (requests per day, a leaky bucket)
+// and the x-ratelimit-limit/remaining-tokens headers are TPM (tokens per minute,
+// also a leaky bucket). The reset-* headers are REFILL time (seconds until the
+// bucket refills), NOT a window boundary — so do not treat them as a daily reset
+// time.
 func parseGroqRateLimits(h http.Header) []snapshot.Row {
 	var rows []snapshot.Row
 

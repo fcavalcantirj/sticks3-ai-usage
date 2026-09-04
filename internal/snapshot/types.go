@@ -20,6 +20,14 @@ var validTiers = map[string]bool{
 	"ok": true, "warn": true, "crit": true, "off": true,
 }
 
+var validKinds = map[string]bool{
+	"plan": true, "credit": true, "free": true,
+}
+
+var validSeverities = map[string]bool{
+	"ok": true, "warn": true, "crit": true,
+}
+
 // Row is a single usage metric row within a provider block.
 type Row struct {
 	K       string `json:"k"`
@@ -35,6 +43,8 @@ type Provider struct {
 	ID        string `json:"id"`
 	Label     string `json:"label"`
 	Plan      string `json:"plan"`
+	Kind      string `json:"kind"`       // plan|credit|free — hashed into rev
+	Severity  string `json:"severity"`   // ok|warn|crit — hashed into rev
 	Status    string `json:"status"`     // ok|stale|auth|error|off
 	Msg       string `json:"msg"`        // ≤24 chars, human hint
 	FetchedAt int64  `json:"fetched_at"` // serialised for the web page; NOT part of the hash
@@ -84,6 +94,12 @@ func (s *Snapshot) Validate() error {
 
 		if !validStatuses[p.Status] {
 			return fmt.Errorf("invalid status %q for provider %s", p.Status, p.ID)
+		}
+		if !validKinds[p.Kind] {
+			return fmt.Errorf("invalid kind %q for provider %s", p.Kind, p.ID)
+		}
+		if !validSeverities[p.Severity] {
+			return fmt.Errorf("invalid severity %q for provider %s", p.Severity, p.ID)
 		}
 		if utf8.RuneCountInString(p.Msg) > 24 {
 			return fmt.Errorf("msg for provider %s exceeds 24 chars (%d)", p.ID, utf8.RuneCountInString(p.Msg))

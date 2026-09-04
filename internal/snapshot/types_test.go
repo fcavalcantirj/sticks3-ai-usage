@@ -38,11 +38,13 @@ func exampleSnapshot() Snapshot {
 		NextSec:     900,
 		Providers: []Provider{
 			{
-				ID:     "claude",
-				Label:  "Claude",
-				Plan:   "max_20x",
-				Status: "ok",
-				Msg:    "",
+				ID:       "claude",
+				Label:    "Claude",
+				Plan:     "max_20x",
+				Kind:     "plan",
+				Severity: "ok",
+				Status:   "ok",
+				Msg:      "",
 				Rows: []Row{
 					{K: "5h", Label: "CLAUDE 5h", Pct: &pct5h, Txt: "05:09", Tier: "ok", ResetAt: &reset5h},
 					{K: "7d", Label: "CLAUDE 7d", Pct: &pct7d, Txt: "Mon", Tier: "ok", ResetAt: &reset7d},
@@ -50,15 +52,17 @@ func exampleSnapshot() Snapshot {
 				},
 			},
 			{
-				ID:     "codex",
-				Label:  "ChatGPT",
-				Plan:   "plus",
-				Status: "ok",
-				Msg:    "",
+				ID:       "codex",
+				Label:    "ChatGPT",
+				Plan:     "plus",
+				Kind:     "plan",
+				Severity: "crit",
+				Status:   "ok",
+				Msg:      "",
 				Rows: []Row{
 					{K: "5h", Label: "GPT 5h", Pct: &pctCodex5h, Txt: "23:13", Tier: "crit", ResetAt: &resetCodex5h},
 					{K: "7d", Label: "GPT 7d", Pct: &pctCodex7d, Txt: "Tue", Tier: "ok", ResetAt: &resetCodex7d},
-					{K: "bal", Label: "GPT bal", Pct: nil, Txt: "$178.10", Tier: "ok", ResetAt: nil},
+					{K: "bal", Label: "GPT cr", Pct: nil, Txt: "178 cr", Tier: "ok", ResetAt: nil},
 				},
 			},
 		},
@@ -95,6 +99,11 @@ func TestTypesGolden(t *testing.T) {
 	if err := json.Unmarshal(golden, &snap); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
+	// Validate the golden snapshot conforms to the v1 contract.
+	if err := snap.Validate(); err != nil {
+		t.Errorf("golden snapshot fails Validate: %v", err)
+	}
+
 	out, err := json.MarshalIndent(&snap, "", "  ")
 	if err != nil {
 		t.Fatal(err)

@@ -1,7 +1,7 @@
 {
   "v": 1,
   "seq": 1,
-  "rev": "5839af51",
+  "rev": "03df5712",
   "generated_at": 1788393600,
   "checked_at": 1788393600,
   "next_sec": 900,
@@ -10,6 +10,8 @@
       "id": "claude",
       "label": "Claude",
       "plan": "max_20x",
+      "kind": "plan",
+      "severity": "ok",
       "status": "ok",
       "msg": "",
       "fetched_at": 1788393600,
@@ -44,6 +46,8 @@
       "id": "codex",
       "label": "ChatGPT",
       "plan": "plus",
+      "kind": "plan",
+      "severity": "crit",
       "status": "ok",
       "msg": "",
       "fetched_at": 1788393600,
@@ -66,9 +70,9 @@
         },
         {
           "k": "bal",
-          "label": "GPT bal",
+          "label": "GPT cr",
           "pct": null,
-          "txt": "$178.10",
+          "txt": "178 cr",
           "tier": "ok",
           "reset_at": null
         }
@@ -78,8 +82,10 @@
       "id": "openrouter:main",
       "label": "OpenRouter main",
       "plan": "paid",
+      "kind": "credit",
+      "severity": "warn",
       "status": "ok",
-      "msg": "",
+      "msg": "low $0.07",
       "fetched_at": 1788393600,
       "rows": [
         {
@@ -104,8 +110,10 @@
       "id": "openrouter:fallback",
       "label": "OpenRouter fallback",
       "plan": "paid",
+      "kind": "credit",
+      "severity": "warn",
       "status": "ok",
-      "msg": "",
+      "msg": "low $0.07",
       "fetched_at": 1788393600,
       "rows": [
         {
@@ -130,6 +138,8 @@
       "id": "groq",
       "label": "Groq",
       "plan": "on_demand",
+      "kind": "free",
+      "severity": "ok",
       "status": "ok",
       "msg": "",
       "fetched_at": 1788393600,

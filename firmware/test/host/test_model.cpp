@@ -66,11 +66,11 @@ TEST(model_parses_example) {
     ASSERT_EQ(100, gpt5h.pct);
     ASSERT_EQ(2, (int)gpt5h.tier);
 
-    // GPT bal: pct null (-1)
+    // GPT bal: pct null (-1), txt "178 cr" (credits count, not dollars)
     const Row& gptBal = codex.rows[2];
-    ASSERT_STREQ("GPT bal", gptBal.label);
+    ASSERT_STREQ("GPT cr", gptBal.label);
     ASSERT_EQ(-1, gptBal.pct);
-    ASSERT_STREQ("$178.10", gptBal.txt);
+    ASSERT_STREQ("178 cr", gptBal.txt);
 }
 
 TEST(model_parses_full) {

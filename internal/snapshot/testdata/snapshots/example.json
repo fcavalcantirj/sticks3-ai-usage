@@ -10,6 +10,8 @@
       "id": "claude",
       "label": "Claude",
       "plan": "max_20x",
+      "kind": "plan",
+      "severity": "ok",
       "status": "ok",
       "msg": "",
       "fetched_at": 0,
@@ -44,6 +46,8 @@
       "id": "codex",
       "label": "ChatGPT",
       "plan": "plus",
+      "kind": "plan",
+      "severity": "crit",
       "status": "ok",
       "msg": "",
       "fetched_at": 0,
@@ -66,9 +70,9 @@
         },
         {
           "k": "bal",
-          "label": "GPT bal",
+          "label": "GPT cr",
           "pct": null,
-          "txt": "$178.10",
+          "txt": "178 cr",
           "tier": "ok",
           "reset_at": null
         }

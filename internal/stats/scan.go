@@ -483,17 +483,39 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 		}
 
 		sc := bufio.NewScanner(f)
+		currentModel := ""
 		for sc.Scan() {
 			lineNum++
 			var line codexEventLine
 			if err := json.Unmarshal(sc.Bytes(), &line); err != nil {
 				continue
 			}
-			if line.Type != "event_msg" || line.Payload.Type != "token_count" {
+			if line.Type != "event_msg" {
+				continue
+			}
+
+			// Track the current model from turn_context events. The
+			// token_count events may carry "unknown" as the model id — the
+			// real id lives in the preceding turn_context/session_meta payload.
+			if line.Payload.Type == "turn_context" {
+				if line.Payload.Info.Model != "" {
+					currentModel = line.Payload.Info.Model
+				}
+				continue
+			}
+
+			if line.Payload.Type != "token_count" {
 				continue
 			}
 
 			model := line.Payload.Info.Model
+			if model == "unknown" || model == "" {
+				model = currentModel
+			}
+			if model == "" || model == "unknown" {
+				// No turn_context seen yet; track as unpriced explicitly.
+				model = "<unknown>"
+			}
 			usage := line.Payload.Info.LastTokenUsage
 			tokens := Tokens{
 				Input:     usage.InputTokens,

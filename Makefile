@@ -20,6 +20,9 @@ vet:
 lint:
 	@scripts/lint.sh
 
+sync-prices:
+	@bash scripts/sync-prices.sh
+
 test:
 	go test -count=1 ./...
 

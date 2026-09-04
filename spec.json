@@ -500,7 +500,7 @@
       "(d) GROQ ROW — research verdict (31 endpoints probed live): Groq exposes NO usage, spend, credit or quota endpoint, GET /openai/v1/models carries no rate-limit headers, and a request that fails validation strips them too. Only a BILLED 200 completion or a 429 returns x-ratelimit-*. So: default (USAGED_GROQ_PROBE=0) keeps one row 'GROQ key' txt 'ok' but now also sets plan from the probe when known; with USAGED_GROQ_PROBE=1 the existing one-token call fills two rows — 'GROQ rpd' pct = 100*(limit-remaining)/limit txt '<remaining shortened>' and 'GROQ tpm' likewise. Header semantics verified: the requests headers are RPD and the tokens headers are TPM, both leaky buckets, and reset-* is refill time not a window boundary — say so in a comment so nobody re-labels them. Do NOT add a free-tier request counter for OpenRouter: no endpoint, field or success-header exposes it (verified), and Felipe decided to leave it out.",
       "Verify: `go test ./internal/providers ./internal/snapshot ./internal/api -v 2>&1 | grep -c '^--- PASS'` grows by at least 6 (new tests: credits render as a count not dollars; reset row present only when available_count > 0; OpenRouter warn at $0.50; crit at $0.00 and at a negative balance; severity is part of the rev hash; Groq probe rows). `make verify` exits 0; `make smoke` exits 0. Then run `go run ./cmd/usaged once` against the live accounts and paste the real output into the room — the ChatGPT row must show a credit count matching chatgpt.com Settings, and the OpenRouter main row must be flagged, since that account really is at about $0.02."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "host",

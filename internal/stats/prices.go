@@ -21,53 +21,70 @@ func (p Price) Cost(t Tokens) float64 {
 //
 // Claude (as of 2026-09-04, https://docs.anthropic.com/en/docs/about-claude/pricing):
 //
-//	Claude Fable 5       $10 / $50      cache_write $20  cache_read $1
+// Cache write is billed at 1.25x the input rate (1x for the tokens written plus
+// a 25% cache-creation surcharge), per the Anthropic pricing page.
+//
+//	Claude Fable 5       $10 / $50      cache_write $12.50  cache_read $1
 //	Claude Fable 5.1     $10 / $50      cache_write $12.50  cache_read $0.25
-//	Claude Opus 5        $5 / $25       cache_write $10  cache_read $0.50
-//	Claude Opus 4.8      $5 / $25       cache_write $10  cache_read $0.50
-//	Claude Sonnet 5      $2 / $10       cache_write $4  cache_read $0.20
-//	Claude Sonnet 4.6    $3 / $15       cache_write $6  cache_read $0.30
-//	Claude Sonnet 4.1    $15 / $75      cache_write $30  cache_read $1.50  (retired)
-//	Claude Haiku 4.5     $1 / $5        cache_write $2  cache_read $0.10
-//	Claude Haiku 3.5     $0.80 / $4     cache_write $1.60  cache_read $0.08  (retired)
+//	Claude Opus 5        $5 / $25       cache_write $6.25  cache_read $0.50
+//	Claude Opus 4.8      $5 / $25       cache_write $6.25  cache_read $0.50
+//	Claude Sonnet 5      $2 / $10       cache_write $2.50  cache_read $0.20
+//	Claude Sonnet 4.6    $3 / $15       cache_write $3.75  cache_read $0.30
+//	Claude Sonnet 4.1    $15 / $75      cache_write $18.75  cache_read $1.50  (retired)
+//	Claude Haiku 4.5     $1 / $5        cache_write $1.25  cache_read $0.10
+//	Claude Haiku 3.5     $0.80 / $4     cache_write $1.00  cache_read $0.08  (retired)
 //
 // OpenRouter public pricing (https://openrouter.ai/models, 2026-09-04):
 var prices = map[string]Price{
 	// Claude Code — current models (from https://docs.anthropic.com/en/docs/about-claude/pricing, 2026-09-04)
-	"claude-fable-5":             {10, 50, 1, 20},
+	"claude-fable-5":             {10, 50, 1, 12.5},
 	"claude-fable-5-1":           {10, 50, 0.25, 12.50},
-	"claude-opus-5":              {5, 25, 0.50, 10},
-	"claude-opus-4-8":            {5, 25, 0.50, 10},
-	"claude-sonnet-5":            {2, 10, 0.20, 4},
-	"claude-sonnet-4-20250514":   {3, 15, 0.30, 6},      // Sonnet 4.6
-	"claude-opus-4-20250514":     {15, 75, 1.50, 30},    // Opus 4.1 (retired)
-	"claude-3-7-sonnet-20250219": {3, 15, 0.30, 6},      // Sonnet 4.6
-	"claude-3-5-sonnet-20241022": {3, 15, 0.30, 6},      // Sonnet 4 (retired)
-	"claude-3-5-haiku-20241022":  {0.80, 4, 0.08, 1.60}, // Haiku 3.5 (retired)
-	"claude-haiku-4-5-20251001":  {1, 5, 0.10, 2},       // Haiku 4.5
+	"claude-opus-5":              {5, 25, 0.50, 6.25},
+	"claude-opus-4-8":            {5, 25, 0.50, 6.25},
+	"claude-sonnet-5":            {2, 10, 0.20, 2.5},
+	"claude-sonnet-4-20250514":   {3, 15, 0.30, 3.75},   // Sonnet 4.6
+	"claude-opus-4-20250514":     {15, 75, 1.50, 18.75}, // Opus 4.1 (retired)
+	"claude-3-7-sonnet-20250219": {3, 15, 0.30, 3.75},   // Sonnet 4.6
+	"claude-3-5-sonnet-20241022": {3, 15, 0.30, 3.75},   // Sonnet 4 (retired)
+	"claude-3-5-haiku-20241022":  {0.80, 4, 0.08, 1.0},  // Haiku 3.5 (retired)
+	"claude-haiku-4-5-20251001":  {1, 5, 0.10, 1.25},    // Haiku 4.5
 
-	// Open-source models that appear in Codex rollouts, priced from
+	// OpenAI model pricing from models.dev/api.json (https://models.dev/api.json,
+	// fetched 2026-09-04). Rates are USD per 1M tokens. cache_write is 0 because
+	// Codex/OpenAI rollouts do not use prompt caching.
+	"gpt-4.1":      {2, 8, 0.5, 0},
+	"gpt-4.1-mini": {0.4, 1.6, 0.1, 0},
+	"gpt-4o":       {2.5, 10, 1.25, 0},
+	"gpt-4o-mini":  {0.15, 0.6, 0.075, 0},
+	"o1":           {15, 60, 7.5, 0},
+	"o1-preview":   {15, 60, 7.5, 0},
+	"o1-mini":      {3, 12, 1.5, 0},
+	"o3":           {6, 24, 1.5, 0},
+	"o3-mini":      {1.5, 6, 0.75, 0},
+
+	// openai/gpt-5.x — Codex Plus-subscription models. Per ORDER #40/#41, use the
+	// CANONICAL openai/* entries from models.dev (not cloud-reseller mirrors).
+	// gpt-5.6-sol publishes cache_write=5 (real value — NOT "free"/"unpriced").
+	// gpt-5.5 has no cache_write published (Codex does not bill cache creation).
+	// Both gpt-5.5 and gpt-5.6-sol also have a context_over_200k tier at ~2x; ignored.
+	"openai/gpt-5.5":     {5, 30, 0.5, 0},
+	"openai/gpt-5.6-sol": {4, 20, 0.4, 5},
+	"openai/fugu-ultra":  {5, 30, 0.5, 0},
+	// NOTE: bare "fugu" has no entry on models.dev — left unpriced (no alias).
+
+	// Qwen / Llama identifiers that appear in Codex rollouts, priced from
 	// OpenRouter's public table (https://openrouter.ai/models, 2026-09-04).
-	"gpt-4.1":      {0.002, 0.008, 0, 0},
-	"gpt-4.1-mini": {0.0004, 0.0016, 0, 0},
-	"gpt-4o":       {0.005, 0.015, 0, 0},
-	"gpt-4o-mini":  {0.00015, 0.0006, 0, 0},
-	"o1":           {0.015, 0.06, 0, 0},
-	"o1-preview":   {0.015, 0.06, 0, 0},
-	"o1-mini":      {0.003, 0.012, 0, 0},
-	"o3":           {0.006, 0.024, 0, 0},
-	"o3-mini":      {0.0015, 0.006, 0, 0},
-
-	// Codex may emit these identifiers; priced from OpenRouter.
-	"qwen/qwen-3-32b":          {0.0002, 0.0006, 0, 0},
-	"meta-llama/llama-4-scout": {0.00018, 0.00055, 0, 0},
+	"qwen/qwen-3-32b":          {0.2, 0.6, 0, 0},
+	"meta-llama/llama-4-scout": {0.18, 0.55, 0, 0},
 }
 
 // aliasModels maps bare/old model ID aliases to their current family default.
 // These are common in transcript data where the model string is abbreviated.
 var aliasModels = map[string]string{
-	"opus":   "claude-opus-5",
-	"sonnet": "claude-sonnet-5",
+	"opus":        "claude-opus-5",
+	"sonnet":      "claude-sonnet-5",
+	"gpt-5.5":     "openai/gpt-5.5",
+	"gpt-5.6-sol": "openai/gpt-5.6-sol",
 }
 
 // LookupPrice resolves a model ID to its Price. It checks the prices table

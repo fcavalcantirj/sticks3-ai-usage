@@ -59,6 +59,8 @@ func (p *openRouterProvider) block(status, msg, plan string, rows []snapshot.Row
 		ID:        p.id,
 		Label:     p.label,
 		Plan:      plan,
+		Kind:      "credit",
+		Severity:  format.Severity(status, rows),
 		Status:    status,
 		Msg:       msg,
 		FetchedAt: fetchedAt,
@@ -72,6 +74,7 @@ func (p *openRouterProvider) Fetch(ctx context.Context, now time.Time) (snapshot
 	}
 
 	var rows []snapshot.Row
+	var balCents *int
 	plan := ""
 
 	// 1. Fetch credits (balance). On 401/403 the key can't read credits; skip
@@ -90,11 +93,13 @@ func (p *openRouterProvider) Fetch(ctx context.Context, now time.Time) (snapshot
 		} else if cr.Data.TotalCredits > 0 {
 			balLeft := cr.Data.TotalCredits - cr.Data.TotalUsage
 			pct := int(math.Round(100 * cr.Data.TotalUsage / cr.Data.TotalCredits))
+			balCentsVal := format.Cents(balLeft)
+			balCents = &balCentsVal
 			rows = append(rows, snapshot.Row{
 				K:       "bal",
 				Label:   orPrefix(p.id) + " bal",
 				Pct:     &pct,
-				Txt:     format.Money(format.Cents(balLeft)),
+				Txt:     format.Money(balCentsVal),
 				Tier:    format.Tier(&pct, "ok"),
 				ResetAt: nil,
 			})
@@ -159,7 +164,20 @@ func (p *openRouterProvider) Fetch(ctx context.Context, now time.Time) (snapshot
 		})
 	}
 
-	return p.block("ok", "", plan, rows, now.Unix()), Outcome{}
+	// Low-balance severity override: a near-empty balance must be LOUD.
+	// balance <= 0 → crit ('free models blocked'); balance < $1 → warn ('low $0.07').
+	svc := p.block("ok", "", plan, rows, now.Unix())
+	if balCents != nil {
+		if *balCents <= 0 {
+			svc.Severity = "crit"
+			svc.Msg = "EMPTY - free blocked"
+		} else if *balCents < 100 {
+			svc.Severity = "warn"
+			svc.Msg = "low " + format.Money(*balCents)
+		}
+	}
+	_ = balCents
+	return svc, Outcome{}
 }
 
 // --- response types ---

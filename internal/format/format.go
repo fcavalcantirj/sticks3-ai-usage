@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"time"
+
+	"usaged/internal/snapshot"
 )
 
 // DefaultLocation is the display timezone for reset text.
@@ -56,6 +58,27 @@ func Tier(pct *int, status string) string {
 	return "crit"
 }
 
+// Severity computes the provider-level severity from status and rows.
+// Any auth/error status → "crit". Any quota row at 100% → "crit" (fully
+// exhausted, cannot serve requests). Any quota row at 95–99% → "warn".
+// Otherwise → "ok".
+func Severity(status string, rows []snapshot.Row) string {
+	if status == "auth" || status == "error" {
+		return "crit"
+	}
+	for _, r := range rows {
+		if r.Pct != nil && *r.Pct >= 100 {
+			return "crit"
+		}
+	}
+	for _, r := range rows {
+		if r.Pct != nil && *r.Pct >= 95 {
+			return "warn"
+		}
+	}
+	return "ok"
+}
+
 // Cents converts a dollar amount to integer cents, rounding half away from zero.
 func Cents(v float64) int {
 	return int(math.Round(v * 100))
@@ -68,6 +91,15 @@ func Money(cents int) string {
 		return fmt.Sprintf("-$%d.%02d", -cents/100, -cents%100)
 	}
 	return fmt.Sprintf("$%d.%02d", cents/100, cents%100)
+}
+
+// Credits formats a credit count. Whole numbers above 10 render without a
+// decimal; values below 10 keep one decimal place (e.g. "5.3 cr", "178 cr").
+func Credits(n float64) string {
+	if n < 10 {
+		return fmt.Sprintf("%.1f cr", n)
+	}
+	return fmt.Sprintf("%d cr", int(math.Round(n)))
 }
 
 // Age returns a compact age string: "just now", "12m", "3h", or "2d".
