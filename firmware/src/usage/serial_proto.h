@@ -39,6 +39,15 @@ int fmtErr(char* out, size_t n, const char* what);
 //   [HEAP] free=123456 min=65432
 int fmtHeap(char* out, size_t n, uint32_t free, uint32_t min);
 
+// fmtWake formats a deep-sleep wake event:
+//   [WAKE] cause=ext0 vbus=4904
+// cause is one of: power_on, ext0, ext1, timer, unknown
+int fmtWake(char* out, size_t n, const char* cause, uint32_t vbusMv);
+
+// fmtSleep formats a sleep entry event:
+//   [SLEEP] reason=battery
+int fmtSleep(char* out, size_t n, const char* reason);
+
 // fmtOta formats an OTA event line.  kind selects the line shape:
 //   "start" ->  [OTA] start
 //   "pct"   ->  [OTA] pct=<param>     (param = 0..100)

@@ -81,6 +81,21 @@ int fmtHeap(char* out, size_t n, uint32_t free, uint32_t min) {
                          static_cast<unsigned int>(min));
 }
 
+// fmtWake formats a deep-sleep wake event:
+//   [WAKE] cause=ext0 vbus=4904
+int fmtWake(char* out, size_t n, const char* cause, uint32_t vbusMv) {
+    return std::snprintf(out, n, "[WAKE] cause=%s vbus=%u",
+                         cause != nullptr ? cause : "unknown",
+                         static_cast<unsigned int>(vbusMv));
+}
+
+// fmtSleep formats a sleep entry event:
+//   [SLEEP] reason=battery
+int fmtSleep(char* out, size_t n, const char* reason) {
+    return std::snprintf(out, n, "[SLEEP] reason=%s",
+                         reason != nullptr ? reason : "");
+}
+
 // fmtOta formats an OTA event line.  kind selects the line shape:
 //   "start" ->  [OTA] start
 //   "pct"   ->  [OTA] pct=<param>     (param = 0..100)

@@ -117,6 +117,38 @@ TEST(serial_heap_zeros) {
     ASSERT_EQ(r, (int)std::strlen(buf));
 }
 
+// --- fmtWake ---------------------------------------------------------------
+
+TEST(serial_wake_power_on) {
+    char buf[64];
+    int r = usage::fmtWake(buf, sizeof(buf), "power_on", 0);
+    ASSERT_STREQ("[WAKE] cause=power_on vbus=0", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+TEST(serial_wake_ext0) {
+    char buf[64];
+    int r = usage::fmtWake(buf, sizeof(buf), "ext0", 4904);
+    ASSERT_STREQ("[WAKE] cause=ext0 vbus=4904", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+TEST(serial_wake_unknown) {
+    char buf[64];
+    int r = usage::fmtWake(buf, sizeof(buf), nullptr, 0);
+    ASSERT_STREQ("[WAKE] cause=unknown vbus=0", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+// --- fmtSleep --------------------------------------------------------------
+
+TEST(serial_sleep_battery) {
+    char buf[64];
+    int r = usage::fmtSleep(buf, sizeof(buf), "battery");
+    ASSERT_STREQ("[SLEEP] reason=battery", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
 // --- fmtOta ----------------------------------------------------------------
 
 TEST(serial_ota_start) {
