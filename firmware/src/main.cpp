@@ -2,6 +2,18 @@
 //
 // Includes <M5Unified.h> (allowed for main.cpp) and delegates all M5 calls to
 // the HAL layer; usage/ formatters stay pure C++17.
+//
+// The loop is a single cooperative state machine (no background tasks, no RTOS):
+//
+//   M5.update()
+//   now = nowMs()
+//   netUpdate(now)           — Wi-Fi state machine + [NET] lines
+//   pollUpdate(now)          — first fetch / periodic poll / backoff
+//   buttonsUpdate(now)       — BtnA page, BtnB refresh
+//   updateBrightness(now)    — dim after 30 min idle, restore on activity
+//   heapWatchdog(now)        — [HEAP] line every 60 s
+//   if (view.needsRedraw) { buildPlan → drawPlan → [RENDER]; needsRedraw = false }
+//   delay(1)
 #include <M5Unified.h>
 
 #include "hal/sticks3/board.h"
@@ -16,12 +28,22 @@
 
 using namespace sticks3;
 
-// --- poll configuration -----------------------------------------------------
+// --- poll configuration ------------------------------------------------------
 
-static const uint32_t kPollMs = 300000;        // 5 minutes
-static const uint32_t kFirstFetchDelayMs = 3000;  // 3 s after netUp
-static const uint32_t kBackoffBaseMs = 30000;   // 30 s
+static const uint32_t kPollMs = 300000;            // 5 minutes
+static const uint32_t kFirstFetchDelayMs = 3000;    // 3 s after netUp
+static const uint32_t kBackoffBaseMs = 30000;       // 30 s
 static const uint32_t kMaxFails = 12;
+
+// --- brightness / watchdog configuration ------------------------------------
+
+static const uint8_t kBrightnessActive = 80;
+static const uint8_t kBrightnessIdle = 20;
+static const uint32_t kBrightnessIdleMs = 1800000;  // 30 minutes
+static const uint32_t kHeapIntervalMs = 60000;      // 60 seconds
+
+// Firmware version reported in the boot banner.
+static const char* kFwVersion = "1.0.0";
 
 // --- poll state -------------------------------------------------------------
 
@@ -34,6 +56,14 @@ static bool g_netWasUp = false;
 static uint32_t g_nextPoll = 0;
 static uint32_t g_failCount = 0;
 
+// --- brightness / watchdog state --------------------------------------------
+
+static uint32_t g_lastActivity = 0;  // last rev change or button press
+static uint32_t g_lastHeapMs = 0;    // last [HEAP] emit
+static bool g_brightnessDimmed = false;
+
+// --- helpers ----------------------------------------------------------------
+
 // Exponential backoff: 30 s, 60 s, 120 s, 240 s, then capped at kPollMs (300 s).
 static uint32_t pollInterval() {
     uint32_t b = kBackoffBaseMs;
@@ -45,6 +75,7 @@ static uint32_t pollInterval() {
     return b;
 }
 
+// Full-screen redraw: build plan, draw, emit [RENDER], clear the flag.
 static void redraw() {
     usage::RenderPlan plan;
     usage::buildPlan(g_model, g_view.page, plan);
@@ -58,6 +89,7 @@ static void redraw() {
     g_view.needsRedraw = false;
 }
 
+// Fetch /v1/usage and apply the result.  Resets failCount on 200.
 static void doFetch() {
     FetchResult result;
     if (fetchUsage(g_lastRev, result)) {
@@ -75,6 +107,9 @@ static void doFetch() {
                 serialLine(buf);
             } else {
                 usage::onSnapshot(g_view, model);
+                if (g_view.needsRedraw) {
+                    g_lastActivity = nowMs();
+                }
                 g_model = model;
                 g_hasModel = true;
                 // Save rev for the next conditional request.
@@ -99,55 +134,106 @@ static void doFetch() {
     }
 }
 
+// --- state machine steps ----------------------------------------------------
+
+// Poll: first fetch after netUp, then periodic kPollMs.
+static void pollUpdate(uint32_t now) {
+    if (!netUp()) {
+        g_netWasUp = false;
+        return;
+    }
+
+    if (!g_netWasUp) {
+        g_netWasUp = true;
+        g_netUpAt = now;
+    }
+
+    // First fetch kFirstFetchDelayMs after connectivity.
+    if (g_nextPoll == 0 &&
+        (int32_t)(now - g_netUpAt) >= (int32_t)kFirstFetchDelayMs) {
+        doFetch();
+    }
+
+    // Periodic poll.
+    if (g_nextPoll != 0 && (int32_t)(now - g_nextPoll) >= 0) {
+        doFetch();
+    }
+}
+
+// Buttons: BtnA cycles pages, BtnB triggers an immediate fetch.
+static void buttonsUpdate(uint32_t now) {
+    // BtnA: cycle pages (only when we have a model).
+    if (M5.BtnA.wasClicked() && g_hasModel) {
+        usage::nextPage(g_view, g_model);
+        g_lastActivity = now;
+    }
+
+    // BtnB: immediate fetch.
+    if (M5.BtnB.wasClicked() && netUp()) {
+        doFetch();
+        g_lastActivity = now;
+    }
+}
+
+// Brightness policy: 80 normally; 20 after 30 min without rev change or
+// button press.  Any activity restores 80.  Only changes the backlight,
+// never the drawn content — does not violate "redraw only on change".
+static void updateBrightness(uint32_t now) {
+    if ((int32_t)(now - g_lastActivity) >= (int32_t)kBrightnessIdleMs) {
+        if (!g_brightnessDimmed) {
+            setBrightness(kBrightnessIdle);
+            g_brightnessDimmed = true;
+        }
+    } else if (g_brightnessDimmed) {
+        setBrightness(kBrightnessActive);
+        g_brightnessDimmed = false;
+    }
+}
+
+// Heap watchdog: emit [HEAP] free+min every 60 s.
+static void heapWatchdog(uint32_t now) {
+    if ((int32_t)(now - g_lastHeapMs) < (int32_t)kHeapIntervalMs) {
+        return;
+    }
+    g_lastHeapMs = now;
+    char buf[64];
+    usage::fmtHeap(buf, sizeof(buf),
+                   (uint32_t)ESP.getFreeHeap(),
+                   (uint32_t)ESP.getMinFreeHeap());
+    serialLine(buf);
+}
+
+// --- Arduino entry points ---------------------------------------------------
+
 void setup() {
     boardInit();
     Serial.begin(115200);
 
     char buf[64];
-    usage::fmtBoot(buf, sizeof(buf), boardId(), psramBytes(), buildId());
+    usage::fmtBoot(buf, sizeof(buf), boardId(), psramBytes(),
+                   buildId(), kFwVersion);
     serialLine(buf);
 
     drawBootScreen(buildId());
     netBegin();
+
+    // Initialise activity timers so the 30-min dim and 60-s heap watchdog
+    // fire relative to boot, not relative to the zero millis().
+    g_lastActivity = nowMs();
+    g_lastHeapMs = nowMs();
 }
 
 void loop() {
     M5.update();
     uint32_t now = nowMs();
     netUpdate(now);
+    pollUpdate(now);
+    buttonsUpdate(now);
+    updateBrightness(now);
+    heapWatchdog(now);
 
-    if (netUp()) {
-        if (!g_netWasUp) {
-            g_netWasUp = true;
-            g_netUpAt = now;
-        }
-
-        // First fetch 3 s after netUp becomes true.
-        if (g_nextPoll == 0 &&
-            (int32_t)(now - g_netUpAt) >= (int32_t)kFirstFetchDelayMs) {
-            doFetch();
-        }
-
-        // Periodic poll.
-        if (g_nextPoll != 0 && (int32_t)(now - g_nextPoll) >= 0) {
-            doFetch();
-        }
-
-        // Immediate fetch on BtnB click.
-        if (M5.BtnB.wasClicked()) {
-            doFetch();
-        }
-    } else {
-        g_netWasUp = false;
-    }
-
-    // Redraw on data change (set by onSnapshot) or button press.
-    if (g_hasModel && g_view.needsRedraw) {
-        redraw();
-    }
-
-    if (M5.BtnA.wasClicked() && g_hasModel) {
-        usage::nextPage(g_view, g_model);
+    // Redraw only when the view flagged it (rev change or page cycle).
+    if (g_view.needsRedraw) {
         redraw();
     }
 

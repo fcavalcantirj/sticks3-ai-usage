@@ -8,8 +8,9 @@
 namespace usage {
 
 // fmtBoot formats the boot banner:
-//   [BOOT] board=26 psram=8388608 build=abc123
-int fmtBoot(char* out, size_t n, int board, uint32_t psram, const char* build);
+//   [BOOT] board=26 psram=8388608 build=abc123 fw=1.0.0
+int fmtBoot(char* out, size_t n, int board, uint32_t psram,
+            const char* build, const char* fw);
 
 // fmtNet formats a network state transition:
 //   [NET] state=connected ip=192.168.0.77
@@ -33,5 +34,9 @@ int fmtRender(char* out, size_t n, uint8_t page, uint8_t lines,
 // fmtErr formats an error line:
 //   [ERR] <what>
 int fmtErr(char* out, size_t n, const char* what);
+
+// fmtHeap formats the 60 s heap watchdog line:
+//   [HEAP] free=123456 min=65432
+int fmtHeap(char* out, size_t n, uint32_t free, uint32_t min);
 
 } // namespace usage

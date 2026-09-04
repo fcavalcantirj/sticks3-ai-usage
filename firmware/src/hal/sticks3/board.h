@@ -29,4 +29,7 @@ uint32_t nowMs();
 // Print a line to the serial monitor.
 void serialLine(const char* s);
 
+// Set the LCD backlight brightness (0–255).
+void setBrightness(uint8_t level);
+
 } // namespace sticks3

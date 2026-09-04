@@ -12,11 +12,13 @@
 namespace usage {
 
 // fmtBoot formats the boot banner:
-//   [BOOT] board=26 psram=8388608 build=abc123
-int fmtBoot(char* out, size_t n, int board, uint32_t psram, const char* build) {
-    return std::snprintf(out, n, "[BOOT] board=%d psram=%u build=%s",
+//   [BOOT] board=26 psram=8388608 build=abc123 fw=1.0.0
+int fmtBoot(char* out, size_t n, int board, uint32_t psram,
+            const char* build, const char* fw) {
+    return std::snprintf(out, n, "[BOOT] board=%d psram=%u build=%s fw=%s",
                          board, static_cast<unsigned int>(psram),
-                         build != nullptr ? build : "");
+                         build != nullptr ? build : "",
+                         fw != nullptr ? fw : "");
 }
 
 // fmtNet formats a network state transition:
@@ -68,6 +70,14 @@ int fmtRender(char* out, size_t n, uint8_t page, uint8_t lines,
 int fmtErr(char* out, size_t n, const char* what) {
     return std::snprintf(out, n, "[ERR] %s",
                          what != nullptr ? what : "");
+}
+
+// fmtHeap formats the 60 s heap watchdog line:
+//   [HEAP] free=123456 min=65432
+int fmtHeap(char* out, size_t n, uint32_t free, uint32_t min) {
+    return std::snprintf(out, n, "[HEAP] free=%u min=%u",
+                         static_cast<unsigned int>(free),
+                         static_cast<unsigned int>(min));
 }
 
 } // namespace usage

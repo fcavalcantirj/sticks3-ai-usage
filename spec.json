@@ -389,7 +389,7 @@
       "Finalise `firmware/src/main.cpp` as one cooperative loop: `M5.update(); now = nowMs(); netUpdate(now); pollUpdate(now); buttonsUpdate(now); if (view.needsRedraw) { buildPlan(model, view.page, plan); drawPlan(plan, netUp()); view.needsRedraw = false; serial [RENDER]; } delay(1);`. Add brightness policy: 80 normally; after 30 min without a rev change or button press, `setBrightness(20)`; any button press or new rev restores 80 (this changes only the backlight, never the drawn content, so it does not violate 'redraw only on change'). Add a heap watchdog: every 60 s emit `[HEAP] free=<ESP.getFreeHeap()> min=<ESP.getMinFreeHeap()>`; document it in the serial protocol. Bump `fw=1.0.0` in the boot banner. Update `firmware/README.md` with the complete flow and the expected serial transcript for a healthy boot: `[BOOT] \u2026`, `[NET] state=connecting`, `[NET] state=connected ip=\u2026`, `[FETCH] code=200 rev=\u2026 seq=\u2026 ms=\u2026`, `[RENDER] page=1 lines=5 rev=\u2026`, then `[FETCH] code=304 \u2026` every 300 s, `[HEAP] \u2026` every 60 s.",
       "Verify: `make fw-build` ends with `SUCCESS` with 0 warnings from files under `firmware/src/` (`pio run 2>&1 | grep -c 'src/.*warning'` prints 0); `make fw-test` ends in `Failed 0`; `make verify-all` exits 0. No upload \u2014 the flash tasks follow."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "verification",

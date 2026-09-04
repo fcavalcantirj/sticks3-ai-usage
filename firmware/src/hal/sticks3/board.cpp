@@ -44,4 +44,8 @@ void serialLine(const char* s) {
     Serial.println(s);
 }
 
+void setBrightness(uint8_t level) {
+    M5.Display.setBrightness(level);
+}
+
 } // namespace sticks3

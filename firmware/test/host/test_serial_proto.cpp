@@ -13,15 +13,15 @@
 
 TEST(serial_boot_basic) {
     char buf[64];
-    int r = usage::fmtBoot(buf, sizeof(buf), 26, 8388608, "abc123");
-    ASSERT_STREQ("[BOOT] board=26 psram=8388608 build=abc123", buf);
+    int r = usage::fmtBoot(buf, sizeof(buf), 26, 8388608, "abc123", "1.0.0");
+    ASSERT_STREQ("[BOOT] board=26 psram=8388608 build=abc123 fw=1.0.0", buf);
     ASSERT_EQ(r, (int)std::strlen(buf));
 }
 
 TEST(serial_boot_null_build) {
     char buf[64];
-    int r = usage::fmtBoot(buf, sizeof(buf), 26, 8388608, nullptr);
-    ASSERT_STREQ("[BOOT] board=26 psram=8388608 build=", buf);
+    int r = usage::fmtBoot(buf, sizeof(buf), 26, 8388608, nullptr, nullptr);
+    ASSERT_STREQ("[BOOT] board=26 psram=8388608 build= fw=", buf);
     ASSERT_EQ(r, (int)std::strlen(buf));
 }
 
@@ -95,8 +95,24 @@ TEST(serial_trunc_4byte) {
     // A 4-byte buffer: snprintf writes 3 chars + NUL and returns the full
     // would-be length.
     char buf[4];
-    int r = usage::fmtBoot(buf, sizeof(buf), 26, 8388608, "abc123");
+    int r = usage::fmtBoot(buf, sizeof(buf), 26, 8388608, "abc123", "1.0.0");
     ASSERT_STREQ("[BO", buf);             // only 3 chars fit (4th byte is NUL)
     ASSERT_EQ(3, (int)std::strlen(buf));
     ASSERT_TRUE(r > 3);                    // return value is the full length
+}
+
+// --- fmtHeap -----------------------------------------------------------------
+
+TEST(serial_heap_basic) {
+    char buf[64];
+    int r = usage::fmtHeap(buf, sizeof(buf), 123456, 65432);
+    ASSERT_STREQ("[HEAP] free=123456 min=65432", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+TEST(serial_heap_zeros) {
+    char buf[64];
+    int r = usage::fmtHeap(buf, sizeof(buf), 0, 0);
+    ASSERT_STREQ("[HEAP] free=0 min=0", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
 }
