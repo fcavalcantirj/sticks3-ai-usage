@@ -254,6 +254,7 @@ listen: "127.0.0.1:7000"
 	env := map[string]string{
 		"USAGED_INTERVAL_SEC": "600",
 		"USAGED_LISTEN":       "0.0.0.0:9999",
+		"USAGED_DEVICE_TOKEN": "test-token",
 	}
 	cfg, err := Load([]string{"--config", path}, envFrom(env))
 	if err != nil {
@@ -275,6 +276,7 @@ listen: "127.0.0.1:7000"
 	env := map[string]string{
 		"USAGED_INTERVAL_SEC": "600",
 		"USAGED_LISTEN":       "0.0.0.0:9999",
+		"USAGED_DEVICE_TOKEN": "test-token",
 	}
 	cfg, err := Load(
 		[]string{"--config", path, "--listen", "0.0.0.0:8080", "--interval", "300"},
@@ -298,7 +300,7 @@ func TestLoadFileEnabledFalseDropsProvider(t *testing.T) {
     key_env: GROQ_API_KEY
 `
 	path := writeTempYAML(t, text)
-	cfg, err := Load([]string{"--config", path}, envFrom(map[string]string{}))
+	cfg, err := Load([]string{"--config", path}, envFrom(map[string]string{"USAGED_DEVICE_TOKEN": "test-token"}))
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -317,7 +319,7 @@ func TestLoadFileAlertThresholds(t *testing.T) {
   quota_warn_pct: 80
 `
 	path := writeTempYAML(t, text)
-	cfg, err := Load([]string{"--config", path}, envFrom(map[string]string{}))
+	cfg, err := Load([]string{"--config", path}, envFrom(map[string]string{"USAGED_DEVICE_TOKEN": "test-token"}))
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -344,7 +346,7 @@ func TestLoadInvalidFileErrors(t *testing.T) {
 
 func TestLoadMissingFileSkips(t *testing.T) {
 	// No --config flag, and default path doesn't exist in test env
-	cfg, err := Load(nil, envFrom(map[string]string{"HOME": "/nonexistent-home-xyz"}))
+	cfg, err := Load(nil, envFrom(map[string]string{"HOME": "/nonexistent-home-xyz", "USAGED_DEVICE_TOKEN": "test-token"}))
 	if err != nil {
 		t.Fatalf("Load without config file: %v", err)
 	}

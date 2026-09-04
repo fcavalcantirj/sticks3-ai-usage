@@ -13,7 +13,9 @@ func envFrom(m map[string]string) func(string) string {
 }
 
 func TestLoadDefaults(t *testing.T) {
-	cfg, err := Load(nil, envFrom(map[string]string{}))
+	cfg, err := Load(nil, envFrom(map[string]string{
+		"USAGED_DEVICE_TOKEN": "test-token",
+	}))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -23,8 +25,8 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.Interval != 900*time.Second {
 		t.Errorf("Interval = %v, want 900s", cfg.Interval)
 	}
-	if cfg.DeviceToken != "change-me-32-chars" {
-		t.Errorf("DeviceToken = %q", cfg.DeviceToken)
+	if cfg.DeviceToken != "test-token" {
+		t.Errorf("DeviceToken = %q, want test-token (from env, no insecure default)", cfg.DeviceToken)
 	}
 	if cfg.GroqProbe {
 		t.Error("GroqProbe should default to false")
@@ -83,6 +85,7 @@ func TestLoadFlagOverridesEnv(t *testing.T) {
 		"USAGED_INTERVAL_SEC": "600",
 		"USAGED_STATE":        "$HOME/.local/state/usaged/state.json",
 		"USAGED_TZ":           "America/Sao_Paulo",
+		"USAGED_DEVICE_TOKEN": "test-token",
 	}
 	cfg, err := Load(
 		[]string{"--listen", "0.0.0.0:8080", "--interval", "450"},
@@ -124,8 +127,9 @@ func TestLoadFlagIntervalTooLow(t *testing.T) {
 
 func TestLoadHomeExpansion(t *testing.T) {
 	env := map[string]string{
-		"HOME":         "/tmp/testhome",
-		"USAGED_STATE": "$HOME/.local/state/usaged/state.json",
+		"HOME":                "/tmp/testhome",
+		"USAGED_STATE":        "$HOME/.local/state/usaged/state.json",
+		"USAGED_DEVICE_TOKEN": "test-token",
 	}
 	cfg, err := Load(nil, envFrom(env))
 	if err != nil {
@@ -139,7 +143,8 @@ func TestLoadHomeExpansion(t *testing.T) {
 func TestLoadDefaultHomeExpansion(t *testing.T) {
 	// Default StatePath contains $HOME; should be expanded even without USAGED_STATE
 	env := map[string]string{
-		"HOME": "/tmp/testhome",
+		"HOME":                "/tmp/testhome",
+		"USAGED_DEVICE_TOKEN": "test-token",
 	}
 	cfg, err := Load(nil, envFrom(env))
 	if err != nil {
@@ -166,7 +171,7 @@ func TestLoadInvalidTZ(t *testing.T) {
 func TestLoadFlagFixtures(t *testing.T) {
 	cfg, err := Load(
 		[]string{"--fixtures", "testdata/fixtures"},
-		envFrom(map[string]string{}),
+		envFrom(map[string]string{"USAGED_DEVICE_TOKEN": "test-token"}),
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -210,5 +215,57 @@ func TestRedactedNoKeys(t *testing.T) {
 	// Check that redacted values have the expected format
 	if !strings.HasPrefix(blob, "set(len=") {
 		t.Errorf("redacted value should start with 'set(len=', got %q", blob)
+	}
+}
+
+// --- SECURITY (ORDER #43 BUG 47) ---------------------------------------------
+
+func TestLoadRejectsNonLoopbackEmptyToken(t *testing.T) {
+	_, err := Load(nil, envFrom(map[string]string{
+		"USAGED_LISTEN": "0.0.0.0:8765",
+	}))
+	if err == nil {
+		t.Fatal("expected error for non-loopback listen with empty token")
+	}
+	if !strings.Contains(err.Error(), "device token required") {
+		t.Errorf("error should mention device token required, got: %v", err)
+	}
+}
+
+func TestLoadRejectsNonLoopbackPlaceholderToken(t *testing.T) {
+	_, err := Load(nil, envFrom(map[string]string{
+		"USAGED_LISTEN":       "0.0.0.0:8765",
+		"USAGED_DEVICE_TOKEN": "change-me-32-chars",
+	}))
+	if err == nil {
+		t.Fatal("expected error for placeholder token on non-loopback")
+	}
+	if !strings.Contains(err.Error(), "placeholder") {
+		t.Errorf("error should mention placeholder, got: %v", err)
+	}
+}
+
+func TestLoadLoopbackEmptyTokenOK(t *testing.T) {
+	cfg, err := Load(nil, envFrom(map[string]string{
+		"USAGED_LISTEN": "127.0.0.1:8765",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.DeviceToken != "" {
+		t.Errorf("DeviceToken = %q, want empty on loopback", cfg.DeviceToken)
+	}
+}
+
+func TestLoadNonLoopbackWithRealTokenOK(t *testing.T) {
+	cfg, err := Load(nil, envFrom(map[string]string{
+		"USAGED_LISTEN":       "0.0.0.0:8765",
+		"USAGED_DEVICE_TOKEN": "real-secret-token",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.DeviceToken != "real-secret-token" {
+		t.Errorf("DeviceToken = %q, want real-secret-token", cfg.DeviceToken)
 	}
 }

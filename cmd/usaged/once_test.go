@@ -18,7 +18,7 @@ import (
 var fixedOnceNow = time.Date(2026, 9, 3, 0, 0, 0, 0, time.UTC)
 
 func onceTestArgs(extra ...string) []string {
-	args := []string{"once", "--fixtures", "../../testdata/fixtures", "--tz", "America/Sao_Paulo"}
+	args := []string{"once", "--fixtures", "../../testdata/fixtures", "--tz", "America/Sao_Paulo", "--listen", "127.0.0.1:8765"}
 	return append(args, extra...)
 }
 

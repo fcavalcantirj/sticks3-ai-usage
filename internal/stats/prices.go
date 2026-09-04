@@ -85,6 +85,7 @@ var aliasModels = map[string]string{
 	"sonnet":      "claude-sonnet-5",
 	"gpt-5.5":     "openai/gpt-5.5",
 	"gpt-5.6-sol": "openai/gpt-5.6-sol",
+	"fugu-ultra":  "openai/fugu-ultra",
 }
 
 // LookupPrice resolves a model ID to its Price. It checks the prices table

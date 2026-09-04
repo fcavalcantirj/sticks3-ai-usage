@@ -80,8 +80,8 @@ func printStatsReport(w io.Writer, report *stats.Report, tz *time.Location) {
 			costSuffix = " (partial)"
 		}
 		if !src.Billed {
-			// Subscription-plan traffic: label as API-equiv, not a bare dollar.
-			costSuffix = " API-equiv (Max plan)"
+			// Subscription-plan traffic: label as API-equiv with the plan name.
+			costSuffix = fmt.Sprintf(" API-equiv (%s plan)", src.Plan)
 		}
 		fmt.Fprintf(w, "  Today: %d tokens (%d reqs), $%.6f%s\n",
 			src.Today.Tokens.Total(), src.Today.Requests, src.Today.Cost, costSuffix)

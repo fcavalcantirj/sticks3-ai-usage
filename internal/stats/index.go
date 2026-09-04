@@ -7,9 +7,21 @@ import (
 	"path/filepath"
 )
 
+// indexSchemaVersion is bumped whenever the scan parsing logic changes in a
+// way that could invalidate cached FileResults.  When a saved index has a
+// different version, LoadIndex discards the entire cache so the next scan
+// re-parses from scratch.
+const indexSchemaVersion = 2
+
+// indexVersionKey is a sentinel entry stored under this key in the Index map
+// to record the schema version.  It is never a real file path.
+const indexVersionKey = "__schema_version__"
+
 // LoadIndex reads the stats index from path. Returns an empty Index (not an
-// error) when the file does not exist. Returns an error and an empty Index
-// when the file exists but is corrupt.
+// error) when the file does not exist.  Returns an error and an empty Index
+// when the file exists but is corrupt.  If the saved index's schema version
+// does not match indexSchemaVersion, the cache is silently discarded (empty
+// Index returned) so a parser fix is always picked up on the next scan.
 func LoadIndex(path string) (Index, error) {
 	var idx Index
 	data, err := os.ReadFile(path)
@@ -22,6 +34,13 @@ func LoadIndex(path string) (Index, error) {
 	if err := json.Unmarshal(data, &idx); err != nil {
 		return make(Index), fmt.Errorf("corrupt stats index %s: %w", path, err)
 	}
+	// Schema version check: discard the cache if the version doesn't match.
+	fi, ok := idx[indexVersionKey]
+	if !ok || fi.Lines != indexSchemaVersion {
+		return make(Index), nil
+	}
+	// Strip the sentinel so callers see only real file entries.
+	delete(idx, indexVersionKey)
 	return idx, nil
 }
 
@@ -76,6 +95,10 @@ func SaveIndex(path string, idx Index) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("create stats index dir %s: %w", dir, err)
 	}
+
+	// Stamp the current schema version so a future parser change can detect
+	// and discard stale caches.
+	idx[indexVersionKey] = FileIndex{Lines: indexSchemaVersion}
 
 	data, err := json.Marshal(idx)
 	if err != nil {

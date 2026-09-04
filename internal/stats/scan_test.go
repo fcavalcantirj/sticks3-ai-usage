@@ -210,6 +210,99 @@ func TestScanCodexModelExtraction(t *testing.T) {
 	}
 }
 
+// TestScanCodexRealModels verifies model extraction with real Codex rollout
+// model names (ORDER #42a / #43 / #44 BUG 48). Real Codex data emits
+// turn_context as a TOP-LEVEL type (line.type == "turn_context", not nested
+// inside event_msg). gpt-5.5, gpt-5.6-sol and fugu-ultra are priced via the
+// openai/ canonical entries; bare fugu is explicitly unpriced.
+func TestScanCodexRealModels(t *testing.T) {
+	codexDir := filepath.Join(fixtureDir(t), "test_real_models")
+	if err := os.MkdirAll(codexDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(codexDir) })
+
+	lines := []string{
+		// gpt-5.6-sol session — turn_context is a top-level type in real Codex data.
+		`{"type":"event_msg","timestamp":"2026-09-03T09:00:00Z","payload":{"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-sol"}}}`,
+		`{"type":"turn_context","timestamp":"2026-09-03T09:01:00Z","payload":{"model":"gpt-5.6-sol"}}`,
+		`{"type":"event_msg","timestamp":"2026-09-03T09:01:00Z","payload":{"type":"token_count","info":{"model":"unknown","last_token_usage":{"input_tokens":500,"cached_input_tokens":0,"output_tokens":100,"reasoning_output_tokens":0}}}}`,
+
+		// gpt-5.5 session
+		`{"type":"event_msg","timestamp":"2026-09-03T10:00:00Z","payload":{"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.5"}}}`,
+		`{"type":"turn_context","timestamp":"2026-09-03T10:01:00Z","payload":{"model":"gpt-5.5"}}`,
+		`{"type":"event_msg","timestamp":"2026-09-03T10:01:00Z","payload":{"type":"token_count","info":{"model":"unknown","last_token_usage":{"input_tokens":600,"cached_input_tokens":0,"output_tokens":150,"reasoning_output_tokens":0}}}}`,
+
+		// fugu-ultra session (priced via openai/fugu-ultra)
+		`{"type":"event_msg","timestamp":"2026-09-03T11:00:00Z","payload":{"type":"thread_settings_applied","thread_settings":{"model":"fugu-ultra"}}}`,
+		`{"type":"turn_context","timestamp":"2026-09-03T11:01:00Z","payload":{"model":"fugu-ultra"}}`,
+		`{"type":"event_msg","timestamp":"2026-09-03T11:01:00Z","payload":{"type":"token_count","info":{"model":"unknown","last_token_usage":{"input_tokens":222728819,"cached_input_tokens":0,"output_tokens":50000,"reasoning_output_tokens":0}}}}`,
+	}
+	dst := filepath.Join(codexDir, "real_models.jsonl")
+	if err := os.WriteFile(dst, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	s := NewScanner(testTZ)
+	s.Clock = func() time.Time { return fixedScanNow }
+	cfg := ScanConfig{TZ: testTZ, CodexDir: codexDir}
+
+	report, _, err := s.Scan(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+
+	src, ok := report.Sources["codex"]
+	if !ok {
+		t.Fatal("missing codex source")
+	}
+
+	// All three priced models should appear.
+	modelIDs := make(map[string]bool)
+	for _, m := range src.Models {
+		modelIDs[m.Model] = true
+	}
+	if !modelIDs["gpt-5.6-sol"] {
+		t.Errorf("expected model gpt-5.6-sol in results, got %v", modelIDs)
+	}
+	if !modelIDs["gpt-5.5"] {
+		t.Errorf("expected model gpt-5.5 in results, got %v", modelIDs)
+	}
+	if !modelIDs["fugu-ultra"] {
+		t.Errorf("expected model fugu-ultra in results, got %v", modelIDs)
+	}
+
+	// Verify non-zero costs (ORDER #42a: previously showed $0 for these).
+	var solCost, gpt55Cost, fuguCost float64
+	for _, m := range src.Models {
+		switch m.Model {
+		case "gpt-5.6-sol":
+			solCost = m.Cost
+		case "gpt-5.5":
+			gpt55Cost = m.Cost
+		case "fugu-ultra":
+			fuguCost = m.Cost
+		}
+	}
+	if solCost == 0 {
+		t.Error("gpt-5.6-sol cost should be non-zero")
+	}
+	if gpt55Cost == 0 {
+		t.Error("gpt-5.5 cost should be non-zero")
+	}
+	if fuguCost == 0 {
+		t.Error("fugu-ultra cost should be non-zero (had 222,728,819 input tokens)")
+	}
+
+	// Codex is subscription-billed (ChatGPT Plus), not per-token.
+	if src.Billed {
+		t.Error("Codex Billed should be false (Plus subscription)")
+	}
+	if src.Plan != "Plus" {
+		t.Errorf("Codex Plan = %q, want Plus", src.Plan)
+	}
+}
+
 func TestScanDayBucketingTZ(t *testing.T) {
 	// Use UTC instead of São Paulo to verify TZ affects day bucketing.
 	dir := fixtureDir(t)

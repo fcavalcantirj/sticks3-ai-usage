@@ -77,6 +77,9 @@ type Source struct {
 	// Plus/Max plan are billed via subscription, so their cost is labelled
 	// "API-equiv" in the CLI rather than shown as a bare dollar amount.
 	Billed bool `json:"billed"`
+	// Plan is the subscription tier name for unbilled sources (e.g. "Max",
+	// "Plus"), used in the CLI label "(Plan plan)" instead of a bare dollar.
+	Plan string `json:"plan,omitempty"`
 }
 
 // Report is the top-level stats report returned by Scan and served at

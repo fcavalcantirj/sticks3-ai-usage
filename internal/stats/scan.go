@@ -170,6 +170,10 @@ func (s *Scanner) scanClaudeCode(ctx context.Context, dir string, index Index, n
 	src := &Source{
 		Models: []Model{},
 		Days:   []Day{},
+		// Ordered via Claude Code plan (Billed via subscription):
+		// Codex runs on a ChatGPT Plus subscription, not per-token.
+		Billed: false,
+		Plan:   "Max",
 	}
 	modelAgg := make(map[string]Tokens)
 	modelReqs := make(map[string]int)
@@ -433,6 +437,9 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 	src := &Source{
 		Models: []Model{},
 		Days:   []Day{},
+		// Codex traffic runs under a ChatGPT Plus subscription, not per-token:
+		Billed: false,
+		Plan:   "Plus",
 	}
 	modelAgg := make(map[string]Tokens)
 	modelReqs := make(map[string]int)
@@ -503,12 +510,23 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 			if err := json.Unmarshal(sc.Bytes(), &line); err != nil {
 				continue
 			}
+			// BUG 48 fix: real Codex data emits turn_context as a TOP-LEVEL
+			// type (line.Type == "turn_context"), not nested inside event_msg.
+			// The event_msg guard below would skip these, making model
+			// extraction impossible. Handle turn_context first.
+			if line.Type == "turn_context" {
+				if line.Payload.Model != "" {
+					currentModel = line.Payload.Model
+				}
+				continue
+			}
+
 			if line.Type != "event_msg" {
 				continue
 			}
 
-			// Track the current model from turn_context and
-			// thread_settings_applied events. The token_count events carry
+			// Track the current model from turn_context (nested in event_msg)
+			// and thread_settings_applied events. The token_count events carry
 			// "unknown" as the model id — the real id lives on the preceding
 			// turn_context (payload.model) or thread_settings_applied
 			// (payload.thread_settings.model) line. We carry the most recent
