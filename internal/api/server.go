@@ -13,6 +13,7 @@ import (
 	"usaged/internal/format"
 	"usaged/internal/sched"
 	"usaged/internal/snapshot"
+	"usaged/internal/stats"
 	"usaged/internal/web"
 )
 
@@ -130,6 +131,31 @@ func (s *Server) handleUsageTxt(w http.ResponseWriter, _ *http.Request) {
 	format.RenderTable(snap, w, s.cfg.TZ)
 }
 
+// planParamsMap builds the plan params map from the config's provider configs,
+// keyed by stats source name ("claude_code", "codex"). Providers without a
+// plan block are omitted. The stats package stays free of config imports, so
+// this conversion lives here.
+func planParamsMap(cfg config.Config) map[string]stats.PlanParams {
+	m := map[string]stats.PlanParams{}
+	for id, p := range cfg.ProviderConfigs {
+		if p.Plan == nil {
+			continue
+		}
+		srcName := id
+		if id == "claude" {
+			srcName = "claude_code"
+		}
+		m[srcName] = stats.PlanParams{
+			Cost:       p.Plan.Cost,
+			Currency:   p.Plan.Currency,
+			CostUSD:    p.Plan.CostUSD,
+			HasCostUSD: p.Plan.HasCostUSD,
+			Label:      p.Plan.Label,
+		}
+	}
+	return m
+}
+
 // handleStats serves the local transcript stats report as JSON with an ETag
 // based on the report's GeneratedAt timestamp.
 func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
@@ -138,6 +164,9 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"ok": "false", "error": "stats not ready"})
 		return
 	}
+
+	// Augment with subscription plan value (API-equiv ratio) from the config.
+	stats.ApplyPlanValues(report, planParamsMap(s.cfg))
 
 	etag := `"` + fmt.Sprintf("%x", report.GeneratedAt) + `"`
 	if etagMatch(r.Header.Get("If-None-Match"), fmt.Sprintf("%x", report.GeneratedAt)) {

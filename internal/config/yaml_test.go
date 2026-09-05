@@ -355,3 +355,173 @@ func TestLoadMissingFileSkips(t *testing.T) {
 		t.Errorf("Interval = %v, want 900s", cfg.Interval)
 	}
 }
+
+// ---- Plan block parsing tests ----
+
+func TestParseYAMLPlanBlockUSD(t *testing.T) {
+	text := `providers:
+  - id: claude
+    plan:
+      cost: 200.00
+      currency: USD
+      label: "Max 20x"
+`
+	fc, err := ParseYAML(text)
+	if err != nil {
+		t.Fatalf("ParseYAML: %v", err)
+	}
+	if len(fc.Providers) != 1 {
+		t.Fatalf("len(Providers) = %d, want 1", len(fc.Providers))
+	}
+	p := fc.Providers[0]
+	if p.ID != "claude" {
+		t.Errorf("ID = %q, want claude", p.ID)
+	}
+	if p.Plan == nil {
+		t.Fatal("Plan should not be nil")
+	}
+	if p.Plan.Cost != 200.00 {
+		t.Errorf("Plan.Cost = %.2f, want 200.00", p.Plan.Cost)
+	}
+	if p.Plan.Currency != "USD" {
+		t.Errorf("Plan.Currency = %q, want USD", p.Plan.Currency)
+	}
+	if p.Plan.Label != "Max 20x" {
+		t.Errorf("Plan.Label = %q, want Max 20x", p.Plan.Label)
+	}
+	if p.Plan.HasCostUSD {
+		t.Error("Plan.HasCostUSD should be false when cost_usd is absent")
+	}
+}
+
+func TestParseYAMLPlanBlockBRLWithCostUSD(t *testing.T) {
+	text := `providers:
+  - id: codex
+    plan:
+      cost: 110.00
+      currency: BRL
+      cost_usd: 20.00
+      label: "Plus"
+`
+	fc, err := ParseYAML(text)
+	if err != nil {
+		t.Fatalf("ParseYAML: %v", err)
+	}
+	p := fc.Providers[0]
+	if p.Plan == nil {
+		t.Fatal("Plan should not be nil")
+	}
+	if p.Plan.Cost != 110.00 {
+		t.Errorf("Plan.Cost = %.2f, want 110.00", p.Plan.Cost)
+	}
+	if p.Plan.Currency != "BRL" {
+		t.Errorf("Plan.Currency = %q, want BRL", p.Plan.Currency)
+	}
+	if !p.Plan.HasCostUSD {
+		t.Error("Plan.HasCostUSD should be true when cost_usd is present")
+	}
+	if p.Plan.CostUSD != 20.00 {
+		t.Errorf("Plan.CostUSD = %.2f, want 20.00", p.Plan.CostUSD)
+	}
+	if p.Plan.Label != "Plus" {
+		t.Errorf("Plan.Label = %q, want Plus", p.Plan.Label)
+	}
+}
+
+func TestParseYAMLPlanBlockBRLWithoutCostUSD(t *testing.T) {
+	text := `providers:
+  - id: codex
+    plan:
+      cost: 110.00
+      currency: BRL
+      label: "Plus"
+`
+	fc, err := ParseYAML(text)
+	if err != nil {
+		t.Fatalf("ParseYAML: %v", err)
+	}
+	p := fc.Providers[0]
+	if p.Plan == nil {
+		t.Fatal("Plan should not be nil")
+	}
+	if p.Plan.HasCostUSD {
+		t.Error("Plan.HasCostUSD should be false when cost_usd is absent")
+	}
+}
+
+func TestParseYAMLPlanBlockRejectsInlineValue(t *testing.T) {
+	text := `providers:
+  - id: claude
+    plan: "bad"
+`
+	_, err := ParseYAML(text)
+	if err == nil {
+		t.Fatal("expected error for inline plan value")
+	}
+}
+
+func TestParseYAMLPlanBlockEmpty(t *testing.T) {
+	text := `providers:
+  - id: claude
+    plan:
+`
+	_, err := ParseYAML(text)
+	if err == nil {
+		t.Fatal("expected error for empty plan block")
+	}
+	if !strings.Contains(err.Error(), "no fields") {
+		t.Errorf("error should mention 'no fields', got: %v", err)
+	}
+}
+
+func TestParseYAMLPlanBlockUnknownField(t *testing.T) {
+	text := `providers:
+  - id: claude
+    plan:
+      bogus_field: 100
+`
+	_, err := ParseYAML(text)
+	if err == nil {
+		t.Fatal("expected error for unknown plan field")
+	}
+}
+
+func TestLoadPlanFromConfigFile(t *testing.T) {
+	text := `providers:
+  - id: claude
+    plan:
+      cost: 200
+      currency: USD
+      label: "Max 20x"
+  - id: codex
+    plan:
+      cost: 110
+      currency: BRL
+      label: "Plus"
+`
+	path := writeTempYAML(t, text)
+	cfg, err := Load([]string{"--config", path}, envFrom(map[string]string{"USAGED_DEVICE_TOKEN": "test-token"}))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	claude, ok := cfg.ProviderConfigs["claude"]
+	if !ok {
+		t.Fatal("claude should be in ProviderConfigs")
+	}
+	if claude.Plan == nil {
+		t.Fatal("claude Plan should be set")
+	}
+	if claude.Plan.Currency != "USD" {
+		t.Errorf("claude Plan.Currency = %q, want USD", claude.Plan.Currency)
+	}
+	codex, ok := cfg.ProviderConfigs["codex"]
+	if !ok {
+		t.Fatal("codex should be in ProviderConfigs")
+	}
+	if codex.Plan == nil {
+		t.Fatal("codex Plan should be set")
+	}
+	if codex.Plan.Currency != "BRL" {
+		t.Errorf("codex Plan.Currency = %q, want BRL", codex.Plan.Currency)
+	}
+}

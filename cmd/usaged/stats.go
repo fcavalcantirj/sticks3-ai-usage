@@ -49,6 +49,27 @@ func runStats(args []string, stdout io.Writer) int {
 		_ = stats.SaveIndex(cfg.StatsIndexPath, index)
 	}
 
+	// Augment the report with plan-value ratios from the YAML config.
+	// Provider IDs "claude"/"codex" map to stats source names "claude_code"/"codex".
+	planMap := map[string]stats.PlanParams{}
+	for id, p := range cfg.ProviderConfigs {
+		if p.Plan == nil {
+			continue
+		}
+		srcName := id
+		if id == "claude" {
+			srcName = "claude_code"
+		}
+		planMap[srcName] = stats.PlanParams{
+			Cost:       p.Plan.Cost,
+			Currency:   p.Plan.Currency,
+			CostUSD:    p.Plan.CostUSD,
+			HasCostUSD: p.Plan.HasCostUSD,
+			Label:      p.Plan.Label,
+		}
+	}
+	stats.ApplyPlanValues(&report, planMap)
+
 	printStatsReport(stdout, &report, cfg.TZ)
 	return 0
 }
@@ -79,8 +100,17 @@ func printStatsReport(w io.Writer, report *stats.Report, tz *time.Location) {
 		if src.Partial {
 			costSuffix = " (partial)"
 		}
-		if !src.Billed {
-			// Subscription-plan traffic: label as API-equiv with the plan name.
+		if !src.Billed && src.PlanValue != nil {
+			pv := src.PlanValue
+			ccy := currencySymbol(pv.Currency)
+			if pv.HasRatio {
+				costSuffix = fmt.Sprintf(" API-equiv (%s, %s%.2f/mo, %.1fx)",
+					pv.Label, ccy, pv.Cost, pv.Ratio)
+			} else {
+				costSuffix = fmt.Sprintf(" API-equiv (%s, %s%.2f/mo)",
+					pv.Label, ccy, pv.Cost)
+			}
+		} else if !src.Billed {
 			costSuffix = fmt.Sprintf(" API-equiv (%s plan)", src.Plan)
 		}
 		fmt.Fprintf(w, "  Today: %d tokens (%d reqs), $%.6f%s\n",
@@ -130,4 +160,16 @@ func truncModel(s string) string {
 		return s[:27] + "..."
 	}
 	return strings.TrimSpace(s)
+}
+
+// currencySymbol returns the symbol for a currency code (USD → "$", BRL → "R$").
+func currencySymbol(currency string) string {
+	switch currency {
+	case "USD":
+		return "$"
+	case "BRL":
+		return "R$"
+	default:
+		return currency + " "
+	}
 }

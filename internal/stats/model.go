@@ -80,6 +80,34 @@ type Source struct {
 	// Plan is the subscription tier name for unbilled sources (e.g. "Max",
 	// "Plus"), used in the CLI label "(Plan plan)" instead of a bare dollar.
 	Plan string `json:"plan,omitempty"`
+	// PlanValue is non-nil when a subscription plan is configured for this
+	// source (via YAML plan: block). Carries the plan cost, currency, and the
+	// API-equivalent ratio. Populated by ApplyPlanValues, not by the scanner.
+	PlanValue *PlanValue `json:"plan_value,omitempty"`
+}
+
+// PlanValue is the subscription-plan value analysis for a source. It is
+// populated by ApplyPlanValues (called by the CLI and API server) after the
+// stats scan, using the plan block from the YAML config.
+type PlanValue struct {
+	Cost     float64 `json:"cost"`               // monthly plan cost in original currency
+	Currency string  `json:"currency"`           // e.g. "USD", "BRL"
+	CostUSD  float64 `json:"cost_usd,omitempty"` // manual USD equivalent (0 if absent)
+	Label    string  `json:"label"`              // e.g. "Max 20x", "Plus"
+	Ratio    float64 `json:"ratio"`              // API-equiv month cost / plan cost (USD)
+	HasRatio bool    `json:"has_ratio"`          // true when the ratio can be computed
+	Warn     bool    `json:"warn"`               // true when ratio < 1.0 (plan not paying for itself)
+}
+
+// PlanParams is the plan configuration used to compute a PlanValue. It is
+// the config-package PlanConfig converted to primitives, so the stats package
+// stays free of config imports.
+type PlanParams struct {
+	Cost       float64
+	Currency   string
+	CostUSD    float64
+	HasCostUSD bool
+	Label      string
 }
 
 // Report is the top-level stats report returned by Scan and served at

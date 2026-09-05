@@ -36,6 +36,8 @@ func TestIndexHTMLStatsIds(t *testing.T) {
 		"id=\"heatmap-codex\"",
 		"id=\"models-table\"",
 		"id=\"attention\"",
+		"id=\"pill-month-cost\"",
+		"id=\"pill-month-ratio\"",
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("index.html missing element %q", want)

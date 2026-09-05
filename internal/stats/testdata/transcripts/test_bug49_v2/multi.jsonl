@@ -1,0 +1,12 @@
+{"type":"event_msg","timestamp":"2026-09-01T09:00:00Z","payload":{"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-sol"}}}
+{"type":"turn_context","timestamp":"2026-09-01T09:01:00Z","payload":{"model":"gpt-5.6-sol"}}
+{"type":"event_msg","timestamp":"2026-09-04T12:00:00Z","payload":{"type":"token_count","info":{"model":"unknown","last_token_usage":{"input_tokens":100,"cached_input_tokens":0,"output_tokens":100,"reasoning_output_tokens":0}}}}
+{"type":"event_msg","timestamp":"2026-09-02T09:00:00Z","payload":{"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.5"}}}
+{"type":"turn_context","timestamp":"2026-09-02T09:01:00Z","payload":{"model":"gpt-5.5"}}
+{"type":"event_msg","timestamp":"2026-09-04T12:01:00Z","payload":{"type":"token_count","info":{"model":"unknown","last_token_usage":{"input_tokens":200,"cached_input_tokens":0,"output_tokens":200,"reasoning_output_tokens":0}}}}
+{"type":"event_msg","timestamp":"2026-09-03T09:00:00Z","payload":{"type":"thread_settings_applied","thread_settings":{"model":"gpt-5.6-sol"}}}
+{"type":"turn_context","timestamp":"2026-09-03T09:01:00Z","payload":{"model":"gpt-5.6-sol"}}
+{"type":"event_msg","timestamp":"2026-09-04T12:02:00Z","payload":{"type":"token_count","info":{"model":"unknown","last_token_usage":{"input_tokens":300,"cached_input_tokens":0,"output_tokens":300,"reasoning_output_tokens":0}}}}
+{"type":"event_msg","timestamp":"2026-09-04T10:00:00Z","payload":{"type":"thread_settings_applied","thread_settings":{"model":"fugu"}}}
+{"type":"turn_context","timestamp":"2026-09-04T10:01:00Z","payload":{"model":"fugu"}}
+{"type":"event_msg","timestamp":"2026-09-04T10:01:00Z","payload":{"type":"token_count","info":{"model":"unknown","last_token_usage":{"input_tokens":3500,"cached_input_tokens":0,"output_tokens":3500,"reasoning_output_tokens":0}}}}

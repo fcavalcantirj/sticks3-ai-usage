@@ -26,6 +26,17 @@ type YamlProvider struct {
 	KeyEnv   string
 	Probe    bool
 	HasProbe bool // distinguishes "probe: false" from "probe not set"
+	Plan     *PlanConfig
+}
+
+// PlanConfig is the subscription-plan block for a provider. It describes what
+// the user actually pays (so API-equivalent usage can be compared against it).
+type PlanConfig struct {
+	Cost       float64
+	Currency   string // e.g. "USD", "BRL"
+	CostUSD    float64
+	HasCostUSD bool // distinguishes "cost_usd: 0" from absent
+	Label      string
 }
 
 // yamlLine is a single lexed line.
@@ -290,6 +301,20 @@ func parseProviderList(lines []yamlLine, pos int) ([]YamlProvider, int, error) {
 			if !ok {
 				return providers, pos, fmt.Errorf("line %d: expected 'key: value' in provider list, got %q", cl.lineNo, cl.content)
 			}
+
+			// A "plan:" line with no value starts a nested block.
+			if k == "plan" && v == "" {
+				planIndent := itemIndent + 2
+				pos++ // consume the "plan:" line
+				plan, newPos, err := parsePlanBlock(lines, pos, planIndent, cl.lineNo)
+				if err != nil {
+					return providers, pos, err
+				}
+				pos = newPos
+				prov.Plan = &plan
+				continue
+			}
+
 			if err := setProviderField(&prov, k, v, cl.lineNo); err != nil {
 				return providers, pos, err
 			}
@@ -302,7 +327,60 @@ func parseProviderList(lines []yamlLine, pos int) ([]YamlProvider, int, error) {
 	return providers, pos, nil
 }
 
-// setProviderField sets a field on YamlProvider from a key:value pair.
+// parsePlanBlock reads a nested "plan:" map at the given indentation. The
+// parent "plan:" line has already been consumed; pos points at the first
+// field line. Returns the PlanConfig and the index past the block.
+func parsePlanBlock(lines []yamlLine, pos, indent, parentLineNo int) (PlanConfig, int, error) {
+	var pc PlanConfig
+
+	if pos >= len(lines) {
+		return pc, pos, fmt.Errorf("line %d: 'plan:' block has no fields", parentLineNo)
+	}
+	if lines[pos].indent != indent {
+		return pc, pos, fmt.Errorf("line %d: expected %d-space indentation for plan fields, got %d",
+			lines[pos].lineNo, indent, lines[pos].indent)
+	}
+
+	for pos < len(lines) && lines[pos].indent == indent {
+		ln := lines[pos]
+		key, value, ok := splitKV(ln.content)
+		if !ok {
+			return pc, pos, fmt.Errorf("line %d: expected 'key: value' in plan block, got %q", ln.lineNo, ln.content)
+		}
+
+		switch key {
+		case "cost":
+			f, err := strconv.ParseFloat(value, 64)
+			if err != nil {
+				return pc, pos, fmt.Errorf("line %d: plan cost must be a number, got %q", ln.lineNo, value)
+			}
+			pc.Cost = f
+		case "currency":
+			if value == "" {
+				return pc, pos, fmt.Errorf("line %d: plan currency requires a value", ln.lineNo)
+			}
+			pc.Currency = unquote(value)
+		case "cost_usd":
+			f, err := strconv.ParseFloat(value, 64)
+			if err != nil {
+				return pc, pos, fmt.Errorf("line %d: plan cost_usd must be a number, got %q", ln.lineNo, value)
+			}
+			pc.CostUSD = f
+			pc.HasCostUSD = true
+		case "label":
+			if value == "" {
+				return pc, pos, fmt.Errorf("line %d: plan label requires a value", ln.lineNo)
+			}
+			pc.Label = unquote(value)
+		default:
+			return pc, pos, fmt.Errorf("line %d: unknown plan field %q (known: cost, currency, cost_usd, label)", ln.lineNo, key)
+		}
+		pos++
+	}
+
+	return pc, pos, nil
+}
+
 // It enforces the schema: no literal "key" field, no sk-/gsk_ values,
 // no unknown fields.
 func setProviderField(p *YamlProvider, key, value string, lineNo int) error {
@@ -332,8 +410,10 @@ func setProviderField(p *YamlProvider, key, value string, lineNo int) error {
 		p.HasProbe = true
 	case "key":
 		return fmt.Errorf("line %d: use 'key_env' to name the env var holding the key, not a literal 'key' field — the YAML must never contain a key value", lineNo)
+	case "plan":
+		return fmt.Errorf("line %d: 'plan:' must start a nested block (plan: %s is not valid)", lineNo, value)
 	default:
-		return fmt.Errorf("line %d: unknown provider field %q (known: id, enabled, label, key_env, probe)", lineNo, key)
+		return fmt.Errorf("line %d: unknown provider field %q (known: id, enabled, label, key_env, probe, plan)", lineNo, key)
 	}
 	return nil
 }

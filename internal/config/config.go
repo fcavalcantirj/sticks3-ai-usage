@@ -338,6 +338,14 @@ func (c Config) Redacted() map[string]any {
 			"key_env": p.KeyEnv,
 			"probe":   p.Probe,
 		}
+		if p.Plan != nil {
+			provConfigs[id]["plan"] = map[string]any{
+				"cost":         p.Plan.Cost,
+				"currency":     p.Plan.Currency,
+				"label":        p.Plan.Label,
+				"has_cost_usd": p.Plan.HasCostUSD,
+			}
+		}
 	}
 	m["provider_configs"] = provConfigs
 	if c.OpenRouterKeys != nil {

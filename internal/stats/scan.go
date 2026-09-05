@@ -511,6 +511,13 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 
 		sc := bufio.NewScanner(f)
 		currentModel := ""
+		// BUG 49 fix: the token_count event's timestamp reflects when the
+		// response was logged (often "now" due to replay), not when the
+		// request was made. Track the day key from the most recent
+		// turn_context / thread_settings_applied event (the request time)
+		// and use it for day bucketing of token_count events. Fall back to
+		// the token_count line's own timestamp if no context was seen.
+		currentDayKey := ""
 		for sc.Scan() {
 			lineNum++
 			var line codexEventLine
@@ -525,6 +532,7 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 				if line.Payload.Model != "" {
 					currentModel = line.Payload.Model
 				}
+				currentDayKey = dayKeyFromTimestamp(line.Timestamp, s.TZ)
 				continue
 			}
 
@@ -542,11 +550,15 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 				if line.Payload.Model != "" {
 					currentModel = line.Payload.Model
 				}
+				currentDayKey = dayKeyFromTimestamp(line.Timestamp, s.TZ)
 				continue
 			}
 			if line.Payload.Type == "thread_settings_applied" {
 				if line.Payload.ThreadSettings.Model != "" {
 					currentModel = line.Payload.ThreadSettings.Model
+				}
+				if currentDayKey == "" {
+					currentDayKey = dayKeyFromTimestamp(line.Timestamp, s.TZ)
 				}
 				continue
 			}
@@ -573,7 +585,10 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 			fileModels[model] = fileModels[model].Add(tokens)
 			fileReqs[model]++
 
-			dayKey := dayKeyFromTimestamp(line.Timestamp, s.TZ)
+			dayKey := currentDayKey
+			if dayKey == "" {
+				dayKey = dayKeyFromTimestamp(line.Timestamp, s.TZ)
+			}
 			fileDayTokens[dayKey] = fileDayTokens[dayKey].Add(tokens)
 			fileDayReqs[dayKey]++
 			if fileDayModels[dayKey] == nil {

@@ -28,11 +28,24 @@ alerts:
 # Provider toggles. `enabled: false` removes the provider from the snapshot
 # entirely. `key_env` names the ENVIRONMENT VARIABLE that holds the API key —
 # the YAML must contain only the env var name, never the key itself.
+#
+# plan: (optional) describes the subscription the user actually pays, so the
+# CLI/web can compare API-equiv usage against the real cost. Keys are cost and
+# currency (the plan's price), cost_usd (manual USD equivalent for ratio math;
+# when absent for non-USD plans, no ratio is shown — no invented FX), and label.
 providers:
   - id: claude
     enabled: true
+    plan:
+      cost: 200.00
+      currency: USD
+      label: "Max 20x"
   - id: codex
     enabled: true
+    plan:
+      cost: 110.00
+      currency: BRL
+      label: "Plus"
   - id: openrouter:main
     enabled: true
     label: "OpenRouter main"

@@ -74,6 +74,9 @@
     .pill .num { font-size: 22px; font-weight: 700; color: var(--text); }
     .pill .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-top: 2px; }
     .pill .est { font-size: 10px; color: var(--muted); margin-top: 2px; }
+    .pill .ratio { font-size: 11px; font-weight: 600; margin-top: 2px; }
+    .pill .ratio.warn { color: var(--warn); }
+    .pill .ratio.ok { color: var(--ok); }
 
     .quota-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
     @media (min-width: 960px) { .quota-grid { grid-template-columns: 1fr 1fr; } }
@@ -132,7 +135,7 @@
     <div class="pill"><div class="num" id="pill-today-tok">—</div><div class="lbl">Tokens today</div></div>
     <div class="pill"><div class="num" id="pill-month-tok">—</div><div class="lbl">Tokens this month</div></div>
     <div class="pill"><div class="num" id="pill-today-cost">$—</div><div class="lbl">Cost today</div><div class="est">est.</div></div>
-    <div class="pill"><div class="num" id="pill-month-cost">$—</div><div class="lbl">Cost this month</div><div class="est">est.</div></div>
+    <div class="pill"><div class="num" id="pill-month-cost">$—</div><div class="lbl">Cost this month</div><div class="est">est.</div><div class="ratio" id="pill-month-ratio"></div></div>
   </div>
 
   <!-- Quota cards (providers) -->
@@ -409,6 +412,34 @@ function renderStats(report) {
   document.getElementById("pill-month-tok").textContent = fmtTokens(monthTok);
   document.getElementById("pill-today-cost").textContent = fmtCost(todayCost);
   document.getElementById("pill-month-cost").textContent = fmtCost(monthCost);
+
+  // Plan-value ratio: compute from sources with a plan_value.
+  var ratioEl = document.getElementById("pill-month-ratio");
+  ratioEl.textContent = "";
+  ratioEl.className = "ratio";
+  var hasRatio = false;
+  for (var sn in report.sources) {
+    var s = report.sources[sn];
+    if (s.plan_value && s.plan_value.has_ratio) {
+      hasRatio = true;
+      var r = s.plan_value.ratio;
+      var label = s.plan_value.label || sn;
+      ratioEl.textContent = label + " " + r.toFixed(1) + "x your $" +
+        s.plan_value.cost.toFixed(0) + "/mo plan";
+      ratioEl.className = "ratio " + (s.plan_value.warn ? "warn" : "ok");
+      break;  // show one representative ratio
+    }
+  }
+  if (!hasRatio) {
+    for (var sn2 in report.sources) {
+      var s2 = report.sources[sn2];
+      if (s2.plan_value && !s2.plan_value.has_ratio) {
+        ratioEl.textContent = s2.plan_value.label || sn2;
+        ratioEl.className = "ratio";
+        break;
+      }
+    }
+  }
 
   // Heatmap cards
   var srcNames = Object.keys(report.sources);

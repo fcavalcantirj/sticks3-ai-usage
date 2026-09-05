@@ -11,7 +11,7 @@ import (
 // way that could invalidate cached FileResults.  When a saved index has a
 // different version, LoadIndex discards the entire cache so the next scan
 // re-parses from scratch.
-const indexSchemaVersion = 2
+const indexSchemaVersion = 3
 
 // indexVersionKey is a sentinel entry stored under this key in the Index map
 // to record the schema version.  It is never a real file path.
