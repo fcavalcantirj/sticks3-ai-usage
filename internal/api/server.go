@@ -190,8 +190,17 @@ func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
 		status = http.StatusNotModified
 	}
 
+	// Identify whether the requester is the StickS3 device: it presents
+	// the configured X-Device-Token.  The loopback browser does not.  This
+	// lets the tracker know which client entry to surface as device_state.
+	token := r.Header.Get("X-Device-Token")
+	if token == "" {
+		token = r.URL.Query().Get("token")
+	}
+	hasValidToken := validToken(token, s.cfg.DeviceToken)
+
 	// Record the request and log access (never logs the device token).
-	s.tracker.record(peer, now, status)
+	s.tracker.record(peer, hasValidToken, now, status)
 	s.logAccess(r, status)
 
 	if matched {
@@ -199,12 +208,13 @@ func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 200 response: include per-client device state so the web dashboard can
-	// prove whether deep sleep is occurring (long, regular intervals between
-	// requests). DeviceState is outside the Snapshot hash so rev is unaffected.
+	// 200 response: include the DEVICE's state (ORDER #61 task 64), not the
+	// requester's.  The browser is loopback and trivially "connected"; the
+	// StickS3's sleep cadence is the signal we need.  DeviceState is outside
+	// the Snapshot hash so rev is unaffected and a 304 stays a 304.
 	resp := usageResponse{
 		Snapshot:    snap,
-		DeviceState: s.tracker.state(peer),
+		DeviceState: s.tracker.deviceState(),
 	}
 	body, err := json.Marshal(resp)
 	if err != nil {

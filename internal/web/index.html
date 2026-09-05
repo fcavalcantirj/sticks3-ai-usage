@@ -1172,12 +1172,16 @@ function heatmapHtml(src, srcName) {
 function deviceCard(ds) {
   if (!ds) {
     return '<div class="device-accent">' +
-      attentionItem("Device", "No data", "chip-stale", "waiting for first check-in") +
+      attentionItem("Device", "No data", "chip-stale", "waiting for first check-in from StickS3") +
       '</div>';
   }
 
+  // ORDER #61 task 64: this is the DEVICE's state (the StickS3 on the LAN),
+  // not the browser's.  Name the address so there is never ambiguity about
+  // whose state is on screen.
+  var title = ds.addr ? ("Device " + ds.addr) : "Device";
+
   var since = ds.seconds_since;
-  var expected = ds.interval_sec > 0 ? ds.interval_sec : currentInterval;
 
   var chipClass, chipText;
   if (ds.state === "absent") {
@@ -1199,7 +1203,7 @@ function deviceCard(ds) {
   parts.push("state: " + (ds.state || "unknown"));
 
   return '<div class="device-accent">' +
-    attentionItem("Device", chipText, chipClass, parts.join(" \u00b7 ")) +
+    attentionItem(title, chipText, chipClass, parts.join(" \u00b7 ")) +
     '</div>';
 }
 
