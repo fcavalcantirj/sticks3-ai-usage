@@ -625,7 +625,7 @@
       "(d) BANNER UNREADABLE: dark-orange text on an orange bar. Use high-contrast text (black or white, whichever wins on this panel) and check it by eye, not by hex value. It also shows only 'ChatGPT' with no message — say WHAT is wrong, e.g. 'ChatGPT 7d 100%'; a provider name alone is not an alert. (e) THE BANNER STEALS A CARD ROW ON EVERY PAGE, which is ORDER #49's fault: PLANS now overflows into TWO pages (1/4 and 2/4 both PLANS, the second holding only GPT 7d and GPT rst above a screen of empty space) for four pages instead of three. Move the alert into the FOOTER line, which already spans the full width and currently holds only the button hint — alerts matter more than a hint he has learned, no card row is stolen, PLANS fits one page again and we return to three pages; show the button hint only when there is no alert. (f) 100% BAR NOW UNDER-FILLS: page 2/4's GPT 7d row reads 100% while its fill stops short of the track's right edge — the clamp overcorrected; assert fillWidth(100) == trackInnerWidth exactly and eyeball it.",
       "Verify: `make fw-test` Failed 0 with new tests for the version string, the top-bar packing, the 100% fill and the footer-alert precedence; `make fw-build` SUCCESS with 0 warnings from firmware/src/; fresh-clone build green. Then request authorization for ONE flash covering all seven and run the UAT with Felipe: he confirms a tidy top-right corner, a readable alert naming the problem, three pages rather than four, and a flush 100% bar. Do not flash per-defect."
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "optional",
