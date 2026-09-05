@@ -5,6 +5,7 @@
 #include "usage/textfit.h"   // fitRight (pure C++17, testable on host)
 #include "usage/topbar.h"    // topbar::compute (pure layout, host-tested)
 #include "usage/render_plan.h" // usage::FooterLayout, footerCompute (ORDER #56)
+#include "usage/align.h"       // usage::centerTextY / centerTextX (ORDER #59 task 62)
 
 #include <M5Unified.h>
 #include <cstdio>
@@ -165,31 +166,49 @@ void drawPlan(const usage::RenderPlan& plan, bool wifiOk,
         fitPrintRight(W - rightPad, textY, rightText, maxPx);
     }
 
-    // --- footer (y = 116..134) ------------------------------------------------
+    // --- footer (y = 116..131) ------------------------------------------------
     // ORDER #48 defect (e) + ORDER #51: alerts live HERE, not in the card area.
     // BUG 52: the footer is the DEVICE's own state slot.  When there is a
     // crit banner, draw it with alert colours.  When WiFi is down, say
-    // "no hub".  Otherwise, show the seq/version line on the left and the
-    // button hint on the right.
+    // "no hub".  Otherwise, show the version on the left and the button
+    // hint on the right.
+    //
+    // ORDER #59 task 62: ONE baseline for all footer branches.  The footer
+    // rect is at y=116, height=16; the cursor Y is computed from the rect
+    // and the runtime font height so the text cannot drift (the old code had
+    // three literals: 118, 120, 120, and 118 was 2 px too high).  Horizontal
+    // centring is within the rect (x=5, W-10) — not the screen midpoint,
+    // which only coincidentally shared it.
+    int16_t footerY = 116;
+    int16_t footerH = 16;
+    int16_t footerX = 5;
+    int16_t footerW = W - 10;
+    int16_t fontH = M5.Display.fontHeight();
+    int16_t footerBaseline = usage::centerTextY(footerY, footerH, fontH);
+
     if (plan.bannerTier == 2 && plan.banner[0] != '\0') {
-        // Crit alert: full-width red, white text, centred.
-        M5.Display.fillRect(5, 116, W - 10, 16, 0xF800);
+        // Crit alert: full-width red, white text, centred within the rect.
+        M5.Display.fillRect(footerX, footerY, footerW, footerH, 0xF800);
         M5.Display.setTextColor(TFT_WHITE);
         int16_t fw = M5.Display.textWidth(plan.banner);
-        M5.Display.setCursor((W - fw) / 2, 118);
+        M5.Display.setCursor(
+            usage::centerTextX(footerX, footerW, fw),
+            footerBaseline);
         M5.Display.println(plan.banner);
     } else if (!wifiOk) {
         // Device cannot reach the hub.
         M5.Display.setTextColor(0xFD20);  // amber
         const char* fh = "no hub";
         int16_t fw = M5.Display.textWidth(fh);
-        M5.Display.setCursor((W - fw) / 2, 120);
+        M5.Display.setCursor(
+            usage::centerTextX(footerX, footerW, fw),
+            footerBaseline);
         M5.Display.println(fh);
     } else {
         // Normal: left-aligned version, right-aligned hint.
         // ORDER #56/57 task 60: seq dropped from footer entirely; hint uses
         // whole words ("click hold" = click refreshes, hold flips).  On
-        // collision footnoteCompute shortens the hint first, then would drop
+        // collision footerCompute shortens the hint first, then would drop
         // seq (kept for future longer left strings), but the version is NEVER
         // shortened.
         const char* hint = "blue: page   side: click hold";
@@ -198,10 +217,10 @@ void drawPlan(const usage::RenderPlan& plan, bool wifiOk,
         usage::footerCompute(fl, W, "", plan.buildId, hint, measureText);
 
         M5.Display.setTextColor(0xFD20);  // amber
-        M5.Display.setCursor(fl.leftX, 120);
+        M5.Display.setCursor(fl.leftX, footerBaseline);
         M5.Display.println(fl.left);
         if (fl.hintDrawn) {
-            M5.Display.setCursor(fl.hintX, 120);
+            M5.Display.setCursor(fl.hintX, footerBaseline);
             M5.Display.println(fl.hint);
         }
     }

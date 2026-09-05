@@ -705,7 +705,7 @@
       "While you are in this function, apply the same discipline to the whole footer: every string drawn there should derive its y from one shared baseline constant computed from the footer rect and the font height, not from three separate literals (118, 120, 120 today). One number, one place.",
       "Verify: extract the vertical centring into a pure host-testable helper (given rect y, rect height and font height, return the cursor y) and test it — a 16 px rect with an 8 px font yields 120 for a rect at y=116; an odd leftover rounds consistently; a font taller than the rect clamps to the rect top rather than going negative. Same for horizontal centring within a rect. `make fw-test` Failed 0, `make fw-build` SUCCESS. Then it rides along on the next OTA — do NOT flash, the planner holds that lane and Felipe authorizes each upload. UAT is Felipe confirming the banner text sits centred in the red bar."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "firmware",
