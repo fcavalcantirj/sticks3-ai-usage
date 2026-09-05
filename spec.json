@@ -665,7 +665,7 @@
       "(b) THE GROQ PROBE TOGGLE NEVER RENDERS — the same bug shape you just fixed, one field over. index.html:675 gates the toggle on p.has_probe, but HasProbe is a PARSE-TIME DISAMBIGUATOR meaning 'the YAML explicitly set probe' (defaults.go:69 sets it false, defaults.go:95 says so in a comment). With no config.yaml on this Mac it is false, so the toggle is invisible — exactly like providers:[] was. Gate the toggle on provider CAPABILITY instead: Groq is the only provider that has a probe, so the effective provider should carry something like can_probe: true for groq and the UI should render on that, with p.probe supplying the checked state. Check whether the env var USAGED_GROQ_PROBE (currently 0 in .env) feeds the displayed state, and make the page show where the value came from if env wins, the same way key_state does.",
       "Verify: `go test ./internal/api ./internal/web -v` grows by at least 6 — POST /v1/keys with NO token is 401 on loopback; with a WRONG token is 401; with the right token succeeds against the FAKE keystore; the 401 is returned before the body is read; a non-JSON Content-Type is rejected; PUT /v1/config and POST /v1/refresh are 401 without a token on loopback; GET /v1/usage still works with no token on loopback; the settings markup renders the Groq probe toggle with NO config.yaml present. `make verify` and `make smoke` exit 0. Then rebuild and kickstart, and re-run the live check the planner ran: POST /v1/keys with no token must answer 401, not 400. Report both in your DONE line."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "firmware",
