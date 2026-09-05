@@ -3,15 +3,20 @@
 // The 22-pixel top bar (y=0..21) on the 240×135 StickS3 LCD packs these
 // items right-to-left from x = W-4:
 //
-//   [wifi dot r=3] [battery: label + gauge 32×13 + nub] [version]
-//   [page indicator] [seq N] [title — left-aligned]
+//   [wifi dot r=3] [gap 8px] [battery: label + gauge 32×13 + nub]
+//   [page indicator] [title — left-aligned]
 //
-// 4 px gaps between items.  Every item is vertically centred on the bar
-// midline (y=11).  Text baseline = y=7 (8-px font, (22-8)/2=7).  Gauge top
-// = y=4 (13-px tall, (22-13)/2=4.5→4).  Nothing crosses y=21.
+// 4 px gaps between items (8 px between wifi dot and battery).  Every item
+// is vertically centred on the bar midline (y=11).  Text baseline = y=7
+// (8-px font, (22-8)/2=7).  Gauge top = y=4 (13-px tall, (22-13)/2=4.5→4).
+// Nothing crosses y=21.
 //
-// Items are dropped right-to-left when space is tight: seq first, then the
-// title text.  The version and battery are never dropped.
+// Items are dropped right-to-left when space is tight: seq first (now in
+// the footer, not the header), then the title text.  The battery and wifi
+// dot are never dropped.
+//
+// ORDER #51: version and seq moved to the footer — they are no longer
+// computed in this packer.
 //
 // This module is host-testable (no M5/Arduino headers).  screen.cpp
 // consumes the computed Layout to draw at the exact positions.
@@ -29,6 +34,7 @@ static const int16_t kTextY   = 7;    // 8-px font baseline, centred in 22px bar
 static const int16_t kDotY    = 11;   // wifi dot centre y
 static const int16_t kGaugeY  = 4;    // battery gauge top y (13px tall)
 static const int16_t kGap     = 4;    // gap between items
+static const int16_t kGapWifi = 8;    // wider gap between wifi dot and battery (ORDER #51)
 static const int16_t kRightMargin = 4;
 static const int16_t kGaugeW  = 32;   // battery gauge body width
 static const int16_t kGaugeH  = 13;   // battery gauge height
@@ -49,9 +55,7 @@ struct Layout {
     Item wifiDot;        // always drawn; x = centre, w = diameter (6)
     Item battery;        // always drawn; x = gauge left, w = gauge+nub width (35)
     Item battLabel;      // always drawn; x = label left, w = label width
-    Item version;        // always drawn
     Item pageInd;        // drawn only when pageCount > 1
-    Item asOf;           // drawn only when it fits
     Item title;          // drawn only when it fits
 };
 
@@ -60,8 +64,10 @@ struct Layout {
 // battery state for the label.  `measure` returns the pixel width of a string
 // in the current font (screen.cpp passes M5.Display.textWidth; tests pass a
 // fixed-width simulator).
-void compute(Layout& out, int16_t W, const char* buildId,
-             uint8_t page, uint8_t pageCount, const char* asOf,
+// ORDER #51: buildId and asOf are no longer in the header — they moved to the
+// footer.  Only title, page indicator, battery and wifi dot remain.
+void compute(Layout& out, int16_t W,
+             uint8_t page, uint8_t pageCount,
              const char* title, int battPct, bool battOnUsb, bool battKnown,
              int (*measure)(const char*));
 

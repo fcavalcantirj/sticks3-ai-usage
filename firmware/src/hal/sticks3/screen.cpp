@@ -58,14 +58,13 @@ void drawPlan(const usage::RenderPlan& plan, bool wifiOk,
     M5.Display.setTextSize(1);
     M5.Display.setTextColor(TFT_WHITE);
 
-    // --- top bar (y = 0..21) ------------------------------------------------
-    // RIGHT-TO-LEFT PACKER: x = W-4, 4px gaps, all items vertically centred
-    // on the bar midline.  Drops seq first, then title.  Never drops
-    // version or battery.  (ORDER #48 defect b)
+    // TOP BAR (y = 0..21) — ORDER #51: header keeps only wifi dot, battery
+    // gauge+label, page indicator, and title.  Version and seq moved to the
+    // footer.  The packer handles gaps and drop-precedence.
 
     topbar::Layout tbl;
-    topbar::compute(tbl, W, plan.buildId,
-                    (uint8_t)(plan.page - 1), plan.pageCount, plan.asOf,
+    topbar::compute(tbl, W,
+                    (uint8_t)(plan.page - 1), plan.pageCount,
                     plan.title, batt.pct, batt.onUsb, batt.known,
                     measureText);
 
@@ -77,12 +76,6 @@ void drawPlan(const usage::RenderPlan& plan, bool wifiOk,
     drawBatteryGauge(tbl.battery.x, topbar::kGaugeY, topbar::kTextY,
                      batt.pct, batt.onUsb, batt.known);
 
-    // Version (always drawn, dim grey).
-    M5.Display.setTextColor(0x8410);  // dim grey
-    M5.Display.setCursor(tbl.version.x, topbar::kTextY);
-    M5.Display.println(plan.buildId);
-    M5.Display.setTextColor(TFT_WHITE);
-
     // Page indicator (if drawn by the packer).
     if (tbl.pageInd.drawn) {
         char pageBuf[8];
@@ -92,16 +85,10 @@ void drawPlan(const usage::RenderPlan& plan, bool wifiOk,
         M5.Display.println(pageBuf);
     }
 
-    // asOf ("seq N") — only if the packer kept it.
-    if (tbl.asOf.drawn) {
-        M5.Display.setCursor(tbl.asOf.x, topbar::kTextY);
-        M5.Display.println(plan.asOf);
-    }
-
     // Title (left-aligned) — only if the packer kept it.
     if (tbl.title.drawn) {
-        M5.Display.setCursor(5, topbar::kTextY);
         M5.Display.setTextColor(TFT_WHITE);
+        M5.Display.setCursor(5, topbar::kTextY);
         M5.Display.println(plan.title);
     }
 
@@ -178,12 +165,13 @@ void drawPlan(const usage::RenderPlan& plan, bool wifiOk,
     }
 
     // --- footer (y = 116..134) ------------------------------------------------
-    // ORDER #48 defect (e): alerts live HERE, not in the card area.
+    // ORDER #48 defect (e) + ORDER #51: alerts live HERE, not in the card area.
     // BUG 52: the footer is the DEVICE's own state slot.  When there is a
     // crit banner, draw it with alert colours.  When WiFi is down, say
-    // "no hub".  Otherwise, show the learned button hint.
+    // "no hub".  Otherwise, show the seq/version line on the left and the
+    // button hint on the right.
     if (plan.bannerTier == 2 && plan.banner[0] != '\0') {
-        // Crit alert: full-width red, white text.
+        // Crit alert: full-width red, white text, centred.
         M5.Display.fillRect(5, 116, W - 10, 16, 0xF800);
         M5.Display.setTextColor(TFT_WHITE);
         int16_t fw = M5.Display.textWidth(plan.banner);
@@ -197,14 +185,18 @@ void drawPlan(const usage::RenderPlan& plan, bool wifiOk,
         M5.Display.setCursor((W - fw) / 2, 120);
         M5.Display.println(fh);
     } else {
-        // Button hint (shown only when no alert and WiFi is up).
+        // Normal: left-aligned seq/version line, right-aligned button hint.
+        // (ORDER #51: seq and version moved from header to footer.)
         M5.Display.setTextColor(0xFD20);  // amber
-        const char* fh = plan.footer[0] != '\0'
-                             ? plan.footer
-                             : "blue: page   side: refresh";
-        int16_t fw = M5.Display.textWidth(fh);
-        M5.Display.setCursor((W - fw) / 2, 120);
-        M5.Display.println(fh);
+        const char* left = plan.footer;
+        const char* hint = "blue: page   side: refresh";
+        // Left: seq/version line.
+        M5.Display.setCursor(5, 120);
+        M5.Display.println(left);
+        // Right: button hint.
+        int16_t hw = M5.Display.textWidth(hint);
+        M5.Display.setCursor(W - hw - 4, 120);
+        M5.Display.println(hint);
     }
 }
 

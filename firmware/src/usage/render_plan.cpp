@@ -307,13 +307,18 @@ void buildPlan(const Model& model, uint8_t page, const char* buildId,
     }
 
     out.lineCount = lineIdx;
-    // BUG 52b + ORDER #48 defect (e): footer holds the alert text when there
-    // is a crit banner; otherwise it is empty and screen.cpp paints either
-    // "no hub" (WiFi down) or the button hint.
-    if (out.bannerTier >= 1 && out.banner[0] != '\0') {
+    // ORDER #51: footer now carries the seq/version line when there is no
+    // crit banner.  When crit, it carries the banner text (full-width alert).
+    // screen.cpp left-aligns the footer text and right-aligns the hint.
+    if (out.bannerTier >= 2 && out.banner[0] != '\0') {
         copyStr(out.footer, out.banner, sizeof(out.footer));
     } else {
-        out.footer[0] = '\0';
+        // Build "seq N · v<short-sha>" from the already-computed asOf and
+        // buildId fields.  Fits in footer[25] (e.g. "seq 5 · vtest" = 11 chars).
+        char footBuf[25];
+        std::snprintf(footBuf, sizeof(footBuf), "%s \xc2\xb7 %s",
+                      out.asOf, out.buildId);
+        copyStr(out.footer, footBuf, sizeof(out.footer));
     }
 }
 

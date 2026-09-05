@@ -625,7 +625,7 @@
       "(d) BANNER UNREADABLE: dark-orange text on an orange bar. Use high-contrast text (black or white, whichever wins on this panel) and check it by eye, not by hex value. It also shows only 'ChatGPT' with no message — say WHAT is wrong, e.g. 'ChatGPT 7d 100%'; a provider name alone is not an alert. (e) THE BANNER STEALS A CARD ROW ON EVERY PAGE, which is ORDER #49's fault: PLANS now overflows into TWO pages (1/4 and 2/4 both PLANS, the second holding only GPT 7d and GPT rst above a screen of empty space) for four pages instead of three. Move the alert into the FOOTER line, which already spans the full width and currently holds only the button hint — alerts matter more than a hint he has learned, no card row is stolen, PLANS fits one page again and we return to three pages; show the button hint only when there is no alert. (f) 100% BAR NOW UNDER-FILLS: page 2/4's GPT 7d row reads 100% while its fill stops short of the track's right edge — the clamp overcorrected; assert fillWidth(100) == trackInnerWidth exactly and eyeball it.",
       "Verify: `make fw-test` Failed 0 with new tests for the version string, the top-bar packing, the 100% fill and the footer-alert precedence; `make fw-build` SUCCESS with 0 warnings from firmware/src/; fresh-clone build green. Then request authorization for ONE flash covering all seven and run the UAT with Felipe: he confirms a tidy top-right corner, a readable alert naming the problem, three pages rather than four, and a flush 100% bar. Do not flash per-defect."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "optional",
@@ -666,5 +666,19 @@
       "Verify: `go test ./internal/api -run Rows -v | grep -c '^--- PASS'` ≥ 3 (accept, reject bad id, expiry changes rev); `make smoke` exits 0; `make verify` exits 0."
     ],
     "passes": false
+  },
+  {
+    "category": "firmware",
+    "description": "ORDER #51: rebalance header and footer — move seq/version out of the top bar into the footer, widen wifi-battery gap",
+    "steps": [
+      "Firmware context: M5StickS3 unit #2, hostname sticks3-usage. PlatformIO espressif32@6.12.0 / Arduino core 2.0.17 / ESP-IDF 4.4.7, M5Unified 0.2.19 + M5GFX 0.2.28. Purity rule: layout LOGIC goes in the pure core (firmware/src/usage/, no M5 or Arduino headers, host-tested by 'make fw-test'); only firmware/src/hal/sticks3/* and main.cpp may touch M5. Fresh-clone build must stay green. Any upload needs Felipe's explicit authorization in the Solvr room.",
+      "(1) The HEADER keeps only page title, page indicator, battery gauge and link dot — remove the version string and 'seq N' from the top bar entirely. They are no longer drawn there; screen.cpp's drawPlan no longer calls topbar version or asOf positions.",
+      "(2) MOVE 'seq' and the version to the FOOTER beside the button hint. The footer reads: 'seq N · v<7char-sha> · blue: page  side: refresh' (left-aligned 'seq · version', right-aligned button hint). The footer spans full width and previously carried only the button hint, so there is room.",
+      "(3) Footer precedence stays: crit alert (red bg, white text, centred, from plan.banner) → 'no hub' (amber, centred, when wifiOk is false) → the seq/version/hint line (amber, left+right justified).",
+      "(4) Raise the gap between the battery gauge and the wifi dot from 4 px to 8 px (kGapWifi), keeping kGap = 4 px everywhere else — at 4px they read as one blob. Only the wifi-to-battery gap widens; all other inter-item gaps in the header packer stay at 4 px.",
+      "(5) Four pages is CORRECT, not a defect: the plan kind has eight rows (claude 3 + codex 3 + credits 2 = 8 across plan+credit, but the PLAN kind alone has 6 rows → 2 pages, plus CREDITS 4 rows → 1 page, plus FREE 1 row → 1 page = 4 pages total). Do NOT compress rows to force three pages.",
+      "Verify: `make fw-test` Failed 0 (updated test_topbar removes version/asOf assertions, adds kGapWifi=8 and wifi-battery gap test; test_render_plan updates footer assertions for non-crit case to expect 'seq N · v...'), `make fw-build` SUCCESS with 0 warnings from firmware/src/, fresh-clone build green."
+    ],
+    "passes": true
   }
 ]

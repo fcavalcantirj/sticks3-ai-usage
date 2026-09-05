@@ -24,8 +24,8 @@ void batteryLabelText(int battPct, bool battOnUsb, bool battKnown,
     }
 }
 
-void compute(Layout& out, int16_t W, const char* buildId,
-             uint8_t page, uint8_t pageCount, const char* asOf,
+void compute(Layout& out, int16_t W,
+             uint8_t page, uint8_t pageCount,
              const char* title, int battPct, bool battOnUsb, bool battKnown,
              int (*measure)(const char*)) {
     std::memset(&out, 0, sizeof(out));
@@ -39,7 +39,7 @@ void compute(Layout& out, int16_t W, const char* buildId,
     out.wifiDot.x = dotCx;
     out.wifiDot.w = 6;       // diameter
     out.wifiDot.drawn = true;
-    cursor = dotCx - 3 - kGap;  // left edge of dot, minus gap
+    cursor = dotCx - 3 - kGapWifi;  // left edge of dot, minus 8px gap
 
     // 2. Battery: label text is to the LEFT of the gauge.
     char battLabel[8];
@@ -59,16 +59,7 @@ void compute(Layout& out, int16_t W, const char* buildId,
     out.battLabel.w = labelW;
     out.battLabel.drawn = true;
 
-    cursor = labelLeft - kGap;  // left of the battery unit, minus gap
-
-    // 3. Version (always shown, never dropped).
-    const char* vstr = (buildId != nullptr && buildId[0] != '\0') ? buildId : "";
-    int16_t verW = measure(vstr);
-    int16_t verX = cursor - verW;
-    out.version.x = verX;
-    out.version.w = verW;
-    out.version.drawn = true;
-    cursor = verX - kGap;
+    cursor = labelLeft - kGap;  // left of the battery unit, minus 4px gap
 
     // Title width — used for overlap checks.
     const char* tstr = (title != nullptr) ? title : "";
@@ -78,7 +69,7 @@ void compute(Layout& out, int16_t W, const char* buildId,
     // Minimum safe position: title needs its left edge >= 5.
     int16_t titleMinRight = 5 + titleW;
 
-    // 4. Page indicator (only when pageCount > 1).
+    // Page indicator (only when pageCount > 1).  Dropped before the title.
     out.pageInd.drawn = false;
     out.pageInd.x = -1;
     out.pageInd.w = 0;
@@ -96,21 +87,7 @@ void compute(Layout& out, int16_t W, const char* buildId,
         }
     }
 
-    // 5. asOf ("seq N") — dropped first when space is tight.
-    out.asOf.drawn = false;
-    out.asOf.x = -1;
-    out.asOf.w = 0;
-    const char* astr = (asOf != nullptr) ? asOf : "";
-    int16_t aw = measure(astr);
-    int16_t ax = cursor - aw;
-    if (ax >= titleMinRight + kGap) {
-        out.asOf.x = ax;
-        out.asOf.w = aw;
-        out.asOf.drawn = true;
-        cursor = ax - kGap;
-    }
-
-    // 6. Title (left-aligned at x=5, drawn only if it doesn't overlap).
+    // Title (left-aligned at x=5, drawn only if it doesn't overlap).
     out.title.x = -1;
     out.title.drawn = false;
     if (5 + titleW + kGap <= cursor) {

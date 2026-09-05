@@ -40,9 +40,11 @@ struct RenderPlan {
     uint8_t pageCount;    // total pages across all kinds
     uint8_t lineCount;
     Line lines[5];        // max 5 lines per page (4 when crit banner active)
-    char footer[25];      // alert text when bannerTier >= 1, else "" (screen.cpp draws "no hub" or button hint)
+    char footer[25];      // ORDER #51: when no crit banner, "seq N \xc2\xb7 v<sha>";
+                          //      when crit, the banner text (full-width alert).
+                          //      screen.cpp left-aligns this and right-aligns the hint.
     char banner[25];      // crit/warn banner text (24 chars + NUL), "" when none
-    uint8_t bannerTier;   // 0 none, 1 warn, 2 crit
+    uint8_t bannerTier;   // 0 none, 2 crit (warn uses per-row tint, not banner)
 };
 
 // View: persistent UI state across snapshots.
@@ -54,7 +56,8 @@ struct View {
 
 // buildPlan fills in the render plan for the given 0-indexed page.
 // The buildId (git short sha, or "unknown") is rendered as "v<buildId>" in
-// the top bar so an OTA is visible without serial.
+// the FOOTER (ORDER #51: moved from the top bar) so an OTA is visible without
+// serial.
 //
 // Pages are grouped by kind (plan → credit → free), one page per kind with
 // at least one row.  More than 5 rows (4 with a crit banner) overflow onto
