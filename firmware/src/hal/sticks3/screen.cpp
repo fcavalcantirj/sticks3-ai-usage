@@ -195,8 +195,16 @@ void drawPlan(const usage::RenderPlan& plan, bool wifiOk,
         // Right text.
         char rightText[32];
         if (hasBar && line.pct >= 0) {
-            std::snprintf(rightText, sizeof(rightText), "%d%% %s",
-                          (int)line.pct, line.right);
+            // ORDER #53 / task 52: at 100% (3-digit pct) the bar consumes most
+            // of the row width, so "100% 21:59" truncates to "100% 21..".
+            // Omit the reset and show just "100%" — it always fits.
+            if (line.pct >= 100) {
+                std::snprintf(rightText, sizeof(rightText), "%d%%",
+                              (int)line.pct);
+            } else {
+                std::snprintf(rightText, sizeof(rightText), "%d%% %s",
+                              (int)line.pct, line.right);
+            }
         } else {
             std::snprintf(rightText, sizeof(rightText), "%s", line.right);
         }

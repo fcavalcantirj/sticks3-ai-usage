@@ -43,3 +43,20 @@ TEST(textfit_trunc_4byte) {
     ASSERT_EQ(0, (int)n);
     ASSERT_STREQ("", out);
 }
+
+TEST(textfit_pct_100_omits_reset) {
+    char out[64];
+    size_t n;
+
+    // At 100% the bar leaves a narrow column (maxPx=54 ≈ real screen budget).
+    // The full string "100% 21:59" (60 px) does not fit and truncates to
+    // "100% 21.." — the defect ORDER #53 fixes.
+    n = usage::fitRight("100% 21:59", out, sizeof(out), 54, measure6);
+    ASSERT_STREQ("100% 21..", out);
+    ASSERT_EQ(9, (int)n);
+
+    // Showing just "100%" (24 px) fits cleanly — no truncation.
+    n = usage::fitRight("100%", out, sizeof(out), 54, measure6);
+    ASSERT_STREQ("100%", out);
+    ASSERT_EQ(4, (int)n);
+}

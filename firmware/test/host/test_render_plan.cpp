@@ -60,6 +60,8 @@ TEST(plan_page0_plans_crit) {
     ASSERT_STREQ("GPT 5h", plan.lines[3].left);
     ASSERT_EQ(100, plan.lines[3].pct);
     ASSERT_EQ(2, (int)plan.lines[3].tier); // crit
+    // ORDER #53 / task 52: reset text survives intact in the RenderPlan even at 100%.
+    ASSERT_STREQ("23:13", plan.lines[3].right);
 
     // No footer (all providers status=ok).
     ASSERT_STREQ("", plan.footer);

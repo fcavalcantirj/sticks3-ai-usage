@@ -589,7 +589,7 @@
       "Felipe photographed both, minutes apart. (a) OVERFLOW: at 100% the filled bar visibly extends past its track outline — the fill width is computed without clamping to the track's inner width, or it does not account for the 1 px border, so the last pixel column spills. Clamp the fill to the track's inner width and make 100% land exactly flush; add a host test asserting fillWidth(100) == trackInnerWidth and fillWidth(101) == trackInnerWidth. (b) TRUNCATION: the same row reads '100% 21..' where 98% read '98% 21:59' — three digits plus the percent sign push the reset text past the fitter's budget, so fitRight eats it. The reset time is the more useful half; keep it whole and shorten elsewhere: drop the space between the number and '%' at three digits, and if it still does not fit, render '100%' without the trailing reset rather than a meaningless '21..'. Add a host test with a 100% row asserting the reset text survives intact.",
       "Verify: `make fw-test` Failed 0 including the two new tests; `make fw-build` SUCCESS. Hardware UAT rides along in the batched flash: Felipe confirms a 100% row shows a flush bar and a readable reset time."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "web",
