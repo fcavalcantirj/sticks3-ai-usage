@@ -29,6 +29,11 @@ bool vbusPresent();
 // Read the battery percentage (0..100), or -1 if the sensor reports unknown.
 int batteryLevel();
 
+// Read the raw battery voltage in millivolts (0 on read failure).
+// Logged alongside the percentage in [BATT] so a flat cell (~3.3-3.5 V)
+// is distinguishable from a broken read.  (ORDER #48 defect c)
+int32_t batteryVoltageMv();
+
 // Turn the screen fully off: display sleep + flush + cut the PM1 GPIO2
 // (LCD panel) rail.  M5GFX re-asserts the rail on the next boot.
 void screenOff();

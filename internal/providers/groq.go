@@ -2,6 +2,7 @@ package providers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -77,7 +78,11 @@ func (p *groqProvider) Fetch(ctx context.Context, now time.Time) (snapshot.Provi
 	resp, err := p.client.Do(ctx, "GET", groqModelsURL, headers, nil)
 	if err != nil {
 		slog.Debug("groq: network error", "err", err)
-		return p.block("error", "offline", "", nil, now.Unix()), Outcome{}
+		msg := "api unreachable"
+		if errors.Is(err, context.DeadlineExceeded) {
+			msg = "api timeout"
+		}
+		return p.block("error", msg, "", nil, now.Unix()), Outcome{}
 	}
 
 	if resp.Status == http.StatusUnauthorized || resp.Status == http.StatusForbidden {
@@ -103,7 +108,11 @@ func (p *groqProvider) Fetch(ctx context.Context, now time.Time) (snapshot.Provi
 	resp2, err := p.client.Do(ctx, "POST", groqChatURL, headers, []byte(body))
 	if err != nil {
 		slog.Debug("groq: probe network error", "err", err)
-		return p.block("error", "offline", plan, nil, now.Unix()), Outcome{}
+		msg := "api unreachable"
+		if errors.Is(err, context.DeadlineExceeded) {
+			msg = "api timeout"
+		}
+		return p.block("error", msg, plan, nil, now.Unix()), Outcome{}
 	}
 	if resp2.Status != http.StatusOK {
 		return p.block("error", fmt.Sprintf("http %d", resp2.Status), plan, nil, now.Unix()), Outcome{}

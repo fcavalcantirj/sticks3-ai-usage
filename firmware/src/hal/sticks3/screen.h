@@ -25,9 +25,15 @@ void drawRefreshStatus();
 // Called every loop pass while a transfer is in flight.
 void drawOtaStatus(uint8_t pct);
 
-// Draw the battery indicator in the top bar, right-aligned to the left of
-// the wifi dot.  pct is 0..100 (or -1 for unknown), onUsb controls the '+'
-// suffix.  Uses the PTT-style gauge: green >40%, yellow >20%, red <=20%.
-void drawBatteryGauge(int pct, bool onUsb, bool known);
+// Draw the battery indicator at the given (gaugeX, gaugeY) position, with
+// the numeric label at (gaugeX - labelW - 2, labelY).  pct is 0..100 (or -1
+// for unknown), onUsb controls the '+' suffix.  Uses the PTT-style gauge:
+// green >40%, yellow >20%, red <=20%.
+//
+// gaugeX is the LEFT edge of the 32px gauge body; the 3px nub sits at
+// gaugeX + 32.  gaugeY is the TOP of the 13px body.  labelY is the text
+// baseline for the numeric label.
+void drawBatteryGauge(int16_t gaugeX, int16_t gaugeY, int16_t labelY,
+                      int pct, bool onUsb, bool known);
 
 } // namespace sticks3

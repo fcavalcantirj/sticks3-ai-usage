@@ -66,7 +66,7 @@ func (p *codexProvider) Fetch(ctx context.Context, now time.Time) (snapshot.Prov
 	}
 	if err != nil {
 		slog.Debug("codex: cred read error", "err", err)
-		return p.block("error", "offline", "", nil, now.Unix()), Outcome{}
+		return p.block("error", "cred read", "", nil, now.Unix()), Outcome{}
 	}
 
 	plan := c.PlanType
@@ -81,7 +81,11 @@ func (p *codexProvider) Fetch(ctx context.Context, now time.Time) (snapshot.Prov
 	resp, err := p.client.Do(ctx, "GET", codexURL, headers, nil)
 	if err != nil {
 		slog.Debug("codex: network error", "err", err)
-		return p.block("error", "offline", plan, nil, now.Unix()), Outcome{}
+		msg := "api unreachable"
+		if errors.Is(err, context.DeadlineExceeded) {
+			msg = "api timeout"
+		}
+		return p.block("error", msg, plan, nil, now.Unix()), Outcome{}
 	}
 
 	slog.Debug("codex: response", "status", resp.Status)

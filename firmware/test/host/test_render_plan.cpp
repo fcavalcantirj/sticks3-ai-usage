@@ -31,8 +31,8 @@ TEST(plan_page0_plans_crit) {
     RenderPlan plan;
     buildTestPlan(m, 0, plan);
 
-    // 2 PLAN providers (claude 3 rows + codex 3 rows = 6), crit banner → maxLines=4.
-    // ceil(6/4) = 2 PLAN pages. Total pages = 2.
+    // 2 PLAN providers (claude 3 rows + codex 3 rows = 6).  No row stealing
+    // (ORDER #48 defect e) → maxLines=5.  ceil(6/5) = 2 PLAN pages.
     ASSERT_EQ(2u, plan.pageCount);
     ASSERT_EQ(1u, plan.page); // 1-indexed
     ASSERT_STREQ("PLANS", plan.title);
@@ -40,12 +40,13 @@ TEST(plan_page0_plans_crit) {
     ASSERT_STREQ("vtest", plan.buildId);
     ASSERT_EQ(usage::KIND_PLAN, plan.kind);
 
-    // Crit banner from ChatGPT (codex).
+    // Crit banner from ChatGPT (codex) — msg is empty, so the worst row
+    // (GPT 5h pct=100 crit) is appended.  (ORDER #48 defect d)
     ASSERT_EQ(2u, plan.bannerTier);
-    ASSERT_STREQ("ChatGPT", plan.banner);
+    ASSERT_STREQ("ChatGPT GPT 5h 100%", plan.banner);
 
-    // 4 rows: CLAUDE 5h, CLAUDE 7d, FABLE 7d, GPT 5h.
-    ASSERT_EQ(4, (int)plan.lineCount);
+    // 5 rows: CLAUDE 5h, CLAUDE 7d, FABLE 7d, GPT 5h, GPT 7d.
+    ASSERT_EQ(5, (int)plan.lineCount);
 
     ASSERT_STREQ("CLAUDE 5h", plan.lines[0].left);
     ASSERT_EQ(19, plan.lines[0].pct);
@@ -63,8 +64,12 @@ TEST(plan_page0_plans_crit) {
     // ORDER #53 / task 52: reset text survives intact in the RenderPlan even at 100%.
     ASSERT_STREQ("23:13", plan.lines[3].right);
 
-    // No footer (all providers status=ok).
-    ASSERT_STREQ("", plan.footer);
+    // 5th row: GPT 7d (overflow from ChatGPT).
+    ASSERT_STREQ("GPT 7d", plan.lines[4].left);
+    ASSERT_EQ(31, plan.lines[4].pct);
+
+    // Footer holds the alert text when bannerTier >= 1 (BUG 52b).
+    ASSERT_STREQ("ChatGPT GPT 5h 100%", plan.footer);
 }
 
 // --- buildPlan: page 1 overflow (PLANS) ----------------------------------------
@@ -86,14 +91,12 @@ TEST(plan_page1_plans_overflow) {
 
     // Banner on every page.
     ASSERT_EQ(2u, plan.bannerTier);
-    ASSERT_STREQ("ChatGPT", plan.banner);
+    ASSERT_STREQ("ChatGPT GPT 5h 100%", plan.banner);
 
-    // 2 remaining rows: GPT 7d, GPT cr.
-    ASSERT_EQ(2, (int)plan.lineCount);
-    ASSERT_STREQ("GPT 7d", plan.lines[0].left);
-    ASSERT_EQ(31, plan.lines[0].pct);
-    ASSERT_STREQ("GPT cr", plan.lines[1].left);
-    ASSERT_EQ(-1, plan.lines[1].pct);
+    // 1 remaining row: GPT cr.
+    ASSERT_EQ(1, (int)plan.lineCount);
+    ASSERT_STREQ("GPT cr", plan.lines[0].left);
+    ASSERT_EQ(-1, plan.lines[0].pct);
 }
 
 // --- buildPlan: full example, 4 pages ------------------------------------------
@@ -108,7 +111,7 @@ TEST(plan_full_four_pages) {
 
     ASSERT_EQ(5, (int)m.providerCount);
 
-    // Page 0: PLANS, 4 rows (3 claude + 1 codex, banner steals 1 slot).
+    // Page 0: PLANS, 5 rows (no row stealing — maxLines=5).
     RenderPlan p0;
     buildTestPlan(m, 0, p0);
     ASSERT_EQ(4u, p0.pageCount);
@@ -117,8 +120,8 @@ TEST(plan_full_four_pages) {
     ASSERT_EQ(usage::KIND_PLAN, p0.kind);
     ASSERT_EQ(0x3B9F, p0.kindColor); // blue
     ASSERT_EQ(2u, p0.bannerTier);
-    ASSERT_STREQ("ChatGPT", p0.banner);
-    ASSERT_EQ(4, (int)p0.lineCount);
+    ASSERT_STREQ("ChatGPT GPT 5h 100%", p0.banner);
+    ASSERT_EQ(5, (int)p0.lineCount);
     ASSERT_STREQ("CLAUDE 5h", p0.lines[0].left);
     ASSERT_EQ(19, p0.lines[0].pct);
     ASSERT_STREQ("CLAUDE 7d", p0.lines[1].left);
@@ -126,18 +129,19 @@ TEST(plan_full_four_pages) {
     ASSERT_STREQ("GPT 5h", p0.lines[3].left);
     ASSERT_EQ(100, p0.lines[3].pct);
     ASSERT_EQ(2, (int)p0.lines[3].tier); // crit row, not dim
-    ASSERT_STREQ("", p0.footer);
+    ASSERT_STREQ("23:13", p0.lines[3].right);
+    ASSERT_STREQ("GPT 7d", p0.lines[4].left);
+    ASSERT_EQ(31, p0.lines[4].pct);
+    ASSERT_STREQ("ChatGPT GPT 5h 100%", p0.footer);
 
-    // Page 1: PLANS overflow, 2 rows (GPT 7d, GPT cr).
+    // Page 1: PLANS overflow, 1 row (GPT cr).
     RenderPlan p1;
     buildTestPlan(m, 1, p1);
     ASSERT_EQ(2u, p1.page);
     ASSERT_STREQ("PLANS", p1.title);
-    ASSERT_EQ(2, (int)p1.lineCount);
-    ASSERT_STREQ("GPT 7d", p1.lines[0].left);
-    ASSERT_EQ(31, p1.lines[0].pct);
-    ASSERT_STREQ("GPT cr", p1.lines[1].left);
-    ASSERT_EQ(-1, p1.lines[1].pct);
+    ASSERT_EQ(1, (int)p1.lineCount);
+    ASSERT_STREQ("GPT cr", p1.lines[0].left);
+    ASSERT_EQ(-1, p1.lines[0].pct);
 
     // Page 2: CREDITS, 4 rows (ORmain bal, ORmain day, ORfbk bal, ORfbk day).
     RenderPlan p2;
@@ -153,7 +157,7 @@ TEST(plan_full_four_pages) {
     ASSERT_STREQ("ORmain day", p2.lines[1].left);
     ASSERT_STREQ("ORfbk bal", p2.lines[2].left);
     ASSERT_STREQ("ORfbk day", p2.lines[3].left);
-    ASSERT_STREQ("", p2.footer);
+    ASSERT_STREQ("ChatGPT GPT 5h 100%", p2.footer);
 
     // Page 3: FREE, 1 row (GROQ key).
     RenderPlan p3;
@@ -165,6 +169,10 @@ TEST(plan_full_four_pages) {
     ASSERT_EQ(1, (int)p3.lineCount);
     ASSERT_STREQ("GROQ key", p3.lines[0].left);
     ASSERT_EQ(-1, p3.lines[0].pct);
+    // Banner persists across all pages (global severity).
+    ASSERT_EQ(2u, p3.bannerTier);
+    ASSERT_STREQ("ChatGPT GPT 5h 100%", p3.banner);
+    ASSERT_STREQ("ChatGPT GPT 5h 100%", p3.footer);
 }
 
 // --- onSnapshot: no redraw when rev unchanged ------------------------------
@@ -266,7 +274,9 @@ TEST(plan_stale_dim_and_footer) {
     buildTestPlan(m, 0, plan);
     ASSERT_EQ(1, (int)plan.lineCount);
     ASSERT_EQ(1, (int)plan.lines[0].dim);
-    ASSERT_STREQ("stale check", plan.footer);
+    // No crit banner (severity defaults to ok) → footer is empty.
+    // The stale msg is not shown in the footer (BUG 52b: footer is device state).
+    ASSERT_STREQ("", plan.footer);
 }
 
 // --- tier helpers -----------------------------------------------------------
@@ -292,9 +302,10 @@ TEST(plan_banner_crit) {
     RenderPlan plan;
     buildTestPlan(m, 0, plan);
     ASSERT_EQ(2u, plan.bannerTier);
-    ASSERT_STREQ("ChatGPT", plan.banner);
-    // Crit banner steals one row slot → 4 usage rows, not 5.
-    ASSERT_EQ(4, (int)plan.lineCount);
+    // msg is empty → banner describes the worst row: "label row_label pct%".
+    ASSERT_STREQ("ChatGPT GPT 5h 100%", plan.banner);
+    // No row stealing — maxLines is always 5.
+    ASSERT_EQ(5, (int)plan.lineCount);
 }
 
 // --- banner: warn (no crit banner row, per-row ! tint) -------------------------

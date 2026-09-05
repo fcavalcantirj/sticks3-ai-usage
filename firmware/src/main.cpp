@@ -162,6 +162,7 @@ static void pollBattery(uint32_t now) {
     g_lastBatteryPoll = now;
 
     int pct = battery::batteryPctClamped(batteryLevel());
+    int32_t mv = batteryVoltageMv();
     bool onUsb = vbusMv() > 4000;
     battery::BatteryView current{pct, onUsb, pct >= 0};
 
@@ -169,9 +170,9 @@ static void pollBattery(uint32_t now) {
                    current.pct != g_prevBatt.pct ||
                    current.onUsb != g_prevBatt.onUsb;
     if (changed) {
-        char buf[64];
+        char buf[80];
         usage::fmtBatt(buf, sizeof(buf), current.pct,
-                       current.onUsb ? 1 : 0);
+                       (int)mv, current.onUsb ? 1 : 0);
         serialLine(buf);
         g_view.needsRedraw = true;
         g_lastActivity = now;  // cable plug/unplug: keep screen lit

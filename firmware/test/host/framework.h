@@ -43,6 +43,8 @@ inline std::vector<TestCase>& testRegistry() {
         }                                                                      \
     } while (0)
 
+#define ASSERT_FALSE(cond)  ASSERT_TRUE(!(cond))
+
 #define ASSERT_EQ(a, b)                                                        \
     do {                                                                       \
         auto _va = (a);                                                        \

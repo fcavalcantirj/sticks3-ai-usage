@@ -244,15 +244,15 @@ TEST(serial_refresh_error) {
 // --- fmtBatt -----------------------------------------------------------------
 
 TEST(serial_batt_known_usb) {
-    char buf[64];
-    int r = usage::fmtBatt(buf, sizeof(buf), 87, 1);
-    ASSERT_STREQ("[BATT] pct=87 usb=1", buf);
+    char buf[80];
+    int r = usage::fmtBatt(buf, sizeof(buf), 87, 4012, 1);
+    ASSERT_STREQ("[BATT] pct=87 v=4012 usb=1", buf);
     ASSERT_EQ(r, (int)std::strlen(buf));
 }
 
 TEST(serial_batt_known_battery) {
-    char buf[64];
-    int r = usage::fmtBatt(buf, sizeof(buf), 27, 0);
-    ASSERT_STREQ("[BATT] pct=27 usb=0", buf);
+    char buf[80];
+    int r = usage::fmtBatt(buf, sizeof(buf), 27, 3520, 0);
+    ASSERT_STREQ("[BATT] pct=27 v=3520 usb=0", buf);
     ASSERT_EQ(r, (int)std::strlen(buf));
 }

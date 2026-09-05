@@ -3,6 +3,7 @@ package providers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -83,7 +84,11 @@ func (p *openRouterProvider) Fetch(ctx context.Context, now time.Time) (snapshot
 	resp, err := p.client.Do(ctx, "GET", openrouterCreditsURL, headers, nil)
 	if err != nil {
 		slog.Debug("openrouter: network error on credits", "err", err)
-		return p.block("error", "offline", "", nil, now.Unix()), Outcome{}
+		msg := "api unreachable"
+		if errors.Is(err, context.DeadlineExceeded) {
+			msg = "api timeout"
+		}
+		return p.block("error", msg, "", nil, now.Unix()), Outcome{}
 	}
 
 	if resp.Status == http.StatusOK {
@@ -114,7 +119,11 @@ func (p *openRouterProvider) Fetch(ctx context.Context, now time.Time) (snapshot
 	resp2, err := p.client.Do(ctx, "GET", openrouterKeyURL, headers, nil)
 	if err != nil {
 		slog.Debug("openrouter: network error on key", "err", err)
-		return p.block("error", "offline", plan, rows, now.Unix()), Outcome{}
+		msg := "api unreachable"
+		if errors.Is(err, context.DeadlineExceeded) {
+			msg = "api timeout"
+		}
+		return p.block("error", msg, plan, rows, now.Unix()), Outcome{}
 	}
 
 	switch {

@@ -140,8 +140,8 @@ static uint8_t kindRowCount(const Model& m, uint8_t kind) {
 
 // countPages returns the total number of kind-grouped pages.
 uint8_t countPages(const Model& model) {
-    uint8_t worst = worstSeverity(model);
-    uint8_t maxLines = (worst >= 2) ? 4 : 5;
+    // ORDER #48 defect (e): no row stealing — maxLines is always 5.
+    uint8_t maxLines = 5;
     uint8_t total = 0;
     for (int ki = 0; ki < 3; ki++) {
         uint8_t rows = kindRowCount(model, kKindOrder[ki]);
@@ -157,8 +157,8 @@ uint8_t countPages(const Model& model) {
 static void resolvePage(const Model& model, uint8_t flatPage,
                         uint8_t& outKind, uint8_t& outSubPage,
                         uint8_t& outStartRow) {
-    uint8_t worst = worstSeverity(model);
-    uint8_t maxLines = (worst >= 2) ? 4 : 5;
+    // ORDER #48 defect (e): no row stealing — maxLines is always 5.
+    uint8_t maxLines = 5;
 
     uint8_t remaining = flatPage;
     for (int ki = 0; ki < 3; ki++) {
@@ -186,10 +186,19 @@ void buildPlan(const Model& model, uint8_t page, const char* buildId,
                RenderPlan& out) {
     std::memset(&out, 0, sizeof(out));
 
-    // Version string: "v<buildId>" (e.g. "vabc123").
+    // Version string: "v<buildId>" truncated to a 7-char git sha, with
+    // a "+dirty" suffix collapsed to a trailing "*".  e.g. "v3ca0869+d1r"
+    // → "v3ca086*".  Fits in buildId[13]: 'v' + 7 + '*' + NUL.  (ORDER #48 defect a)
     char verBuf[13];
     if (buildId != nullptr && buildId[0] != '\0') {
-        std::snprintf(verBuf, sizeof(verBuf), "v%s", buildId);
+        char shortSha[8];
+        std::snprintf(shortSha, sizeof(shortSha), "%.7s", buildId);
+        // Detect dirty suffix: anything after '+'.
+        if (std::strchr(buildId, '+') != nullptr) {
+            std::snprintf(verBuf, sizeof(verBuf), "v%s*", shortSha);
+        } else {
+            std::snprintf(verBuf, sizeof(verBuf), "v%s", shortSha);
+        }
     } else {
         copyStr(verBuf, "v?", sizeof(verBuf));
     }
@@ -213,7 +222,11 @@ void buildPlan(const Model& model, uint8_t page, const char* buildId,
     std::snprintf(asOfBuf, sizeof(asOfBuf), "seq %u", model.seq);
     copyStr(out.asOf, asOfBuf, sizeof(out.asOf));
 
-    // --- alert banner (ORDER #36 / task 50) ---
+    // --- alert banner (ORDER #36 / task 50, ORDER #48 defect d) ---
+    // The banner text says WHAT is wrong, not just whose.  When the provider
+    // has a msg (e.g. "429 until 21:40") use "label msg".  When msg is empty,
+    // find the worst row of the worst provider and append its label + pct.
+    // e.g. "ChatGPT GPT 5h 100%".  (ORDER #48 defect d)
     uint8_t worst = worstSeverity(model);
     out.bannerTier = (worst >= 2) ? 2 : 0;
     if (worst >= 2) {
@@ -224,24 +237,42 @@ void buildPlan(const Model& model, uint8_t page, const char* buildId,
                 std::snprintf(combined, sizeof(combined), "%s %s",
                               cp->label, cp->msg);
             } else {
-                copyStr(combined, cp->label, sizeof(combined));
+                // No msg — describe the worst row.
+                int worstTier = 0;
+                int worstRowIdx = -1;
+                for (uint8_t r = 0; r < cp->rowCount; r++) {
+                    uint8_t rt = cp->rows[r].tier;
+                    if (rt > worstTier) {
+                        worstTier = rt;
+                        worstRowIdx = r;
+                    }
+                }
+                if (worstRowIdx >= 0 && cp->rows[worstRowIdx].pct >= 0) {
+                    std::snprintf(combined, sizeof(combined), "%s %s %d%%",
+                                  cp->label, cp->rows[worstRowIdx].label,
+                                  (int)cp->rows[worstRowIdx].pct);
+                } else if (worstRowIdx >= 0) {
+                    std::snprintf(combined, sizeof(combined), "%s %s",
+                                  cp->label, cp->rows[worstRowIdx].label);
+                } else {
+                    copyStr(combined, cp->label, sizeof(combined));
+                }
             }
             copyStr(out.banner, combined, sizeof(out.banner));
         }
     }
 
-    // Crit banner steals one row slot.
-    uint8_t maxLines = (worst >= 2) ? 4 : 5;
+    // ORDER #48 defect (e): the banner no longer steals a card row.
+    // maxLines is always 5; alerts live in the footer (drawPlan),
+    // not in the card area.
+    uint8_t maxLines = 5;
 
     uint8_t lineIdx = 0;
     uint8_t currentRow = 0;  // row counter within the current kind
-    const char* footerMsg = nullptr;
 
     for (uint8_t i = 0; i < model.providerCount && lineIdx < maxLines; i++) {
         const Provider& prov = model.providers[i];
         if (kindFromStr(prov.kind) != kind) continue;
-
-        bool providerShown = false;
 
         for (uint8_t r = 0; r < prov.rowCount; r++) {
             if (currentRow < startRow) {
@@ -250,7 +281,6 @@ void buildPlan(const Model& model, uint8_t page, const char* buildId,
             }
             if (lineIdx >= maxLines) break;
 
-            providerShown = true;
             const Row& row = prov.rows[r];
             Line& line = out.lines[lineIdx];
             copyStr(line.left, row.label, sizeof(line.left));
@@ -270,15 +300,21 @@ void buildPlan(const Model& model, uint8_t page, const char* buildId,
             currentRow++;
         }
 
-        // Track the first non-ok provider's msg for the footer (only if
-        // this provider has rows on the current page).
-        if (providerShown && prov.status != 0 && footerMsg == nullptr) {
-            footerMsg = prov.msg;
-        }
+        // BUG 52b: provider messages (msg field) belong to the severity
+        // banner, NOT the footer.  The footer shows the device's own state
+        // ("no hub" / button hint) or the alert text.  Provider failures are
+        // communicated through the row tint + banner only.
     }
 
     out.lineCount = lineIdx;
-    copyStr(out.footer, footerMsg, sizeof(out.footer));
+    // BUG 52b + ORDER #48 defect (e): footer holds the alert text when there
+    // is a crit banner; otherwise it is empty and screen.cpp paints either
+    // "no hub" (WiFi down) or the button hint.
+    if (out.bannerTier >= 1 && out.banner[0] != '\0') {
+        copyStr(out.footer, out.banner, sizeof(out.footer));
+    } else {
+        out.footer[0] = '\0';
+    }
 }
 
 void onSnapshot(View& view, const Model& model) {

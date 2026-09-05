@@ -40,7 +40,7 @@ struct RenderPlan {
     uint8_t pageCount;    // total pages across all kinds
     uint8_t lineCount;
     Line lines[5];        // max 5 lines per page (4 when crit banner active)
-    char footer[25];      // msg of first non-ok provider on this page, else ""
+    char footer[25];      // alert text when bannerTier >= 1, else "" (screen.cpp draws "no hub" or button hint)
     char banner[25];      // crit/warn banner text (24 chars + NUL), "" when none
     uint8_t bannerTier;   // 0 none, 1 warn, 2 crit
 };

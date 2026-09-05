@@ -128,7 +128,7 @@ func TestSchedulerStaleOnFetchError(t *testing.T) {
 				Label:     "Claude",
 				Plan:      "max_20x",
 				Status:    "error",
-				Msg:       "offline",
+				Msg:       "api unreachable",
 				FetchedAt: now.Unix(),
 			}, providers.Outcome{}
 		},
@@ -157,8 +157,8 @@ func TestSchedulerStaleOnFetchError(t *testing.T) {
 	if p.Status != "stale" {
 		t.Errorf("Status = %q, want stale", p.Status)
 	}
-	if p.Msg != "offline" {
-		t.Errorf("Msg = %q, want offline", p.Msg)
+	if p.Msg != "api unreachable" {
+		t.Errorf("Msg = %q, want api unreachable", p.Msg)
 	}
 	// Rows should be kept from last-good
 	if len(p.Rows) != 1 {
@@ -182,7 +182,7 @@ func TestSchedulerCooldownRespected(t *testing.T) {
 					Label:     "Claude",
 					Plan:      "max_20x",
 					Status:    "error",
-					Msg:       "offline",
+					Msg:       "api unreachable",
 					FetchedAt: now.Unix(),
 				}, providers.Outcome{
 					CooldownUntil: now.Add(300 * time.Second),

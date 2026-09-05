@@ -160,7 +160,8 @@ func TestScenarioCodexExpired(t *testing.T) {
 }
 
 // TestScenarioAllDown asserts that when every provider endpoint returns 503,
-// all providers report status "error" or "stale" with an offline/http-503 message.
+// all providers report status "error" or "stale" with an api unreachable/timeout or
+// http-503 message.
 func TestScenarioAllDown(t *testing.T) {
 	ts := setupScenario(t, "all-down")
 	snap := fetchSnapshot(t, ts)
@@ -172,8 +173,8 @@ func TestScenarioAllDown(t *testing.T) {
 		if p.Status != "error" && p.Status != "stale" {
 			t.Errorf("all-down: %s status = %q, want error or stale", p.ID, p.Status)
 		}
-		if p.Msg != "offline" && p.Msg != "http 503" {
-			t.Errorf("all-down: %s msg = %q, want offline or http 503", p.ID, p.Msg)
+		if p.Msg != "api unreachable" && p.Msg != "api timeout" && p.Msg != "http 503" {
+			t.Errorf("all-down: %s msg = %q, want api unreachable/api timeout or http 503", p.ID, p.Msg)
 		}
 	}
 }

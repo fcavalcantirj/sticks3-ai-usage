@@ -73,8 +73,11 @@ int fmtBtn(char* out, size_t n, int gpio, const char* action);
 int fmtRefresh(char* out, size_t n, int code, uint32_t ms);
 
 // fmtBatt formats a battery change line:
-//   [BATT] pct=87 usb=1
-//   [BATT] pct=27 usb=0
-int fmtBatt(char* out, size_t n, int pct, int usb);
+//   [BATT] pct=87 v=4012 usb=1
+//   [BATT] pct=27 v=3520 usb=0
+// `v` is the raw battery voltage in millivolts from M5.Power.getBatteryVoltage()
+// so a flat cell (~3.3-3.5 V) is distinguishable from a broken read.
+// (ORDER #48 defect c)
+int fmtBatt(char* out, size_t n, int pct, int mv, int usb);
 
 } // namespace usage

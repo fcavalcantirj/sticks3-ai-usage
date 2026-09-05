@@ -82,7 +82,7 @@ func (p *claudeProvider) Fetch(ctx context.Context, now time.Time) (snapshot.Pro
 	}
 	if err != nil {
 		slog.Debug("claude: cred read error", "err", err)
-		return p.block("error", "offline", "", nil, now.Unix()), Outcome{}
+		return p.block("error", "cred read", "", nil, now.Unix()), Outcome{}
 	}
 
 	// Cache the User-Agent on first use.
@@ -104,7 +104,11 @@ func (p *claudeProvider) Fetch(ctx context.Context, now time.Time) (snapshot.Pro
 	resp, err := p.client.Do(ctx, "GET", claudeURL, headers, nil)
 	if err != nil {
 		slog.Debug("claude: network error", "err", err)
-		return p.block("error", "offline", plan, nil, now.Unix()), Outcome{}
+		msg := "api unreachable"
+		if errors.Is(err, context.DeadlineExceeded) {
+			msg = "api timeout"
+		}
+		return p.block("error", msg, plan, nil, now.Unix()), Outcome{}
 	}
 
 	slog.Debug("claude: response", "status", resp.Status)
