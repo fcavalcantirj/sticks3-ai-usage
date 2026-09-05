@@ -171,6 +171,7 @@ func (c Config) EffectiveProviders() []EffectiveProvider {
 			KeyEnv:   d.KeyEnv,
 			Probe:    d.Probe,
 			HasProbe: d.HasProbe,
+			CanProbe: d.ID == ProviderGroq, // ORDER #54 task 59: Groq is the only provider with a probe
 			Plan:     d.Plan,
 		}
 		if file, ok := c.ProviderConfigs[d.ID]; ok {
@@ -200,7 +201,8 @@ func (c Config) EffectiveProviders() []EffectiveProvider {
 // EffectiveProvider is a single provider's resolved settings, shown on the
 // settings page and returned by GET /v1/config. It combines built-in defaults
 // with any file overrides. The Plan pointer is nil when the provider has no
-// subscription plan.
+// subscription plan. CanProbe is true when the provider supports a probe
+// toggle (ORDER #54 task 59: Groq is the only one).
 type EffectiveProvider struct {
 	ID       string
 	Enabled  bool
@@ -208,6 +210,7 @@ type EffectiveProvider struct {
 	KeyEnv   string // env var name that supplies the key, "" when none
 	Probe    bool
 	HasProbe bool
+	CanProbe bool // true when the provider supports a probe toggle (Groq)
 	Plan     *PlanConfig
 }
 

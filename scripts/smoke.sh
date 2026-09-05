@@ -17,6 +17,10 @@ export OPENROUTER_API_KEY=x
 export OPENROUTER_API_KEY_FALLBACK=fx
 export GROQ_API_KEY=gx
 
+# Device token for mutating routes (POST/PUT/DELETE /v1/* now require a token
+# even from loopback — ORDER #54 task 59).
+export USAGED_DEVICE_TOKEN="smoke-test-token"
+
 # Start the server in the background.
 bin/usaged serve --fixtures testdata/fixtures --listen "127.0.0.1:${PORT}" --state "$STATE_FILE" &
 SERVER_PID=$!
@@ -80,8 +84,8 @@ if [ "$BODY_SIZE" != "0" ]; then
     exit 1
 fi
 
-# POST /v1/refresh → 200.
-REFRESH_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${BASE}/v1/refresh")
+# POST /v1/refresh → 200. Requires X-Device-Token (ORDER #54 task 59).
+REFRESH_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "X-Device-Token: ${USAGED_DEVICE_TOKEN}" "${BASE}/v1/refresh")
 if [ "$REFRESH_CODE" != "200" ]; then
     echo "FAIL: POST /v1/refresh returned $REFRESH_CODE, want 200"
     exit 1

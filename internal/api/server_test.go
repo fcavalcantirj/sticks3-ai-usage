@@ -613,6 +613,154 @@ func TestAuthEmptyTokenLAN(t *testing.T) {
 	}
 }
 
+// --- ORDER #54 / task 59 security gate tests ---
+
+// TestMutatingRouteNoTokenLoopback401 verifies that POST /v1/keys from
+// loopback with no token returns 401 (not 200, not 400). This is the core
+// of ORDER #54: mutating routes require a token even from loopback.
+func TestMutatingRouteNoTokenLoopback401(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "127.0.0.1:0", Interval: 900 * time.Second,
+		TZ: testLoc, DeviceToken: "x",
+	}
+	ks := creds.NewFakeKeyStore(nil)
+	handler := newHandlerWithKeyStore(t, dir, cfg, "", ks)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/keys", strings.NewReader(`{"id":"groq","value":"gsk_test"}`))
+	req.RemoteAddr = "127.0.0.1:12345"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("POST /v1/keys loopback no token: status = %d, want 401", rec.Code)
+	}
+}
+
+// TestMutatingRouteWrongToken401 verifies a wrong token is rejected.
+func TestMutatingRouteWrongToken401(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "127.0.0.1:0", Interval: 900 * time.Second,
+		TZ: testLoc, DeviceToken: "x",
+	}
+	ks := creds.NewFakeKeyStore(nil)
+	handler := newHandlerWithKeyStore(t, dir, cfg, "", ks)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/keys", strings.NewReader(`{"id":"groq","value":"gsk_test"}`))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-Device-Token", "wrong")
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("POST /v1/keys wrong token: status = %d, want 401", rec.Code)
+	}
+}
+
+// TestMutatingRoute401BeforeBodyRead verifies the 401 is returned before the
+// handler reads the body — an unauthenticated caller with garbage JSON gets 401,
+// not 400, so they learn nothing about the payload shape.
+func TestMutatingRoute401BeforeBodyRead(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "127.0.0.1:0", Interval: 900 * time.Second,
+		TZ: testLoc, DeviceToken: "x",
+	}
+	ks := creds.NewFakeKeyStore(nil)
+	handler := newHandlerWithKeyStore(t, dir, cfg, "", ks)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/keys", strings.NewReader(`{not valid json`))
+	req.RemoteAddr = "127.0.0.1:12345"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("POST /v1/keys no token garbage body: status = %d, want 401", rec.Code)
+	}
+}
+
+// TestMutatingRouteNonJSONContentType415 verifies that a mutating request with
+// a valid token but a non-JSON Content-Type (and a non-empty body) gets 415.
+func TestMutatingRouteNonJSONContentType415(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "127.0.0.1:0", Interval: 900 * time.Second,
+		TZ: testLoc, DeviceToken: "x",
+	}
+	ks := creds.NewFakeKeyStore(nil)
+	handler := newHandlerWithKeyStore(t, dir, cfg, "", ks)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/keys", strings.NewReader(`{"id":"groq","value":"gsk_test"}`))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-Device-Token", "x")
+	req.Header.Set("Content-Type", "text/plain")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnsupportedMediaType {
+		t.Errorf("POST /v1/keys non-JSON CT: status = %d, want 415", rec.Code)
+	}
+}
+
+// TestPutConfigNoTokenLoopback401 verifies PUT /v1/config requires a token
+// from loopback.
+func TestPutConfigNoTokenLoopback401(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "127.0.0.1:0", Interval: 900 * time.Second,
+		TZ: testLoc, DeviceToken: "x",
+	}
+	handler := newHandlerWithKeyStore(t, dir, cfg, "", creds.NewFakeKeyStore(nil))
+
+	req := httptest.NewRequest(http.MethodPut, "/v1/config/interval", strings.NewReader(`{"interval_sec":600}`))
+	req.RemoteAddr = "127.0.0.1:12345"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("PUT /v1/config/interval no token: status = %d, want 401", rec.Code)
+	}
+}
+
+// TestPostRefreshNoTokenLoopback401 verifies POST /v1/refresh requires a token
+// from loopback.
+func TestPostRefreshNoTokenLoopback401(t *testing.T) {
+	dir := setupFixtures(t)
+	handler, _, _ := newFixtureHandler(t, dir)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/refresh", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("POST /v1/refresh no token: status = %d, want 401", rec.Code)
+	}
+}
+
+// TestDeleteKeyNoTokenLoopback401 verifies DELETE /v1/keys requires a token
+// from loopback, and that a zero-length body does not trigger the 415 path.
+func TestDeleteKeyNoTokenLoopback401(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "127.0.0.1:0", Interval: 900 * time.Second,
+		TZ: testLoc, DeviceToken: "x",
+	}
+	ks := creds.NewFakeKeyStore(nil)
+	handler := newHandlerWithKeyStore(t, dir, cfg, "", ks)
+
+	req := httptest.NewRequest(http.MethodDelete, "/v1/keys?id=groq", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("DELETE /v1/keys no token: status = %d, want 401", rec.Code)
+	}
+}
+
 // --- Refresh endpoint tests ---
 
 func TestRefreshUnchanged(t *testing.T) {
@@ -659,6 +807,7 @@ func getRefresh(t *testing.T, handler http.Handler) snapshot.Snapshot {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/v1/refresh", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-Device-Token", "x")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -720,6 +869,7 @@ func TestConfigSetInterval(t *testing.T) {
 	// PUT with sec=600.
 	req := httptest.NewRequest(http.MethodPut, "/v1/config/interval", strings.NewReader(`{"interval_sec":600}`))
 	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-Device-Token", "x")
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -766,6 +916,7 @@ func TestConfigSetIntervalTooLow(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPut, "/v1/config/interval", strings.NewReader(`{"interval_sec":200}`))
 	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-Device-Token", "x")
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -797,6 +948,7 @@ func TestConfigSetFullRoundTrip(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPut, "/v1/config", strings.NewReader(payload))
 	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-Device-Token", "x")
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -857,6 +1009,7 @@ func TestConfigSetRejectsKeyValue(t *testing.T) {
 	payload := `{"interval_sec":600,"providers":[{"id":"openrouter:main","key":"sk-or-v1-actual-secret-key"}]}`
 	req := httptest.NewRequest(http.MethodPut, "/v1/config", strings.NewReader(payload))
 	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-Device-Token", "x")
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -889,6 +1042,7 @@ func TestConfigSetInvalidInterval(t *testing.T) {
 	payload := `{"interval_sec":200}`
 	req := httptest.NewRequest(http.MethodPut, "/v1/config", strings.NewReader(payload))
 	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-Device-Token", "x")
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -917,6 +1071,7 @@ func TestConfigSetRejectedPayloadLeavesFileUnchanged(t *testing.T) {
 	payload := `{"providers":[{"label":"test"}]}`
 	req := httptest.NewRequest(http.MethodPut, "/v1/config", strings.NewReader(payload))
 	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-Device-Token", "x")
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -1076,6 +1231,7 @@ func TestConfigSetPlanBlock(t *testing.T) {
 	payload := `{"interval_sec":600,"listen":"127.0.0.1:0","tz":"America/Sao_Paulo","alerts":{"openrouter_low_usd":1.0,"quota_warn_pct":90},"providers":[{"id":"claude","enabled":true,"label":"Claude","plan":{"cost":200,"currency":"USD","label":"Max 20x","cost_usd":200}}]}`
 	req := httptest.NewRequest(http.MethodPut, "/v1/config", strings.NewReader(payload))
 	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-Device-Token", "x")
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -1161,6 +1317,7 @@ func TestKeySetKeyStoresInKeychain(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/keys", strings.NewReader(`{"id":"groq","value":"gsk_test_key_123"}`))
 	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-Device-Token", "x")
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -1201,6 +1358,7 @@ func TestKeyDeleteRemovesFromKeychain(t *testing.T) {
 	// DELETE the key.
 	req := httptest.NewRequest(http.MethodDelete, "/v1/keys?id=groq", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-Device-Token", "x")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -1228,6 +1386,7 @@ func TestKeyRateLimited(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		req := httptest.NewRequest(http.MethodPost, "/v1/keys", strings.NewReader(`{"id":"groq","value":"gsk_x"}`))
 		req.RemoteAddr = "127.0.0.1:12345"
+		req.Header.Set("X-Device-Token", "x")
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 		handler.ServeHTTP(rec, req)
@@ -1238,6 +1397,7 @@ func TestKeyRateLimited(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/keys", strings.NewReader(`{"id":"groq","value":"gsk_x"}`))
 	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-Device-Token", "x")
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
@@ -1262,6 +1422,7 @@ func TestConfigInvalidThresholdRejected(t *testing.T) {
 	payload := `{"interval_sec":600,"alerts":{"quota_warn_pct":10,"openrouter_low_usd":1.0}}`
 	req := httptest.NewRequest(http.MethodPut, "/v1/config", strings.NewReader(payload))
 	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("X-Device-Token", "x")
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)

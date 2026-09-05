@@ -13,9 +13,19 @@ import (
 	"usaged/internal/config"
 )
 
-// Auth is the device-token authentication middleware. Requests from loopback
-// addresses always pass; non-loopback clients must present a device token
-// matching cfg.DeviceToken for /v1/* paths.
+// Auth is the device-token authentication middleware.
+//
+// Public paths (/, /healthz) are never challenged.
+//
+// GET /v1/* routes: loopback clients bypass the token check (the dashboard
+// works unauthenticated on localhost). Non-loopback clients must present a
+// device token.
+//
+// Mutating /v1/* routes (POST/PUT/DELETE): the device token is required
+// REGARDLESS of whether the request is from loopback — ORDER #54 task 59.
+// The token is checked before the handler reads or parses the body, so an
+// unauthenticated caller learns nothing about the payload shape. Requests
+// with a body must have Content-Type: application/json.
 type Auth struct {
 	cfg    config.Config
 	logger *slog.Logger
@@ -29,16 +39,30 @@ func newAuth(cfg config.Config, logger *slog.Logger) *Auth {
 	return &Auth{cfg: cfg, logger: logger}
 }
 
-// middleware wraps next with device-token enforcement. Loopback senders and
-// the public paths (/, /healthz) are never challenged. All other /v1/*
-// requests require X-Device-Token (or ?token=) equal to cfg.DeviceToken.
+// middleware wraps next with device-token enforcement. Public paths are never
+// challenged. For GET /v1/*, loopback senders bypass the token check. For
+// mutating /v1/* (POST/PUT/DELETE), the token is always required — even from
+// loopback — and the Content-Type must be application/json (for routes with a
+// body). The token is validated before the body is parsed.
 func (a *Auth) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if isLoopbackAddr(r.RemoteAddr) || !requiresToken(r.URL.Path) {
+		if !requiresToken(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
 		}
 
+		// Mutating methods require the token even on loopback (ORDER #54).
+		isMutating := r.Method == http.MethodPost ||
+			r.Method == http.MethodPut ||
+			r.Method == http.MethodDelete
+
+		// GET routes keep the loopback exemption.
+		if !isMutating && isLoopbackAddr(r.RemoteAddr) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Require a valid token for non-loopback GETs and ALL mutating requests.
 		token := r.Header.Get("X-Device-Token")
 		if token == "" {
 			token = r.URL.Query().Get("token")
@@ -47,12 +71,21 @@ func (a *Auth) middleware(next http.Handler) http.Handler {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"ok": "false", "error": "unauthorized"})
 			return
 		}
+
+		// Mutating routes with a body must be application/json.
+		if isMutating && r.ContentLength > 0 && !isJSONContentType(r.Header.Get("Content-Type")) {
+			writeJSON(w, http.StatusUnsupportedMediaType, map[string]string{
+				"ok": "false", "error": "Content-Type must be application/json",
+			})
+			return
+		}
+
 		next.ServeHTTP(w, r)
 	})
 }
 
-// requiresToken reports whether path requires a device token for non-loopback
-// clients. / and /healthz are exempt; everything under /v1/ requires it.
+// requiresToken reports whether path requires a device token. / and /healthz
+// are exempt; everything under /v1/ requires it.
 func requiresToken(path string) bool {
 	return strings.HasPrefix(path, "/v1/")
 }
@@ -67,9 +100,23 @@ func isLoopbackAddr(addr string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
+// isJSONContentType reports whether the Content-Type header value is
+// application/json (with optional parameters like charset).
+func isJSONContentType(ct string) bool {
+	if ct == "" {
+		return false
+	}
+	mediaType := strings.TrimSpace(strings.Split(ct, ";")[0])
+	return mediaType == "application/json"
+}
+
 // validToken compares the provided token against the expected one using
-// constant-time comparison. Both slices must have equal length.
+// constant-time comparison. An empty configured token (want == "") always
+// fails — a server with no token configured must not authenticate anyone.
 func validToken(got, want string) bool {
+	if want == "" {
+		return false
+	}
 	if len(got) != len(want) {
 		return false
 	}

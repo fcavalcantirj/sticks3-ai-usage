@@ -241,3 +241,19 @@ func TestIndexHTMLSettingsValidation(t *testing.T) {
 		}
 	}
 }
+
+// TestIndexHTMLCanProbe verifies the settings page gates the probe toggle on
+// the provider capability field can_probe (ORDER #54 task 59), not the
+// parse-time has_probe flag.
+func TestIndexHTMLCanProbe(t *testing.T) {
+	html := string(IndexHTML)
+	if !strings.Contains(html, "can_probe") {
+		t.Error(`index.html missing can_probe field reference for probe toggle gating`)
+	}
+	if strings.Contains(html, "p.has_probe") {
+		t.Error(`index.html still uses p.has_probe for probe toggle gating, should use p.can_probe`)
+	}
+	if !strings.Contains(html, "p.can_probe") {
+		t.Error(`index.html missing p.can_probe reference`)
+	}
+}

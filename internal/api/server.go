@@ -285,6 +285,7 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, _ *http.Request) {
 		}
 		entry["probe"] = p.Probe
 		entry["has_probe"] = p.HasProbe
+		entry["can_probe"] = p.CanProbe // ORDER #54 task 59: provider capability, not parse-time flag
 		if p.Plan != nil {
 			plan := map[string]any{
 				"cost":     p.Plan.Cost,

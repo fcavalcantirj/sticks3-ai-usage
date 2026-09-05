@@ -671,8 +671,8 @@ function createProviderCard(p) {
   }
   card.appendChild(keyRow);
 
-  // Probe toggle for Groq
-  if (p.has_probe) {
+  // Probe toggle: gated on provider capability (can_probe), not parse-time flag.
+  if (p.can_probe) {
     var probeRow = document.createElement("div");
     probeRow.className = "key-state-row";
     var probeLabel = document.createElement("label");
@@ -871,8 +871,9 @@ function setKeyPrompt(pid) {
 
 function removeKey(pid) {
   if (!confirm("Remove the Keychain key for " + pid + "?")) return;
-  var headers = authHeaders();
-  fetch("/v1/keys?id=" + encodeURIComponent(pid), {
+    var headers = authHeaders();
+    headers["Content-Type"] = "application/json";
+    fetch("/v1/keys?id=" + encodeURIComponent(pid), {
     method: "DELETE",
     headers: headers
   }).then(function(r) {
