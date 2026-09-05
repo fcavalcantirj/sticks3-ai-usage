@@ -695,6 +695,19 @@
     "passes": false
   },
   {
+    "category": "firmware",
+    "description": "Crit banner text sits 2 px high in its red rect (cursor y=118 in a rect centred on y=124) and is centred on the screen rather than on the rect",
+    "steps": [
+      "Firmware context: M5StickS3 unit #2, hostname sticks3-usage. PlatformIO espressif32@6.12.0 / Arduino core 2.0.17 / ESP-IDF 4.4.7, M5Unified 0.2.19 + M5GFX 0.2.28. Purity rule: gesture LOGIC goes in the pure core (firmware/src/usage/, no M5 or Arduino headers, host-tested by 'make fw-test'); only firmware/src/hal/sticks3/* and main.cpp may touch M5. Flash this over OTA ('make fw-ota'), no cable. Any upload needs Felipe's explicit authorization in the Solvr room.",
+      "Felipe, with a photo of the red crit banner reading 'Claude FABLE 7d 100%': 'bottom text is not aligned both vertical and horizontal in relation to banner - slightly upper'. He is right about the vertical, and it is exact arithmetic, not taste.",
+      "(a) VERTICAL, the visible defect. screen.cpp:174-179 fills the banner rect at fillRect(5, 116, W-10, 16) — so it spans y=116 to y=131 and its centre line is y=124 — then sets the cursor to y=118. Font0 is 8 px tall, so the glyphs occupy y=118 to y=125 and their centre is y=122. The text sits exactly 2 px high, which is precisely what he is seeing. The correct cursor y is 116 + (16 - fontHeight)/2 = 120. Do NOT hardcode 120: read the font height at runtime (M5.Display.fontHeight()) and compute it from the rect's own y and height, so the two can never drift apart again when someone moves the rect.",
+      "(b) HORIZONTAL, a latent bug rather than a visible one — be honest about this in your commit message. The cursor is set to (W - fw)/2, which centres on the SCREEN's midpoint of 120, while the rect spans x=5 to x=235 and happens to share that same midpoint. So today it is centred by coincidence, and the planner measured it off Felipe's photo at roughly 2 px from centre, inside photo error. Centre it on the RECT (rectX + (rectW - fw)/2) rather than the screen, so it stays correct if the rect ever moves or changes width. Same treatment for the 'no hub' branch at screen.cpp:181-187, which is centred on the screen with no rect at all.",
+      "While you are in this function, apply the same discipline to the whole footer: every string drawn there should derive its y from one shared baseline constant computed from the footer rect and the font height, not from three separate literals (118, 120, 120 today). One number, one place.",
+      "Verify: extract the vertical centring into a pure host-testable helper (given rect y, rect height and font height, return the cursor y) and test it — a 16 px rect with an 8 px font yields 120 for a rect at y=116; an odd leftover rounds consistently; a font taller than the rect clamps to the rect top rather than going negative. Same for horizontal centring within a rect. `make fw-test` Failed 0, `make fw-build` SUCCESS. Then it rides along on the next OTA — do NOT flash, the planner holds that lane and Felipe authorizes each upload. UAT is Felipe confirming the banner text sits centred in the red bar."
+    ],
+    "passes": false
+  },
+  {
     "category": "optional",
     "description": "OPTIONAL v3: spike `codex app-server` JSON-RPC account/rateLimits/read so the Codex CLI owns token refresh",
     "steps": [
