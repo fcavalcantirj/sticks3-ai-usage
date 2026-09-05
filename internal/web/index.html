@@ -17,8 +17,67 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       padding: 24px; min-height: 100vh;
     }
-    h1 { font-size: 20px; font-weight: 600; margin-bottom: 16px; }
-    h2 { font-size: 18px; font-weight: 600; margin: 24px 0 12px; }
+    .page-title { font-size: 20px; font-weight: 600; margin-bottom: 16px; }
+    .msg-error {
+      display: none; background: rgba(239,68,68,0.1); border: 1px solid var(--crit);
+      border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; font-size: 13px; color: var(--crit);
+    }
+    .token-row { display: none; gap: 8px; margin-bottom: 12px; }
+    .token-row input {
+      flex: 1; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); font-size: 13px;
+    }
+    .token-row button { background: var(--ok); color: var(--bg); border: none; }
+
+    /* --- Header: pills + interval + refresh (always visible) --- */
+    .header-bar {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .pills { display: flex; flex-wrap: wrap; gap: 12px; flex: 1; min-width: 0; }
+    .pill {
+      background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px 18px; min-width: 140px; text-align: center;
+    }
+    .pill .num { font-size: 22px; font-weight: 700; color: var(--text); }
+    .pill .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-top: 2px; }
+    .pill .est { font-size: 10px; color: var(--muted); margin-top: 2px; }
+    .pill .ratio { font-size: 11px; font-weight: 600; margin-top: 2px; }
+    .pill .ratio.warn { color: var(--warn); }
+    .pill .ratio.ok { color: var(--ok); }
+    .header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .interval-label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+    #interval-select {
+      background: var(--card); border: 1px solid var(--border); color: var(--text);
+      padding: 4px 8px; border-radius: 6px; font-size: 13px; cursor: pointer;
+    }
+    #interval-select:disabled { opacity: 0.5; cursor: default; }
+    button {
+      background: var(--card); border: 1px solid var(--border); color: var(--text);
+      padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;
+    }
+    button:hover { background: var(--border); }
+    button:active { opacity: 0.8; }
+    .refreshing { opacity: 0.6; pointer-events: none; }
+
+    /* --- Tab strip --- */
+    .tab-strip {
+      display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border);
+    }
+    .tab-strip button {
+      background: transparent; border: none; border-bottom: 3px solid transparent;
+      padding: 8px 16px; border-radius: 0; font-size: 13px; font-weight: 600;
+      color: var(--text); cursor: pointer; white-space: nowrap;
+    }
+    .tab-strip button[aria-selected="true"] {
+      border-color: var(--ok); color: var(--ok);
+    }
+    .tab-strip button:hover { background: rgba(255,255,255,0.03); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .tab-panel-scroll { max-height: calc(100vh - 200px); overflow-y: auto; }
+
+    /* --- Quota cards --- */
     .cards { display: flex; flex-direction: column; gap: 16px; }
     .card {
       background: var(--card); border: 1px solid var(--border);
@@ -47,41 +106,18 @@
     .bar-fill { height: 100%; border-radius: 4px; }
     .usage { min-width: 90px; font-size: 12px; color: var(--muted); text-align: right; }
     .reset { min-width: 150px; font-size: 12px; color: var(--muted); text-align: right; }
-    .footer-bar { margin-top: 20px; display: flex; justify-content: space-between; align-items: center; }
-    .footer-bar .info { font-size: 12px; color: var(--muted); }
-    button {
-      background: var(--card); border: 1px solid var(--border); color: var(--text);
-      padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;
-    }
-    button:hover { background: var(--border); }
-    .msg-error {
-      display: none; background: rgba(239,68,68,0.1); border: 1px solid var(--crit);
-      border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; font-size: 13px; color: var(--crit);
-    }
-    .token-row { display: none; gap: 8px; margin-bottom: 12px; }
-    .token-row input {
-      flex: 1; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border);
-      background: var(--bg); color: var(--text); font-size: 13px;
-    }
-    .token-row button { background: var(--ok); color: var(--bg); border: none; }
-
-    /* --- Stats dashboard polish --- */
-    .pills { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
-    .pill {
-      background: var(--card); border: 1px solid var(--border); border-radius: 10px;
-      padding: 12px 18px; min-width: 140px; text-align: center;
-    }
-    .pill .num { font-size: 22px; font-weight: 700; color: var(--text); }
-    .pill .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-top: 2px; }
-    .pill .est { font-size: 10px; color: var(--muted); margin-top: 2px; }
-    .pill .ratio { font-size: 11px; font-weight: 600; margin-top: 2px; }
-    .pill .ratio.warn { color: var(--warn); }
-    .pill .ratio.ok { color: var(--ok); }
-
     .quota-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
     @media (min-width: 960px) { .quota-grid { grid-template-columns: 1fr 1fr; } }
 
-    /* Heatmap */
+    /* --- Activity heatmaps --- */
+    .heatmap-container { margin-bottom: 12px; }
+    .heatmap-scale {
+      display: flex; align-items: center; gap: 4px; margin-top: 4px;
+      font-size: 10px; color: var(--muted);
+    }
+    .heatmap-scale .swatch {
+      width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0;
+    }
     .heatmap { display: grid; grid-template-columns: repeat(52, 1fr); gap: 2px; }
     .heat-cell {
       width: 10px; height: 10px; border-radius: 2px;
@@ -89,20 +125,22 @@
     }
     .heat-cell:hover { border-color: var(--muted); }
     .heat-label { font-size: 10px; color: var(--muted); }
-    .heat-0 { background: #0f172a; }
-    .heat-1 { background: #1e293b; }
+    /* Raised empty-cell colour — was #0f172a (same as body bg), now a visible grid. */
+    .heat-0 { background: #1e293b; }
+    .heat-1 { background: #2a3a5e; }
     .heat-2 { background: #33415e; }
     .heat-3 { background: #3b82f6; }
     .heat-4 { background: #2563eb; }
     .heat-today { border: 1.5px solid var(--text); }
 
-    /* Models table */
+    /* --- Models table --- */
+    .table-scroll { max-height: calc(100vh - 200px); overflow-y: auto; }
     table.models { width: 100%; border-collapse: collapse; font-size: 13px; }
     table.models th { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
     table.models td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
     table.models .model-name { font-family: monospace; font-size: 12px; }
 
-    /* Attention list */
+    /* --- Attention list --- */
     .attention-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
     .attention-item:last-child { border-bottom: none; }
     .chip { padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
@@ -110,11 +148,16 @@
     .chip-watch { background: rgba(245,158,11,0.15); color: var(--warn); }
     .chip-stale { background: rgba(100,116,140,0.15); color: var(--muted); }
 
-    /* Mobile */
+    /* --- Footer --- */
+    .footer-bar { margin-top: 20px; display: flex; justify-content: space-between; align-items: center; }
+    .footer-bar .info { font-size: 12px; color: var(--muted); }
+
+    /* --- Mobile --- */
     @media (max-width: 959px) {
-      .pills { flex-direction: column; }
+      .pills { flex-direction: column; align-items: stretch; }
+      .header-bar { flex-direction: column; align-items: stretch; }
       .quota-grid { grid-template-columns: 1fr; }
-      .heatmap { grid-template-columns: repeat(52, 1fr); overflow-x: auto; }
+      .heatmap { grid-template-columns: repeat(52, 1fr); }
       table.models, table.models thead, table.models tbody, table.models tr, table.models td, table.models th { display: block; width: 100%; }
       table.models tr { border-bottom: 1px solid var(--border); }
       table.models td { display: inline-block; min-width: 45%; }
@@ -123,59 +166,89 @@
   </style>
 </head>
 <body>
-  <h1>AI Usage</h1>
+  <div class="page-title">AI Usage</div>
   <div id="auth-error" class="msg-error"></div>
   <div id="token-input" class="token-row">
     <input type="password" id="token-field" placeholder="Enter device token" autocomplete="off">
     <button id="token-save">Save</button>
   </div>
 
-  <!-- Stat pills -->
-  <div id="stat-pills" class="pills">
-    <div class="pill"><div class="num" id="pill-today-tok">—</div><div class="lbl">Tokens today</div></div>
-    <div class="pill"><div class="num" id="pill-month-tok">—</div><div class="lbl">Tokens this month</div></div>
-    <div class="pill"><div class="num" id="pill-today-cost">$—</div><div class="lbl">Cost today</div><div class="est">est.</div></div>
-    <div class="pill"><div class="num" id="pill-month-cost">$—</div><div class="lbl">Cost this month</div><div class="est">est.</div><div class="ratio" id="pill-month-ratio"></div></div>
+  <!-- Header: stat pills + interval + refresh (always visible) -->
+  <div class="header-bar">
+    <div id="stat-pills" class="pills">
+      <div class="pill"><div class="num" id="pill-today-tok">—</div><div class="lbl">Tokens today</div></div>
+      <div class="pill"><div class="num" id="pill-month-tok">—</div><div class="lbl">Tokens this month</div></div>
+      <div class="pill"><div class="num" id="pill-today-cost">$—</div><div class="lbl">Cost today</div><div class="est">est.</div></div>
+      <div class="pill"><div class="num" id="pill-month-cost">$—</div><div class="lbl">Cost this month</div><div class="est">est.</div><div class="ratio" id="pill-month-ratio"></div></div>
+    </div>
+    <div class="header-actions">
+      <span class="interval-label">Refresh every</span>
+      <select id="interval-select" aria-label="Refresh interval">
+        <option value="300">5 min</option>
+        <option value="600">10 min</option>
+        <option value="900" selected>15 min</option>
+        <option value="1800">30 min</option>
+        <option value="3600">60 min</option>
+      </select>
+      <button id="refresh-btn">Refresh now</button>
+    </div>
   </div>
 
-  <!-- Quota cards (providers) -->
-  <h2>Quota</h2>
-  <div id="cards" class="quota-grid cards"></div>
-
-  <!-- Activity heatmaps -->
-  <h2>Activity</h2>
-  <div id="activity" class="cards">
-    <div id="heatmap-claude_code" class="card" style="display:none;"></div>
-    <div id="heatmap-codex" class="card" style="display:none;"></div>
+  <!-- Tab strip -->
+  <div class="tab-strip" role="tablist">
+    <button id="tab-quota-tab" role="tab" aria-controls="tab-quota" aria-selected="true">Quota</button>
+    <button id="tab-activity-tab" role="tab" aria-controls="tab-activity" aria-selected="false">Activity</button>
+    <button id="tab-models-tab" role="tab" aria-controls="tab-models" aria-selected="false">Models</button>
+    <button id="tab-attention-tab" role="tab" aria-controls="tab-attention" aria-selected="false">Needs attention</button>
   </div>
 
-  <!-- Models table -->
-  <h2>Models used</h2>
-  <table id="models-table" class="models">
-    <thead><tr><th>Model</th><th>Tokens today</th><th>Tokens month</th><th>Est. cost month</th><th>Requests</th></tr></thead>
-    <tbody></tbody>
-  </table>
+  <!-- Quota tab: provider cards -->
+  <div id="tab-quota" class="tab-panel active">
+    <div id="cards" class="quota-grid cards"></div>
+  </div>
 
-  <!-- Needs attention -->
-  <h2>Needs attention</h2>
-  <div id="attention" class="cards"></div>
+  <!-- Activity tab: heatmaps -->
+  <div id="tab-activity" class="tab-panel">
+    <div id="activity" class="cards">
+      <div id="heatmap-claude_code" class="card" style="display:none;"></div>
+      <div id="heatmap-codex" class="card" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- Models tab: table (scrolls inside its own pane) -->
+  <div id="tab-models" class="tab-panel">
+    <div class="table-scroll">
+      <table id="models-table" class="models">
+        <thead><tr><th>Model</th><th>Tokens today</th><th>Tokens month</th><th>Est. cost month</th><th>Requests</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Attention tab: attention list -->
+  <div id="tab-attention" class="tab-panel">
+    <div id="attention" class="cards"></div>
+  </div>
 
   <div class="footer-bar">
     <span id="footer-text" class="info">Data as of — · checked — · rev — · seq —</span>
-    <button id="refresh-btn">Refresh now</button>
   </div>
 
 <script>
 /*
  * AI Usage dashboard — vanilla JS, no build step, one file.
- * Pure helpers (tierColor, resetText, fmtTime, pctText, fmtTokens) are named
- * and side-effect free so a future test harness could import them.
  *
- * Protocol: poll /v1/usage every 60 s with If-None-Match; poll /v1/stats every
- * 5 min with its own ETag. On 304 update the "checked" time from /healthz;
- * on 200 re-render only the changed sections. Reset texts tick every 30 s.
+ * Protocol: poll /v1/usage every N s (from /v1/config interval) with
+ * If-None-Match; poll /v1/stats on its own interval with ETag. On 304 update
+ * the "checked" time from /healthz; on 200 re-render only the changed sections.
+ * Reset texts tick every 30 s.
+ *
  * Token is read from ?token= (→ localStorage usaged_token), sent as
  * X-Device-Token on every /v1/* call; 401 surfaces an inline token input.
+ *
+ * First-paint fix (ORDER #48 latent bug): the stats etag is NEVER sent on the
+ * first load — a stale etag from a previous session would make the server
+ * return 304 with no body, and the page would stay at placeholder zeros forever.
  */
 
 // ---- Pure helpers ----
@@ -194,7 +267,7 @@ function planLabel(plan) {
 function statusBadge(status, msg) {
   if (status === "ok") return "";
   if (status === "off") return badge("off", "no key");
-  if (status === "stale") return badge("stale", "stale · " + msg);
+  if (status === "stale") return badge("stale", "stale \u00b7 " + msg);
   if (status === "auth")  return badge("auth",  msg);
   if (status === "error") return badge("error", msg);
   return "";
@@ -205,7 +278,7 @@ function badge(cls, text) {
 }
 
 function fmtTime(unixSec) {
-  if (!unixSec) return "—";
+  if (!unixSec) return "\u2014";
   var d = new Date(unixSec * 1000);
   return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
@@ -272,9 +345,11 @@ function stripTokenFromUrl() {
 
 // ---- State ----
 
-var lastRev = null;       // full ETag header value, e.g. '"abcd1234"'
-var lastProviderJson = {}; // id → JSON string of last-rendered provider
-var lastStatsJson = null;  // JSON string of last-rendered stats report
+var lastRev = null;       // full Etchng header value, e.g. '"abcd1234"'
+var lastProviderJson = {}; // id \u2192 JSON string of last-rendered provider
+var lastStatsJson = null;   // JSON string of last-rendered stats report
+var statsRendered = false; // true after the first successful stats paint
+var currentInterval = 300; // seconds, from /v1/config
 
 // ---- Fetch ----
 
@@ -290,8 +365,10 @@ function loadUsage() {
 
 function loadStats() {
   var headers = authHeaders();
-  var ifNone = null;
-  if (lastStatsJson) {
+  // First-paint fix (ORDER #48 latent bug): never send If-None-Match on the
+  // first load — a stale etag from a previous session would yield a 304 with
+  // no body, leaving the page at placeholder zeros forever.
+  if (statsRendered) {
     var prevEtag = localStorage.getItem("stats_etag");
     if (prevEtag) headers["If-None-Match"] = prevEtag;
   }
@@ -304,10 +381,69 @@ function loadStats() {
   });
 }
 
+function loadConfig() {
+  var headers = authHeaders();
+  return fetch("/v1/config", { headers: headers }).then(function(resp) {
+    if (resp.status === 401) { showTokenInput(); return null; }
+    if (!resp.ok) return null;
+    return resp.json();
+  }).then(function(cfg) {
+    if (cfg && cfg.interval_sec) {
+      currentInterval = cfg.interval_sec;
+      var sel = document.getElementById("interval-select");
+      for (var i = 0; i < sel.options.length; i++) {
+        if (Number(sel.options[i].value) === cfg.interval_sec) {
+          sel.selectedIndex = i; break;
+        }
+      }
+    }
+    return cfg;
+  });
+}
+
 function loadHealthz() {
   fetch("/healthz", { headers: authHeaders() })
     .then(function(r) { return r.ok ? r.json() : null; })
     .then(function(h) { if (h) updateFooterChecked(h); });
+}
+
+// ---- Tab handling ----
+
+function setupTabs() {
+  var tabs = document.querySelectorAll(".tab-strip button[role=\"tab\"]");
+  tabs.forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      var target = btn.getAttribute("aria-controls");
+      showTab(target);
+    });
+  });
+  // Restore saved tab or default to quota.
+  var saved = localStorage.getItem("usaged_tab");
+  if (saved && document.getElementById(saved)) {
+    showTab(saved);
+  } else {
+    showTab("tab-quota");
+  }
+}
+
+function showTab(panelId) {
+  var panels = document.querySelectorAll(".tab-panel");
+  panels.forEach(function(p) {
+    p.classList.remove("active");
+    p.style.display = "none";
+  });
+  var tabs = document.querySelectorAll(".tab-strip button[role=\"tab\"]");
+  tabs.forEach(function(b) {
+    b.setAttribute("aria-selected", "false");
+  });
+  var panel = document.getElementById(panelId);
+  if (panel) {
+    panel.classList.add("active");
+    panel.style.display = "block";
+  }
+  var btn = document.querySelector(".tab-strip button[aria-controls=\"" + panelId + "\"]");
+  if (btn) btn.setAttribute("aria-selected", "true");
+  localStorage.setItem("usaged_tab", panelId);
 }
 
 // ---- Rendering ----
@@ -327,6 +463,14 @@ function renderSnapshot(snap) {
     }
     lastProviderJson[p.id] = jsonStr;
   });
+  // Remove cards for providers no longer present.
+  for (var id in lastProviderJson) {
+    if (!snap.providers.some(function(p) { return p.id === id; })) {
+      var old = document.getElementById("card-" + id);
+      if (old) old.remove();
+      delete lastProviderJson[id];
+    }
+  }
   lastRev = '"' + snap.rev + '"';
   updateFooter(snap);
 }
@@ -376,18 +520,18 @@ function renderRow(row, isStale) {
 function updateFooter(snap) {
   var asOf = fmtTime(snap.generated_at);
   var el = document.getElementById("footer-text");
-  el.textContent = "Data as of " + asOf + " · checked " + asOf +
-    " · rev " + (snap.rev || "—") + " · seq " + (snap.seq != null ? snap.seq : "—");
+  el.textContent = "Data as of " + asOf + " \u00b7 checked " + asOf +
+    " \u00b7 rev " + (snap.rev || "\u2014") + " \u00b7 seq " + (snap.seq != null ? snap.seq : "\u2014");
 }
 
 function updateFooterChecked(h) {
   var el = document.getElementById("footer-text");
-  var parts = el.textContent.split(" · ");
+  var parts = el.textContent.split(" \u00b7 ");
   if (parts.length >= 4) {
     parts[1] = "checked " + fmtTime(h.checked_at);
     if (h.rev) parts[2] = "rev " + h.rev;
     if (h.seq != null) parts[3] = "seq " + h.seq;
-    el.textContent = parts.join(" · ");
+    el.textContent = parts.join(" \u00b7 ");
   }
 }
 
@@ -413,7 +557,7 @@ function renderStats(report) {
   document.getElementById("pill-today-cost").textContent = fmtCost(todayCost);
   document.getElementById("pill-month-cost").textContent = fmtCost(monthCost);
 
-  // Plan-value ratio: compute from sources with a plan_value.
+  // Plan-value ratio
   var ratioEl = document.getElementById("pill-month-ratio");
   ratioEl.textContent = "";
   ratioEl.className = "ratio";
@@ -427,7 +571,7 @@ function renderStats(report) {
       ratioEl.textContent = label + " " + r.toFixed(1) + "x your $" +
         s.plan_value.cost.toFixed(0) + "/mo plan";
       ratioEl.className = "ratio " + (s.plan_value.warn ? "warn" : "ok");
-      break;  // show one representative ratio
+      break;
     }
   }
   if (!hasRatio) {
@@ -453,7 +597,6 @@ function renderStats(report) {
     cardEl.innerHTML = '<div class="card-header"><span class="card-title">' + label + ' activity</span></div>' +
       heatmapHtml(src, name);
   });
-  // Hide any heatmap cards for sources that don't have data.
   ["claude_code", "codex"].forEach(function(name) {
     var el = document.getElementById("heatmap-" + name);
     if (el && srcNames.indexOf(name) === -1) el.style.display = "none";
@@ -469,7 +612,6 @@ function renderStats(report) {
       models.push({ name: m.model, dayTok: tokensTotal(m.tokens), monthTok: 0, cost: m.cost, reqs: m.requests });
     });
   }
-  // Sort by month tokens desc — approximate with day tokens for now
   models.sort(function(a, b) { return b.dayTok - a.dayTok; });
   models.forEach(function(m) {
     var tr = document.createElement("tr");
@@ -480,17 +622,17 @@ function renderStats(report) {
       '<td>' + m.reqs + '</td>';
     tbody.appendChild(tr);
   });
+
+  statsRendered = true;
 }
 
 function heatmapHtml(src, srcName) {
   var days = src.days || [];
   var cells = "";
 
-  // Build a 52-column x 7-row grid (weeks × days). Today is outlined.
   var now = new Date();
   var today = now.toISOString().slice(0, 10);
 
-  // Group days by week
   var weeks = [];
   for (var i = 0; i < days.length; i++) {
     var day = days[i];
@@ -498,9 +640,8 @@ function heatmapHtml(src, srcName) {
     while (weeks.length <= weekIdx) weeks.push([]);
     weeks[weekIdx].push(day);
   }
-  while (weeks.length < 26) weeks.push([]); // pad to 26 weeks
+  while (weeks.length < 26) weeks.push([]);
 
-  // Find max tokens for intensity scaling
   var maxTok = 1;
   for (var d = 0; d < days.length; d++) {
     var t = tokensTotal(days[d].tokens);
@@ -527,8 +668,17 @@ function heatmapHtml(src, srcName) {
   }()) + " tokens, " + src.active_days + " active days, peak " +
     fmtTokens(src.peak.tokens) + " on " + src.peak.date;
 
-  return '<div class="heatmap">' + cells + '</div>' +
-    '<div class="heat-label" style="margin-top:8px">' + esc(summary) + '</div>';
+  var scale = '<div class="heatmap-scale">' +
+    '<span class="swatch" style="background:#1e293b"></span>' +
+    '<span class="swatch" style="background:#2a3a5e"></span>' +
+    '<span class="swatch" style="background:#33415e"></span>' +
+    '<span class="swatch" style="background:#3b82f6"></span>' +
+    '<span class="swatch" style="background:#2563eb"></span>' +
+    '<span style="margin-left:8px;color:var(--muted);font-size:10px">0 \u2014 low \u2014 high activity</span>' +
+    '</div>';
+
+  return '<div class="heatmap-container">' + '<div class="heatmap">' + cells + '</div>' + scale +
+    '<div class="heat-label" style="margin-top:8px">' + esc(summary) + '</div>' + '</div>';
 }
 
 // ---- Attention rendering ----
@@ -574,7 +724,7 @@ function attentionItem(label, chipText, chipClass, detail) {
 function showTokenInput() {
   var msg = document.getElementById("auth-error");
   msg.style.display = "block";
-  msg.textContent = "401 Unauthorized — enter your device token to view usage data.";
+  msg.textContent = "401 Unauthorized \u2014 enter your device token to view usage data.";
   document.getElementById("token-input").style.display = "flex";
 }
 
@@ -590,6 +740,9 @@ function saveToken() {
 }
 
 function doRefresh() {
+  var btn = document.getElementById("refresh-btn");
+  btn.classList.add("refreshing");
+  btn.textContent = "Refreshing…";
   var headers = authHeaders();
   headers["Content-Type"] = "application/json";
   fetch("/v1/refresh", { method: "POST", headers: headers })
@@ -602,21 +755,56 @@ function doRefresh() {
       if (!snap) return;
       renderSnapshot(snap);
       lastRev = '"' + snap.rev + '"';
+    })
+    .finally(function() {
+      btn.classList.remove("refreshing");
+      btn.textContent = "Refresh now";
     });
+}
+
+function saveInterval() {
+  var sel = document.getElementById("interval-select");
+  var sec = Number(sel.value);
+  var headers = authHeaders();
+  headers["Content-Type"] = "application/json";
+  fetch("/v1/config/interval", {
+    method: "PUT",
+    headers: headers,
+    body: JSON.stringify({ interval_sec: sec })
+  }).then(function(r) {
+    if (r.status === 401) { showTokenInput(); return; }
+    if (!r.ok) return;
+    currentInterval = sec;
+    reloadIntervals();
+  });
 }
 
 // ---- Init & polling ----
 
 function init() {
   stripTokenFromUrl();
+  setupTabs();
+  loadConfig();
   loadUsage().then(function(snap) { if (snap) renderSnapshot(snap); });
   loadStats().then(function(rep) { if (rep) renderStats(rep); });
   renderAttention(null, null);
   document.getElementById("refresh-btn").addEventListener("click", doRefresh);
   document.getElementById("token-save").addEventListener("click", saveToken);
-  setInterval(pollUsage, 60000);   // 60 s poll with If-None-Match
-  setInterval(pollStats, 300000);  // 5 min stats poll with own ETag
-  setInterval(tickResets, 30000);  // 30 s countdown refresh
+  document.getElementById("interval-select").addEventListener("change", saveInterval);
+  // Polling intervals are derived from currentInterval so the
+  // interval selector applies without a page reload.
+  reloadIntervals();
+}
+var pollUsageTO = 0, pollStatsTO = 0, tickResetsTO = 0;
+function reloadIntervals() {
+  clearTimeout(pollUsageTO); clearTimeout(pollStatsTO); clearInterval(tickResetsTO);
+  pollUsageTO = setTimeout(pollLoop, currentInterval * 1000);
+  pollStatsTO = setTimeout(pollStats, Math.max(currentInterval * 1000, 300000));
+  tickResetsTO = setInterval(tickResets, 30000);
+}
+function pollLoop() {
+  pollUsage();
+  pollUsageTO = setTimeout(pollLoop, currentInterval * 1000);
 }
 
 function pollUsage() {

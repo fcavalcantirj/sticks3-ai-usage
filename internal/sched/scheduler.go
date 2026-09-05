@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"usaged/internal/config"
 	"usaged/internal/format"
 	"usaged/internal/providers"
 	"usaged/internal/snapshot"
@@ -326,6 +327,17 @@ func (s *Scheduler) LoadState(state snapshot.State) {
 	defer s.mu.Unlock()
 	s.State = state
 	s.ensureMaps()
+}
+
+// SetInterval updates the poll interval at runtime. The change takes effect
+// on the next tick of the Run loop (which reads s.Interval via jitteredInterval).
+// The minimum enforced interval is 300s, matching config.MinIntervalSec.
+func (s *Scheduler) SetInterval(d time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if d >= time.Duration(config.MinIntervalSec)*time.Second {
+		s.Interval = d
+	}
 }
 
 // Run polls immediately, then on an Interval ticker with ±10% jitter until

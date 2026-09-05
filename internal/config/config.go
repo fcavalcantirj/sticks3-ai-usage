@@ -51,6 +51,10 @@ type Config struct {
 	AlertOpenRouterLowUSD float64
 	AlertQuotaWarnPct     int
 
+	// ConfigPath is the path of the YAML config file that was loaded, if any.
+	// Used by the API server to persist runtime config changes (e.g. interval).
+	ConfigPath string
+
 	// ProviderConfigs from YAML: toggles, labels, and key_env names, keyed
 	// by provider ID (e.g. "openrouter:main"). A provider with Enabled=false
 	// is dropped from the snapshot entirely.
@@ -134,6 +138,7 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 			return cfg, fmt.Errorf("config file %s: %w", configPath, parseErr)
 		}
 		applyFileConfig(&cfg, &fc, home)
+		cfg.ConfigPath = configPath
 	}
 
 	// Environment variables (override file)

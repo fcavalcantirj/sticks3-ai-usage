@@ -601,7 +601,7 @@
       "(e) LATENT BUG to fix in the same task: the stats fetch returns null on a 304 and the page then skips renderStats entirely, so a page that has not yet drawn keeps its placeholder zeros — the same class of bug the firmware had (a cache check must never gate the FIRST paint). Track whether stats have ever been rendered and force one render when they have not, regardless of the 304. Felipe's screenshot shows exactly this: the pills read 0 tokens and $0.00 and the Models table is empty while the activity heatmaps below are fully populated from the same payload.",
       "Verify: `go test ./internal/web ./internal/api -v` grows by at least 4 (embedded HTML contains the tab ids, the refresh control sits in the header markup, the interval endpoint round-trips, a 304 on a never-rendered page still paints); `make verify` and `make smoke` exit 0. UAT: Felipe opens the page at desktop width and at phone width and confirms NO page scrollbar in any tab, the refresh button in the header, a legible heatmap, and non-zero pills on first load."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "web",

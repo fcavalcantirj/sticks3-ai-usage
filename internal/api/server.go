@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -19,16 +21,18 @@ import (
 
 // Server hosts the usage HTTP API backed by a scheduler.
 type Server struct {
-	sched  *sched.Scheduler
-	cfg    config.Config
-	logger *slog.Logger
-	start  time.Time
+	sched      *sched.Scheduler
+	cfg        config.Config
+	configPath string // path to the YAML config file (for interval persistence)
+	logger     *slog.Logger
+	start      time.Time
 }
 
 // New builds the HTTP API server around a scheduler and config. It returns an
 // error if the listen address is not loopback and no DeviceToken is configured
-// (never expose the LAN port without a token).
-func New(s *sched.Scheduler, cfg config.Config, logger *slog.Logger) (*http.Server, error) {
+// (never expose the LAN port without a token). configPath is the path to the
+// YAML config file for persisting runtime changes (may be "").
+func New(s *sched.Scheduler, cfg config.Config, configPath string, logger *slog.Logger) (*http.Server, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -38,10 +42,11 @@ func New(s *sched.Scheduler, cfg config.Config, logger *slog.Logger) (*http.Serv
 	}
 
 	srv := &Server{
-		sched:  s,
-		cfg:    cfg,
-		logger: logger,
-		start:  time.Now(),
+		sched:      s,
+		cfg:        cfg,
+		configPath: configPath,
+		logger:     logger,
+		start:      time.Now(),
 	}
 
 	mux := http.NewServeMux()
@@ -52,6 +57,8 @@ func New(s *sched.Scheduler, cfg config.Config, logger *slog.Logger) (*http.Serv
 	mux.HandleFunc("GET /v1/usage.txt", srv.handleUsageTxt)
 	mux.HandleFunc("GET /v1/stats", srv.handleStats)
 	mux.HandleFunc("POST /v1/refresh", srv.handleRefresh)
+	mux.HandleFunc("GET /v1/config", srv.handleGetConfig)
+	mux.HandleFunc("PUT /v1/config/interval", srv.handleSetInterval)
 	mux.HandleFunc("/", srv.handleNotFound)
 
 	handler := newAuth(cfg, logger).middleware(mux)
@@ -187,6 +194,67 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 	w.WriteHeader(http.StatusOK)
 	w.Write(body)
+}
+
+// handleGetConfig returns the current runtime config as JSON.
+// Read-only: does not expose secrets.
+func (s *Server) handleGetConfig(w http.ResponseWriter, _ *http.Request) {
+	resp := map[string]any{
+		"interval_sec": int(s.cfg.Interval.Seconds()),
+		"listen":       s.cfg.Listen,
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// handleSetInterval accepts a PUT to change the poll interval at runtime.
+// The new value is applied immediately (without restart) and persisted to
+// the YAML config file if one exists. Validates >= MinIntervalSec (300).
+func (s *Server) handleSetInterval(w http.ResponseWriter, r *http.Request) {
+	type req struct {
+		IntervalSec int `json:"interval_sec"`
+	}
+	var body req
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"ok": "false", "error": "invalid JSON body"})
+		return
+	}
+	if body.IntervalSec < config.MinIntervalSec {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"ok":    "false",
+			"error": fmt.Sprintf("interval_sec must be >= %d", config.MinIntervalSec),
+		})
+		return
+	}
+
+	newInterval := time.Duration(body.IntervalSec) * time.Second
+	s.sched.SetInterval(newInterval)
+	s.cfg.Interval = newInterval
+
+	if s.configPath != "" {
+		s.persistInterval(body.IntervalSec)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "interval_sec": body.IntervalSec})
+}
+
+// persistInterval updates interval_sec in the YAML config file in-place.
+func (s *Server) persistInterval(sec int) {
+	text, err := os.ReadFile(s.configPath)
+	if err != nil {
+		s.logger.Warn("persist interval: read config file", "path", s.configPath, "err", err)
+		return
+	}
+	re := regexp.MustCompile(`(?m)^interval_sec:\s*\d+\s*$`)
+	newLine := fmt.Sprintf("interval_sec: %d", sec)
+	if re.Match(text) {
+		text = re.ReplaceAll(text, []byte(newLine))
+	} else {
+		text = append(text, '\n')
+		text = append(text, []byte(newLine)...)
+	}
+	if err := os.WriteFile(s.configPath, text, 0o600); err != nil {
+		s.logger.Warn("persist interval: write config file", "path", s.configPath, "err", err)
+	}
 }
 
 // handleIndex serves the embedded dashboard at / and /index.html.

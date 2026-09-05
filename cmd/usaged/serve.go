@@ -86,7 +86,7 @@ func runServe(args []string, stdout io.Writer) int {
 	go s.Run(ctx)
 
 	// Build and start the HTTP API.
-	httpSrv, err := api.New(s, cfg, logger)
+	httpSrv, err := api.New(s, cfg, cfg.ConfigPath, logger)
 	if err != nil {
 		logger.Error("http server init failed", "err", err)
 		fmt.Fprintln(stdout, err.Error())

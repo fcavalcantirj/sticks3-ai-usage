@@ -70,7 +70,7 @@ func newFixtureHandlerCfg(t *testing.T, dir string, cfg config.Config) (http.Han
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
 	s.PollOnce(context.Background())
-	srv, err := New(s, cfg, logger)
+	srv, err := New(s, cfg, "", logger)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -435,7 +435,7 @@ func TestStatsServedFromScan(t *testing.T) {
 	}
 	s.PollOnce(context.Background())
 
-	srv, err := New(s, cfg, logger)
+	srv, err := New(s, cfg, "", logger)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -607,7 +607,7 @@ func TestAuthEmptyTokenLAN(t *testing.T) {
 	}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
-	_, err := New(s, cfg, logger)
+	_, err := New(s, cfg, "", logger)
 	if err == nil {
 		t.Error("New with empty DeviceToken + non-loopback listen should return an error")
 	}
@@ -669,4 +669,108 @@ func getRefresh(t *testing.T, handler http.Handler) snapshot.Snapshot {
 		t.Fatalf("decode refresh response: %v\n%s", err, rec.Body.String())
 	}
 	return snap
+}
+
+// --- Config endpoint tests (task 54: interval selector persistence) ---
+
+// TestConfigGetInterval verifies GET /v1/config returns the current interval_sec
+// and listen address without exposing secrets.
+func TestConfigGetInterval(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen:      "127.0.0.1:0",
+		Interval:    600 * time.Second,
+		TZ:          testLoc,
+		DeviceToken: "x",
+	}
+	handler, _, _ := newFixtureHandlerCfg(t, dir, cfg)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/config", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /v1/config: status = %d, want 200", rec.Code)
+	}
+	var resp map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp["interval_sec"] != float64(600) {
+		t.Errorf("interval_sec = %v, want 600", resp["interval_sec"])
+	}
+	if resp["listen"] != "127.0.0.1:0" {
+		t.Errorf("listen = %v, want 127.0.0.1:0", resp["listen"])
+	}
+}
+
+// TestConfigSetInterval verifies PUT /v1/config/interval updates the interval
+// at runtime and the new value is reflected in the next GET /v1/config.
+func TestConfigSetInterval(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen:      "127.0.0.1:0",
+		Interval:    900 * time.Second,
+		TZ:          testLoc,
+		DeviceToken: "x",
+	}
+	handler, _, _ := newFixtureHandlerCfg(t, dir, cfg)
+
+	// PUT with sec=600.
+	req := httptest.NewRequest(http.MethodPut, "/v1/config/interval", strings.NewReader(`{"interval_sec":600}`))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT /v1/config/interval: status = %d, want 200", rec.Code)
+	}
+	var resp map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode PUT response: %v", err)
+	}
+	if resp["ok"] != true {
+		t.Errorf("ok = %v, want true", resp["ok"])
+	}
+	if resp["interval_sec"] != float64(600) {
+		t.Errorf("interval_sec = %v, want 600", resp["interval_sec"])
+	}
+
+	// GET /v1/config should now reflect 600.
+	req2 := httptest.NewRequest(http.MethodGet, "/v1/config", nil)
+	req2.RemoteAddr = "127.0.0.1:12345"
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+	var cfg2 map[string]any
+	if err := json.NewDecoder(rec2.Body).Decode(&cfg2); err != nil {
+		t.Fatalf("decode GET response: %v", err)
+	}
+	if cfg2["interval_sec"] != float64(600) {
+		t.Errorf("GET interval_sec = %v, want 600 after PUT", cfg2["interval_sec"])
+	}
+}
+
+// TestConfigSetIntervalTooLow verifies PUT /v1/config/interval rejects values
+// below MinIntervalSec (300) with a 400.
+func TestConfigSetIntervalTooLow(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen:      "127.0.0.1:0",
+		Interval:    900 * time.Second,
+		TZ:          testLoc,
+		DeviceToken: "x",
+	}
+	handler, _, _ := newFixtureHandlerCfg(t, dir, cfg)
+
+	req := httptest.NewRequest(http.MethodPut, "/v1/config/interval", strings.NewReader(`{"interval_sec":200}`))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("PUT /v1/config/interval sec=200: status = %d, want 400", rec.Code)
+	}
 }
