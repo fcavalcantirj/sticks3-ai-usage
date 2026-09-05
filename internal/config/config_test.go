@@ -40,6 +40,9 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.CodexSource != "http" {
 		t.Errorf("CodexSource = %q, want http", cfg.CodexSource)
 	}
+	if cfg.ClaudeSource != "auto" {
+		t.Errorf("ClaudeSource = %q, want auto", cfg.ClaudeSource)
+	}
 }
 
 func TestLoadEnvOverrides(t *testing.T) {
@@ -55,6 +58,7 @@ func TestLoadEnvOverrides(t *testing.T) {
 		"USAGED_GROQ_PROBE":           "1",
 		"USAGED_LOG_LEVEL":            "debug",
 		"USAGED_CODEX_SOURCE":         "cli",
+		"USAGED_CLAUDE_SOURCE":        "oauth",
 	}
 	cfg, err := Load(nil, envFrom(env))
 	if err != nil {
@@ -83,6 +87,9 @@ func TestLoadEnvOverrides(t *testing.T) {
 	}
 	if cfg.CodexSource != "cli" {
 		t.Errorf("CodexSource = %q, want cli", cfg.CodexSource)
+	}
+	if cfg.ClaudeSource != "oauth" {
+		t.Errorf("ClaudeSource = %q, want oauth", cfg.ClaudeSource)
 	}
 }
 
@@ -185,6 +192,19 @@ func TestLoadInvalidCodexSource(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "USAGED_CODEX_SOURCE") {
 		t.Errorf("error should mention USAGED_CODEX_SOURCE, got: %v", err)
+	}
+}
+
+func TestLoadInvalidClaudeSource(t *testing.T) {
+	env := map[string]string{
+		"USAGED_CLAUDE_SOURCE": "invalid",
+	}
+	_, err := Load(nil, envFrom(env))
+	if err == nil {
+		t.Fatal("expected error for invalid ClaudeSource")
+	}
+	if !strings.Contains(err.Error(), "USAGED_CLAUDE_SOURCE") {
+		t.Errorf("error should mention USAGED_CLAUDE_SOURCE, got: %v", err)
 	}
 }
 

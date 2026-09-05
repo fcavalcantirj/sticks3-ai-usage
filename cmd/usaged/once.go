@@ -104,7 +104,18 @@ func buildFetchers(cfg config.Config) []providers.Fetcher {
 
 	loc := cfg.TZ
 	var fetchers []providers.Fetcher
-	fetchers = append(fetchers, providers.NewClaude(client, runner, claudeUsername(), loc))
+
+	// Claude: auto (statusline+oauth fallback), oauth, or statusline source.
+	claudeOAuth := providers.NewClaude(client, runner, claudeUsername(), loc)
+	claudeStatuslinePath := claudeStatuslinePath()
+	switch cfg.ClaudeSource {
+	case "statusline":
+		fetchers = append(fetchers, providers.NewClaudeStatusline(claudeStatuslinePath, nil, loc))
+	case "oauth":
+		fetchers = append(fetchers, claudeOAuth)
+	default: // auto
+		fetchers = append(fetchers, providers.NewClaudeStatusline(claudeStatuslinePath, claudeOAuth, loc))
+	}
 
 	// Codex: HTTP (wham/usage) or CLI (app-server) source.
 	switch cfg.CodexSource {
@@ -233,6 +244,31 @@ func claudeUsername() string {
 		return u.Username
 	}
 	return os.Getenv("USER")
+}
+
+// claudeStatuslinePath returns the path to the statusline tee file.
+// In fixture mode, an empty path tells the statusline provider to skip the
+// file and use its OAuth fallback (so fixture-mode tests exercise the OAuth
+// path as before).
+func claudeStatuslinePath() string {
+	if os.Getenv("USAGED_FIXTURES") != "" || os.Getenv("FIXTURES") != "" {
+		return ""
+	}
+	home := os.Getenv("HOME")
+	if home == "" {
+		if u, err := user.Current(); err == nil && u.HomeDir != "" {
+			home = u.HomeDir
+		}
+	}
+	return expandHomePath(home, ".local/state/usaged/claude-statusline.json")
+}
+
+func expandHomePath(home, path string) string {
+	if home != "" {
+		path = strings.ReplaceAll(path, "~", home)
+		path = strings.ReplaceAll(path, "$HOME", home)
+	}
+	return path
 }
 
 // statePathForOnce returns the explicitly-configured state path when the user

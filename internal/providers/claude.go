@@ -52,8 +52,9 @@ func stripClaudeTier(tier string) string {
 	return strings.TrimPrefix(tier, "default_claude_")
 }
 
-// claudeProviderBlock is a convenience builder for the non-rows fields.
-func (p *claudeProvider) block(status, msg, plan string, rows []snapshot.Row, fetchedAt int64) snapshot.Provider {
+// claudeBlock returns a canonical claude snapshot.Provider block. Shared by
+// the OAuth and statusline fetchers so they produce identical output fields.
+func claudeBlock(status, msg, plan string, rows []snapshot.Row, fetchedAt int64) snapshot.Provider {
 	return snapshot.Provider{
 		ID:        claudeID,
 		Label:     claudeLabel,
@@ -74,15 +75,15 @@ func (p *claudeProvider) Fetch(ctx context.Context, now time.Time) (snapshot.Pro
 	// Both auth errors suppress the HTTP call.
 	if errors.Is(err, creds.ErrNotLoggedIn) {
 		slog.Debug("claude: not logged in")
-		return p.block("auth", "run claude", stripClaudeTier(c.RateLimitTier), nil, now.Unix()), Outcome{}
+		return claudeBlock("auth", "run claude", stripClaudeTier(c.RateLimitTier), nil, now.Unix()), Outcome{}
 	}
 	if errors.Is(err, creds.ErrExpired) {
 		slog.Debug("claude: token expired")
-		return p.block("auth", "run claude", stripClaudeTier(c.RateLimitTier), nil, now.Unix()), Outcome{}
+		return claudeBlock("auth", "run claude", stripClaudeTier(c.RateLimitTier), nil, now.Unix()), Outcome{}
 	}
 	if err != nil {
 		slog.Debug("claude: cred read error", "err", err)
-		return p.block("error", "cred read", "", nil, now.Unix()), Outcome{}
+		return claudeBlock("error", "cred read", "", nil, now.Unix()), Outcome{}
 	}
 
 	// Cache the User-Agent on first use.
@@ -108,31 +109,31 @@ func (p *claudeProvider) Fetch(ctx context.Context, now time.Time) (snapshot.Pro
 		if errors.Is(err, context.DeadlineExceeded) {
 			msg = "api timeout"
 		}
-		return p.block("error", msg, plan, nil, now.Unix()), Outcome{}
+		return claudeBlock("error", msg, plan, nil, now.Unix()), Outcome{}
 	}
 
 	slog.Debug("claude: response", "status", resp.Status)
 
 	switch {
 	case resp.Status == http.StatusUnauthorized || resp.Status == http.StatusForbidden:
-		return p.block("auth", "run claude", plan, nil, now.Unix()), Outcome{}
+		return claudeBlock("auth", "run claude", plan, nil, now.Unix()), Outcome{}
 	case resp.Status == http.StatusTooManyRequests:
 		cooldown, ok := httpx.RetryAfter(resp.Header, now)
 		if !ok {
 			cooldown = 300 * time.Second
 		}
 		until := now.Add(cooldown)
-		return p.block("error", fmt.Sprintf("429 until %s", until.In(p.loc).Format("15:04")), plan, nil, now.Unix()),
+		return claudeBlock("error", fmt.Sprintf("429 until %s", until.In(p.loc).Format("15:04")), plan, nil, now.Unix()),
 			Outcome{CooldownUntil: until}
 	case resp.Status != http.StatusOK:
-		return p.block("error", fmt.Sprintf("http %d", resp.Status), plan, nil, now.Unix()), Outcome{}
+		return claudeBlock("error", fmt.Sprintf("http %d", resp.Status), plan, nil, now.Unix()), Outcome{}
 	}
 
 	// Parse the 200 response body.
 	var body claudeUsageResponse
 	if err := json.Unmarshal(resp.Body, &body); err != nil {
 		slog.Debug("claude: parse error", "err", err)
-		return p.block("error", fmt.Sprintf("http %d", resp.Status), plan, nil, now.Unix()), Outcome{}
+		return claudeBlock("error", fmt.Sprintf("http %d", resp.Status), plan, nil, now.Unix()), Outcome{}
 	}
 
 	var rows []snapshot.Row
@@ -144,7 +145,7 @@ func (p *claudeProvider) Fetch(ctx context.Context, now time.Time) (snapshot.Pro
 		rows = parseClaudeFallback(body, now, p.loc)
 	}
 
-	return p.block("ok", "", plan, rows, now.Unix()), Outcome{}
+	return claudeBlock("ok", "", plan, rows, now.Unix()), Outcome{}
 }
 
 // --- response parsing ---
