@@ -14,6 +14,7 @@ import (
 
 	"usaged/internal/api"
 	"usaged/internal/config"
+	"usaged/internal/creds"
 	"usaged/internal/sched"
 	"usaged/internal/snapshot"
 	"usaged/internal/stats"
@@ -42,7 +43,7 @@ func runServe(args []string, stdout io.Writer) int {
 	defer cleanup()
 	cfg.FixturesDir = fixturesDir
 
-	fetchers := buildFetchers(cfg)
+	fetchers := buildFetchers(cfg, creds.NewKeyStore())
 	clock := time.Now
 	s := sched.NewScheduler(fetchers, cfg.Interval, cfg.StatePath, clock, logger)
 
@@ -88,7 +89,7 @@ func runServe(args []string, stdout io.Writer) int {
 	go s.Run(ctx)
 
 	// Build and start the HTTP API.
-	httpSrv, err := api.New(s, cfg, cfg.ConfigPath, logger)
+	httpSrv, err := api.New(s, cfg, cfg.ConfigPath, logger, api.WithKeyStore(creds.NewKeyStore()))
 	if err != nil {
 		logger.Error("http server init failed", "err", err)
 		fmt.Fprintln(stdout, err.Error())

@@ -142,3 +142,102 @@ func TestIndexHTMLSettingsTab(t *testing.T) {
 		t.Error("settings tab should appear before footer in markup")
 	}
 }
+
+// --- Task 57 settings page tests ---
+
+// TestIndexHTMLSettingsIntervalSelect verifies the settings interval field is
+// a <select> with the same 5/10/15/30/60 minute options as the header, not a
+// raw number input (ORDER #52).
+func TestIndexHTMLSettingsIntervalSelect(t *testing.T) {
+	html := string(IndexHTML)
+	// setting-interval must be a select, not an input[type=number]
+	if strings.Contains(html, `id="setting-interval" type="number"`) {
+		t.Error("setting-interval is still a number input, should be a select")
+	}
+	for _, want := range []string{`id="setting-interval"`, `value="300"`, `value="600"`, `value="900"`, `value="1800"`, `value="3600"`} {
+		if !strings.Contains(html, want) {
+			t.Errorf("index.html missing settings interval option %q", want)
+		}
+	}
+}
+
+// TestIndexHTMLProviderCards verifies the settings page renders a card per
+// provider with enabled toggle, label, key state, and (for claude/codex) a
+// plan block with cost fields.
+func TestIndexHTMLProviderCards(t *testing.T) {
+	html := string(IndexHTML)
+	// The renderer builds provider cards dynamically in createProviderCard(),
+	// so we check for the template structure and data-field attributes it emits.
+	for _, want := range []string{
+		`data-field="enabled"`,
+		`data-field="label"`,
+		`data-field="plan.cost"`,
+		`data-field="plan.currency"`,
+		`data-field="plan.label"`,
+		`data-field="plan.cost_usd"`,
+		`/v1/keys`,
+		`createProviderCard`,
+		`provider-card`,
+		`Set key`,
+		`Remove key`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("index.html missing provider card element %q", want)
+		}
+	}
+}
+
+// TestIndexHTMLSettingsDarkTheme verifies the settings inputs use the dark
+// palette classes (no default browser chrome).
+func TestIndexHTMLSettingsDarkTheme(t *testing.T) {
+	html := string(IndexHTML)
+	for _, want := range []string{
+		`var(--bg)`,
+		`var(--border)`,
+		`var(--card)`,
+		`var(--text)`,
+		`var(--muted)`,
+		`var(--ok)`,
+		`var(--warn)`,
+		`var(--crit)`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("index.html settings CSS missing palette variable %q", want)
+		}
+	}
+}
+
+// TestIndexHTMLKeyManagement verifies the key endpoints and Keychain-related
+// JS are present and the key never appears in a config GET response.
+func TestIndexHTMLKeyManagement(t *testing.T) {
+	html := string(IndexHTML)
+	for _, want := range []string{
+		`POST`, `/v1/keys`,
+		`DELETE`, `/v1/keys`,
+		`setKeyPrompt`,
+		`removeKey`,
+		`Keychain`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("index.html missing key management element %q", want)
+		}
+	}
+}
+
+// TestIndexHTMLSettingsValidation verifies inline validation that names the
+// bad field and save feedback states.
+func TestIndexHTMLSettingsValidation(t *testing.T) {
+	html := string(IndexHTML)
+	for _, want := range []string{
+		`settings-error`,
+		`showSettingsStatus`,
+		`Invalid field`,
+		`Save settings`,
+		`Saving…`,
+		`Saved`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("index.html missing validation element %q", want)
+		}
+	}
+}

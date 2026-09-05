@@ -948,7 +948,366 @@ func buildTestHandlerWithConfigPath(t *testing.T, dir string, cfg config.Config,
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
 	s.PollOnce(context.Background())
-	srv, err := New(s, cfg, configPath, logger)
+	srv, err := New(s, cfg, configPath, logger, WithKeyStore(creds.NewFakeKeyStore(nil)), WithGetenv(func(k string) string {
+		if k == "OPENROUTER_API_KEY" {
+			return "env-key-main"
+		}
+		return os.Getenv(k)
+	}))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return srv.Handler
+}
+
+// --- Task 57 config & key endpoint tests ---
+
+// TestConfigGetProviders renders all five providers even with no config.yaml.
+func TestConfigGetProviders(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "127.0.0.1:0", Interval: 900 * time.Second,
+		TZ: testLoc, DeviceToken: "x",
+	}
+	handler := buildTestHandlerWithConfigPath(t, dir, cfg, "")
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/config", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /v1/config: status = %d", rec.Code)
+	}
+	var resp map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	provs, ok := resp["providers"].([]any)
+	if !ok || len(provs) == 0 {
+		t.Fatalf("providers = %v, want 5", provs)
+	}
+	if len(provs) != 5 {
+		t.Errorf("providers = %d, want 5", len(provs))
+	}
+	// Verify canonical order.
+	expected := []string{"claude", "codex", "openrouter:main", "openrouter:fallback", "groq"}
+	for i, e := range expected {
+		p := provs[i].(map[string]any)
+		if p["id"] != e {
+			t.Errorf("providers[%d].id = %v, want %s", i, p["id"], e)
+		}
+	}
+}
+
+// TestConfigGetNeverReturnsKey verifies GET /v1/config never includes a raw key value.
+func TestConfigGetNeverReturnsKey(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "127.0.0.1:0", Interval: 900 * time.Second,
+		TZ: testLoc, DeviceToken: "x",
+	}
+	ks := creds.NewFakeKeyStore(map[string]string{"openrouter:main": "sk-or-v1-secret"})
+	handler := newHandlerWithKeyStore(t, dir, cfg, "", ks)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/config", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	if strings.Contains(body, "sk-or-v1-secret") {
+		t.Errorf("GET /v1/config leaked a key value: %s", body)
+	}
+	// key_state should be "set" (from keychain) but value must not appear.
+	var resp map[string]any
+	json.Unmarshal(rec.Body.Bytes(), &resp)
+	provs := resp["providers"].([]any)
+	orMain := provs[2].(map[string]any)
+	if orMain["key_state"] != "set" {
+		t.Errorf("key_state = %v, want set (from keychain)", orMain["key_state"])
+	}
+}
+
+// TestConfigEnvBeatsKeychain verifies env var takes priority over keychain for key state.
+func TestConfigEnvBeatsKeychain(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "127.0.0.1:0", Interval: 900 * time.Second,
+		TZ: testLoc, DeviceToken: "x",
+	}
+	ks := creds.NewFakeKeyStore(map[string]string{"openrouter:main": "keychain-key"})
+	handler := newHandlerWithKeyStore(t, dir, cfg, "", ks, WithGetenv(func(k string) string {
+		if k == "OPENROUTER_API_KEY" {
+			return "env-key"
+		}
+		return ""
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/config", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	var resp map[string]any
+	json.Unmarshal(rec.Body.Bytes(), &resp)
+	provs := resp["providers"].([]any)
+	orMain := provs[2].(map[string]any)
+	if orMain["key_state"] != "set" {
+		t.Errorf("key_state = %v, want set", orMain["key_state"])
+	}
+	if orMain["key_env"] != "OPENROUTER_API_KEY" {
+		t.Errorf("key_env = %v, want OPENROUTER_API_KEY", orMain["key_env"])
+	}
+}
+
+// TestConfigSetPlanBlock verifies plan cost values round-trip through PUT /v1/config.
+func TestConfigSetPlanBlock(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "127.0.0.1:0", Interval: 900 * time.Second,
+		TZ: testLoc, DeviceToken: "x",
+	}
+	configPath := filepath.Join(dir, "config.yaml")
+	os.WriteFile(configPath, []byte("interval_sec: 900\n"), 0o600)
+	handler := newHandlerWithKeyStore(t, dir, cfg, configPath, creds.NewFakeKeyStore(nil))
+
+	// PUT with a plan block for claude.
+	payload := `{"interval_sec":600,"listen":"127.0.0.1:0","tz":"America/Sao_Paulo","alerts":{"openrouter_low_usd":1.0,"quota_warn_pct":90},"providers":[{"id":"claude","enabled":true,"label":"Claude","plan":{"cost":200,"currency":"USD","label":"Max 20x","cost_usd":200}}]}`
+	req := httptest.NewRequest(http.MethodPut, "/v1/config", strings.NewReader(payload))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT /v1/config: status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	// Verify the plan was persisted to the file.
+	written, _ := os.ReadFile(configPath)
+	if !strings.Contains(string(written), "cost: 200") {
+		t.Errorf("config file missing plan cost: %s", written)
+	}
+	if !strings.Contains(string(written), "cost_usd: 200") {
+		t.Errorf("config file missing cost_usd: %s", written)
+	}
+
+	// GET should reflect the plan block.
+	req2 := httptest.NewRequest(http.MethodGet, "/v1/config", nil)
+	req2.RemoteAddr = "127.0.0.1:12345"
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+
+	var resp map[string]any
+	json.NewDecoder(rec2.Body).Decode(&resp)
+	provs := resp["providers"].([]any)
+	claude := provs[0].(map[string]any)
+	plan := claude["plan"].(map[string]any)
+	if plan["cost"] != float64(200) {
+		t.Errorf("plan.cost = %v, want 200", plan["cost"])
+	}
+	if plan["currency"] != "USD" {
+		t.Errorf("plan.currency = %v, want USD", plan["currency"])
+	}
+	if plan["label"] != "Max 20x" {
+		t.Errorf("plan.label = %v, want Max 20x", plan["label"])
+	}
+}
+
+// TestKeyEndpointsLoopbackOnly verifies POST/DELETE /v1/keys reject non-loopback.
+func TestKeyEndpointsLoopbackOnly(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "0.0.0.0:8765", Interval: 900 * time.Second,
+		TZ: testLoc, DeviceToken: "x",
+	}
+	ks := creds.NewFakeKeyStore(nil)
+	handler := newHandlerWithKeyStore(t, dir, cfg, "", ks)
+
+	// POST from non-loopback → 403 (auth passes with token, then loopback check).
+	req := httptest.NewRequest(http.MethodPost, "/v1/keys", strings.NewReader(`{"id":"groq","value":"gsk_test"}`))
+	req.RemoteAddr = "192.168.0.5:1234"
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Device-Token", "x")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("POST /v1/keys from LAN: status = %d, want 403", rec.Code)
+	}
+
+	// DELETE from non-loopback → 403.
+	req2 := httptest.NewRequest(http.MethodDelete, "/v1/keys?id=groq", nil)
+	req2.RemoteAddr = "192.168.0.5:1234"
+	req2.Header.Set("X-Device-Token", "x")
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusForbidden {
+		t.Errorf("DELETE /v1/keys from LAN: status = %d, want 403", rec2.Code)
+	}
+}
+
+// TestKeySetKeyStoresInKeychain verifies POST /v1/keys writes to the injected
+// fake keychain, not to YAML.
+func TestKeySetKeyStoresInKeychain(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "127.0.0.1:0", Interval: 900 * time.Second,
+		TZ: testLoc, DeviceToken: "x",
+	}
+	ks := creds.NewFakeKeyStore(nil)
+	configPath := filepath.Join(dir, "config.yaml")
+	handler := newHandlerWithKeyStore(t, dir, cfg, configPath, ks)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/keys", strings.NewReader(`{"id":"groq","value":"gsk_test_key_123"}`))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /v1/keys: status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	// Verify the key is in the keychain, not in the YAML file.
+	val, ok, _ := ks.Get(context.Background(), "groq")
+	if !ok || val != "gsk_test_key_123" {
+		t.Errorf("keychain groq = %q (ok=%v), want gsk_test_key_123", val, ok)
+	}
+	if data, _ := os.ReadFile(configPath); strings.Contains(string(data), "gsk_test") {
+		t.Error("API key leaked into config.yaml")
+	}
+
+	// GET /v1/config should show key_state set but never the value.
+	req2 := httptest.NewRequest(http.MethodGet, "/v1/config", nil)
+	req2.RemoteAddr = "127.0.0.1:12345"
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+	if strings.Contains(rec2.Body.String(), "gsk_test_key_123") {
+		t.Error("GET /v1/config leaked the key value")
+	}
+}
+
+// TestKeyDeleteRemovesFromKeychain verifies DELETE /v1/keys removes from keychain.
+func TestKeyDeleteRemovesFromKeychain(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "127.0.0.1:0", Interval: 900 * time.Second,
+		TZ: testLoc, DeviceToken: "x",
+	}
+	ks := creds.NewFakeKeyStore(map[string]string{"groq": "gsk_existing"})
+	handler := newHandlerWithKeyStore(t, dir, cfg, "", ks)
+
+	// DELETE the key.
+	req := httptest.NewRequest(http.MethodDelete, "/v1/keys?id=groq", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("DELETE /v1/keys: status = %d", rec.Code)
+	}
+
+	// Verify it's gone.
+	_, ok, _ := ks.Get(context.Background(), "groq")
+	if ok {
+		t.Error("key still in keychain after DELETE")
+	}
+}
+
+// TestKeyRateLimited verifies the key endpoints are rate-limited.
+func TestKeyRateLimited(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "127.0.0.1:0", Interval: 900 * time.Second,
+		TZ: testLoc, DeviceToken: "x",
+	}
+	ks := creds.NewFakeKeyStore(nil)
+	handler := newHandlerWithKeyStore(t, dir, cfg, "", ks)
+
+	// Fire 5 requests (limit is 5/min), the 6th should be 429.
+	for i := 0; i < 5; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/v1/keys", strings.NewReader(`{"id":"groq","value":"gsk_x"}`))
+		req.RemoteAddr = "127.0.0.1:12345"
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("request %d: status = %d", i, rec.Code)
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/keys", strings.NewReader(`{"id":"groq","value":"gsk_x"}`))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Errorf("6th request: status = %d, want 429", rec.Code)
+	}
+}
+
+// TestConfigInvalidThresholdRejected verifies PUT /v0/config rejects invalid
+// alert thresholds with a field-specific error.
+func TestConfigInvalidThresholdRejected(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "127.0.0.1:0", Interval: 900 * time.Second,
+		TZ: testLoc, DeviceToken: "x",
+	}
+	configPath := filepath.Join(dir, "config.yaml")
+	os.WriteFile(configPath, []byte("interval_sec: 900\n"), 0o600)
+	handler := newHandlerWithKeyStore(t, dir, cfg, configPath, creds.NewFakeKeyStore(nil))
+
+	// quota_warn_pct must be 50-100; 10 is invalid.
+	payload := `{"interval_sec":600,"alerts":{"quota_warn_pct":10,"openrouter_low_usd":1.0}}`
+	req := httptest.NewRequest(http.MethodPut, "/v1/config", strings.NewReader(payload))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("PUT invalid threshold: status = %d, want 400", rec.Code)
+	}
+	// File should be unchanged.
+	written, _ := os.ReadFile(configPath)
+	if strings.Contains(string(written), "600") {
+		t.Error("config file was modified despite validation failure")
+	}
+}
+
+// newHandlerWithKeyStore creates a test handler with an injected keychain and
+// optional WithGetenv option. All other options use the defaults.
+func newHandlerWithKeyStore(t *testing.T, dir string, cfg config.Config, configPath string, ks creds.KeyStore, opts ...Option) http.Handler {
+	t.Helper()
+	client := &httpx.Client{HTTP: &http.Client{Transport: httpx.NewFixtureTransport(dir)}}
+	runner := creds.FixtureRunner(dir)
+	fetchers := []providers.Fetcher{
+		providers.NewClaude(client, runner, "testuser", testLoc),
+		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc),
+	}
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
+	s.PollOnce(context.Background())
+	allOpts := append([]Option{WithKeyStore(ks)}, opts...)
+	// Deduplicate: if WithGetenv was also passed, use it.
+	hasGetenv := false
+	for _, o := range opts {
+		var s2 Server
+		o(&s2)
+		if s2.getenv != nil {
+			hasGetenv = true
+		}
+	}
+	if !hasGetenv {
+		allOpts = append(allOpts, WithGetenv(func(k string) string {
+			if k == "OPENROUTER_API_KEY" {
+				return "env-key-main"
+			}
+			return os.Getenv(k)
+		}))
+	}
+	srv, err := New(s, cfg, configPath, logger, allOpts...)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

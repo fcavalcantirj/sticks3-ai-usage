@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,9 +11,11 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"usaged/internal/config"
+	"usaged/internal/creds"
 	"usaged/internal/format"
 	"usaged/internal/sched"
 	"usaged/internal/snapshot"
@@ -25,15 +28,34 @@ type Server struct {
 	sched      *sched.Scheduler
 	cfg        config.Config
 	configPath string // path to the YAML config file (for interval persistence)
+	keystore   creds.KeyStore
+	getenv     func(string) string // defaults to os.Getenv; injectable for tests
+	rateLimit  *rateLimiter        // guards the /v1/keys endpoints (ORDER #52 task 57)
 	logger     *slog.Logger
 	start      time.Time
+}
+
+// Option configures a Server built by New.
+type Option func(*Server)
+
+// WithKeyStore injects a KeyStore for the /v1/keys endpoints and key_state in
+// GET /v1/config. A nil keystore is replaced with the macOS Keychain-backed
+// store. Tests inject a FakeKeyStore.
+func WithKeyStore(ks creds.KeyStore) Option {
+	return func(s *Server) { s.keystore = ks }
+}
+
+// WithGetenv injects the getenv function used for env-var key resolution.
+// Defaults to os.Getenv. Tests inject a fixed environment.
+func WithGetenv(fn func(string) string) Option {
+	return func(s *Server) { s.getenv = fn }
 }
 
 // New builds the HTTP API server around a scheduler and config. It returns an
 // error if the listen address is not loopback and no DeviceToken is configured
 // (never expose the LAN port without a token). configPath is the path to the
 // YAML config file for persisting runtime changes (may be "").
-func New(s *sched.Scheduler, cfg config.Config, configPath string, logger *slog.Logger) (*http.Server, error) {
+func New(s *sched.Scheduler, cfg config.Config, configPath string, logger *slog.Logger, opts ...Option) (*http.Server, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -46,8 +68,15 @@ func New(s *sched.Scheduler, cfg config.Config, configPath string, logger *slog.
 		sched:      s,
 		cfg:        cfg,
 		configPath: configPath,
+		keystore:   creds.NewKeyStore(),
+		getenv:     os.Getenv,
+		rateLimit:  newRateLimiter(5, time.Minute),
 		logger:     logger,
 		start:      time.Now(),
+	}
+
+	for _, opt := range opts {
+		opt(srv)
 	}
 
 	mux := http.NewServeMux()
@@ -61,6 +90,8 @@ func New(s *sched.Scheduler, cfg config.Config, configPath string, logger *slog.
 	mux.HandleFunc("GET /v1/config", srv.handleGetConfig)
 	mux.HandleFunc("PUT /v1/config", srv.handleSetConfig)
 	mux.HandleFunc("PUT /v1/config/interval", srv.handleSetInterval)
+	mux.HandleFunc("POST /v1/keys", srv.handleSetKey)
+	mux.HandleFunc("DELETE /v1/keys", srv.handleDeleteKey)
 	mux.HandleFunc("/", srv.handleNotFound)
 
 	handler := newAuth(cfg, logger).middleware(mux)
@@ -72,6 +103,42 @@ func New(s *sched.Scheduler, cfg config.Config, configPath string, logger *slog.
 		WriteTimeout:      10 * time.Second,
 		IdleTimeout:       30 * time.Second,
 	}, nil
+}
+
+// rateLimiter is a simple fixed-window counter: at most max events per window.
+type rateLimiter struct {
+	mu     sync.Mutex
+	max    int
+	window time.Duration
+	count  int
+	start  time.Time
+	now    func() time.Time
+}
+
+func newRateLimiter(max int, window time.Duration) *rateLimiter {
+	return &rateLimiter{max: max, window: window, now: time.Now}
+}
+
+// allow reports whether an event is permitted under the rate limit.
+func (r *rateLimiter) allow() bool {
+	now := r.now()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.start.IsZero() || now.Sub(r.start) > r.window {
+		r.start = now
+		r.count = 1
+		return true
+	}
+	if r.count >= r.max {
+		return false
+	}
+	r.count++
+	return true
+}
+
+// isLoopbackRequest reports whether the request came from a loopback address.
+func isLoopbackRequest(r *http.Request) bool {
+	return isLoopbackAddr(r.RemoteAddr)
 }
 
 // withNextSec returns a snapshot copy with next_sec set to the poll interval,
@@ -200,30 +267,24 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 
 // handleGetConfig returns the current editable runtime config as JSON.
 // Secrets are redacted: API keys and the device token appear only as
-// set(len=N). The response includes interval_sec, listen, tz, alert thresholds,
-// and per-provider settings (enabled, label, key_env, probe, plan). It does NOT
-// expose OpenRouter keys or the Groq key.
+// set(len=N). The response always includes the full effective provider set —
+// the five built-in providers in canonical order, with file overrides layered
+// on top (ORDER #52a) — so the settings page never renders an empty section
+// when no config.yaml exists.
 func (s *Server) handleGetConfig(w http.ResponseWriter, _ *http.Request) {
-	resp := map[string]any{
-		"interval_sec": int(s.cfg.Interval.Seconds()),
-		"listen":       s.cfg.Listen,
-		"tz":           s.cfg.TZ.String(),
-		"alerts": map[string]any{
-			"openrouter_low_usd": s.cfg.AlertOpenRouterLowUSD,
-			"quota_warn_pct":     s.cfg.AlertQuotaWarnPct,
-		},
-		"providers": []map[string]any{},
-	}
-	for id, p := range s.cfg.ProviderConfigs {
+	providers := make([]map[string]any, 0, len(config.DefaultProviderOrder))
+	for _, p := range s.cfg.EffectiveProviders() {
 		entry := map[string]any{
-			"id":      id,
-			"enabled": p.Enabled,
-			"label":   p.Label,
+			"id":        p.ID,
+			"enabled":   p.Enabled,
+			"label":     p.Label,
+			"key_state": s.keyState(p.ID, p.KeyEnv),
 		}
 		if p.KeyEnv != "" {
 			entry["key_env"] = p.KeyEnv
 		}
 		entry["probe"] = p.Probe
+		entry["has_probe"] = p.HasProbe
 		if p.Plan != nil {
 			plan := map[string]any{
 				"cost":     p.Plan.Cost,
@@ -235,9 +296,48 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, _ *http.Request) {
 			}
 			entry["plan"] = plan
 		}
-		resp["providers"] = append(resp["providers"].([]map[string]any), entry)
+		providers = append(providers, entry)
+	}
+
+	resp := map[string]any{
+		"interval_sec": int(s.cfg.Interval.Seconds()),
+		"listen":       s.cfg.Listen,
+		"tz":           s.cfg.TZ.String(),
+		"alerts": map[string]any{
+			"openrouter_low_usd": s.cfg.AlertOpenRouterLowUSD,
+			"quota_warn_pct":     s.cfg.AlertQuotaWarnPct,
+		},
+		"providers": providers,
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// keyState reports whether a provider's key is available. Resolution order
+// (ORDER #52 task 57): env var first (Felipe's .env keeps working), then the
+// macOS Keychain. For providers without an env var (claude, codex) the
+// keychain is the only fallback; their OAuth/auth status is reflected by the
+// snapshot's provider status.
+func (s *Server) keyState(id, keyEnv string) string {
+	if keyEnv != "" && s.getenv(keyEnv) != "" {
+		return "set"
+	}
+	if k, ok, _ := s.keystore.Get(context.Background(), id); ok && k != "" {
+		return "set"
+	}
+	if keyEnv == "" {
+		// OAuth providers: fall back to the last-known fetch status. An "ok"
+		// or "stale" status means credentials are present; "auth" means the
+		// user must sign in.
+		for _, p := range s.sched.Current().Providers {
+			if p.ID == id {
+				if p.Status == "ok" || p.Status == "stale" {
+					return "set"
+				}
+				break
+			}
+		}
+	}
+	return "not_set"
 }
 
 // handleSetConfig accepts a PUT with the full editable config and writes it
@@ -297,12 +397,30 @@ func (s *Server) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate alert keys.
+	// Validate alert keys and their values.
 	for k := range body.Alerts {
 		if !config.ValidAlertKey(k) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{
 				"ok":    "false",
 				"error": fmt.Sprintf("unknown alert key %q", k),
+			})
+			return
+		}
+	}
+	if v, ok := body.Alerts["quota_warn_pct"]; ok {
+		if v < 50 || v > 100 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"ok":    "false",
+				"error": fmt.Sprintf("invalid field: alerts.quota_warn_pct must be 50-100, got %v", v),
+			})
+			return
+		}
+	}
+	if v, ok := body.Alerts["openrouter_low_usd"]; ok {
+		if v < 0 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"ok":    "false",
+				"error": fmt.Sprintf("invalid field: alerts.openrouter_low_usd must be >= 0, got %v", v),
 			})
 			return
 		}
@@ -316,7 +434,7 @@ func (s *Server) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Build a FileConfig from the request and serialize it.
+	// Build a FileConfig from the request and update in-memory state.
 	fc := config.FileConfig{
 		IntervalSec: body.IntervalSec,
 		Listen:      body.Listen,
@@ -328,6 +446,10 @@ func (s *Server) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		fc.Alerts[k] = v
 	}
+	// Track the full provider set in-memory so GET /v1/config reflects changes
+	// immediately; persist only the overrides (providers differing from their
+	// built-in defaults) so the file stays minimal (ORDER #52a).
+	provs := make(map[string]config.YamlProvider, len(body.Providers))
 	for _, p := range body.Providers {
 		yp := config.YamlProvider{
 			ID:      p.ID,
@@ -353,8 +475,10 @@ func (s *Server) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 				yp.Plan.HasCostUSD = true
 			}
 		}
-		fc.Providers = append(fc.Providers, yp)
+		provs[p.ID] = yp
 	}
+	// Persist only providers that differ from the built-in defaults.
+	fc.Providers = config.OverridesOnly(buildYamlProviders(provs))
 
 	yamlText, err := config.SerializeYAML(fc)
 	if err != nil {
@@ -362,7 +486,7 @@ func (s *Server) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Persist atomically if a config path exists.
+	// Persist atomically if a config path exists (creating it on first save).
 	if s.configPath != "" {
 		if err := saveConfigAtomic(s.configPath, yamlText, s.logger); err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{
@@ -381,8 +505,26 @@ func (s *Server) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 	if body.Listen != "" {
 		s.cfg.Listen = body.Listen
 	}
+	if body.TZ != "" {
+		if loc, err := time.LoadLocation(body.TZ); err == nil {
+			s.cfg.TZ = loc
+		}
+	}
+	s.cfg.ProviderConfigs = provs
 
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// buildYamlProviders converts a provider-id map to an ordered slice matching the
+// canonical provider order, omitting ids that are not in DefaultProviderOrder.
+func buildYamlProviders(m map[string]config.YamlProvider) []config.YamlProvider {
+	out := make([]config.YamlProvider, 0, len(m))
+	for _, id := range config.DefaultProviderOrder {
+		if p, ok := m[id]; ok {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // rejectKeyValues scans the raw JSON body for any object containing a "key"
@@ -442,6 +584,101 @@ func (s *Server) handleSetInterval(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "interval_sec": body.IntervalSec})
 }
 
+// --- Key management (ORDER #52 task 57) ---
+//
+// POST /v1/keys  { "id": <provider>, "value": <key> }  → store in keychain
+// DELETE /v1/keys?id=<provider>                       → remove from keychain
+//
+// Keys live ONLY in the macOS Keychain (service "usaged"), never in YAML,
+// never in GET /v1/config, never logged. Both endpoints are loopback-only,
+// require a device token, and are rate-limited.
+
+var validKeyProviderIDs = map[string]bool{
+	config.ProviderClaude:         true,
+	config.ProviderCodex:          true,
+	config.ProviderOpenRouterMain: true,
+	config.ProviderOpenRouterFbk:  true,
+	config.ProviderGroq:           true,
+}
+
+// handleSetKey stores an API key for a provider in the keychain. The provider id
+// must be one of the five known providers and the value must be non-empty.
+func (s *Server) handleSetKey(w http.ResponseWriter, r *http.Request) {
+	if !isLoopbackRequest(r) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"ok": "false", "error": "keys must be set from localhost"})
+		return
+	}
+	if !s.rateLimit.allow() {
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{"ok": "false", "error": "rate limit exceeded"})
+		return
+	}
+
+	raw, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"ok": "false", "error": "invalid JSON body"})
+		return
+	}
+
+	var body struct {
+		ID    string `json:"id"`
+		Value string `json:"value"`
+	}
+	if err := json.Unmarshal(raw, &body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"ok": "false", "error": "invalid JSON body"})
+		return
+	}
+	if !validKeyProviderIDs[body.ID] {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"ok":    "false",
+			"error": fmt.Sprintf("unknown provider id %q", body.ID),
+		})
+		return
+	}
+	if strings.TrimSpace(body.Value) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"ok": "false", "error": "value must not be empty"})
+		return
+	}
+
+	if err := s.keystore.Set(r.Context(), body.ID, body.Value); err != nil {
+		s.logger.Error("keychain set failed", "id", body.ID, "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"ok": "false", "error": "keychain write failed"})
+		return
+	}
+
+	// Never echo the key value.
+	s.logger.Info("key stored", "id", body.ID, "key_len", len(body.Value))
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "id": body.ID})
+}
+
+// handleDeleteKey removes an API key for a provider from the keychain.
+func (s *Server) handleDeleteKey(w http.ResponseWriter, r *http.Request) {
+	if !isLoopbackRequest(r) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"ok": "false", "error": "keys must be managed from localhost"})
+		return
+	}
+	if !s.rateLimit.allow() {
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{"ok": "false", "error": "rate limit exceeded"})
+		return
+	}
+
+	id := r.URL.Query().Get("id")
+	if !validKeyProviderIDs[id] {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"ok":    "false",
+			"error": fmt.Sprintf("unknown provider id %q", id),
+		})
+		return
+	}
+
+	if err := s.keystore.Delete(r.Context(), id); err != nil {
+		s.logger.Error("keychain delete failed", "id", id, "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"ok": "false", "error": "keychain delete failed"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "id": id})
+}
+
 // persistInterval updates interval_sec in the YAML config file in-place.
 func (s *Server) persistInterval(sec int) {
 	text, err := os.ReadFile(s.configPath)
@@ -463,9 +700,16 @@ func (s *Server) persistInterval(sec int) {
 }
 
 // saveConfigAtomic writes the YAML text to path atomically: create a timestamped
-// backup, write to a temp file, rename into place. The file mode is 0600.
+// backup, write to a temp file, rename into place. Creates the parent directory
+// (0700) on first save when it does not yet exist. The file mode is 0600.
 // A failure at any step leaves the original file untouched.
 func saveConfigAtomic(path, yamlText string, logger *slog.Logger) error {
+	// On first save, create the parent directory (0700) and the file (0600).
+	dir := filepathDir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("create config dir %s: %w", dir, err)
+	}
+
 	// Create a backup: config.yaml → config.yaml.bak.<timestamp>.
 	backupPath := path + ".bak." + time.Now().Format("20060102T150405")
 	if data, err := os.ReadFile(path); err == nil {
@@ -475,7 +719,6 @@ func saveConfigAtomic(path, yamlText string, logger *slog.Logger) error {
 	}
 
 	// Write to a temp file in the same directory (for rename atomicity).
-	dir := filepathDir(path)
 	tmpPath := path + ".tmp." + strconv.Itoa(os.Getpid())
 	if err := os.WriteFile(tmpPath, []byte(yamlText), 0o600); err != nil {
 		return fmt.Errorf("write temp: %w", err)
@@ -486,7 +729,6 @@ func saveConfigAtomic(path, yamlText string, logger *slog.Logger) error {
 		os.Remove(tmpPath)
 		return fmt.Errorf("rename: %w", err)
 	}
-	_ = dir
 	return nil
 }
 

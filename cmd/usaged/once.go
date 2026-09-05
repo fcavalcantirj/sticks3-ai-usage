@@ -57,7 +57,7 @@ func runOnce(args []string, stdout io.Writer) int {
 	defer cleanup()
 	cfg.FixturesDir = fixturesDir
 
-	fetchers := buildFetchers(cfg)
+	fetchers := buildFetchers(cfg, creds.NewKeyStore())
 	statePath := statePathForOnce(cfg, args)
 
 	ctx := context.Background()
@@ -86,7 +86,10 @@ func runOnce(args []string, stdout io.Writer) int {
 // Codex are always present; OpenRouter fetchers are registered when keys are
 // set, otherwise static off blocks keep the canonical provider order. Groq
 // arrives in a later task — keep its placeholder.
-func buildFetchers(cfg config.Config) []providers.Fetcher {
+//
+// Key resolution (ORDER #52 task 57): env var first (Felipe's .env keeps
+// working), then the macOS Keychain as a fallback when no env var is set.
+func buildFetchers(cfg config.Config, ks creds.KeyStore) []providers.Fetcher {
 	client := &httpx.Client{UserAgent: "usaged/0.1"}
 
 	var runner creds.Runner
@@ -133,21 +136,34 @@ func buildFetchers(cfg config.Config) []providers.Fetcher {
 		fetchers = append(fetchers, providers.NewCodex(client, authPath, loc))
 	}
 
-	// OpenRouter fetchers: real when keys are set, static off blocks when not.
-	for _, b := range []struct{ id, label, key string }{
-		{"openrouter:main", "OpenRouter main", cfg.OpenRouterKeys["main"]},
-		{"openrouter:fallback", "OpenRouter fallback", cfg.OpenRouterKeys["fallback"]},
+	// OpenRouter fetchers: real when keys are set (env first, then keychain),
+	// static off blocks when neither source provides a key.
+	for _, b := range []struct {
+		id    string
+		label string
+		orKey string // key into cfg.OpenRouterKeys ("main"/"fallback")
+	}{
+		{"openrouter:main", "OpenRouter main", "main"},
+		{"openrouter:fallback", "OpenRouter fallback", "fallback"},
 	} {
-		if b.key != "" {
-			fetchers = append(fetchers, providers.NewOpenRouter(client, b.id, b.label, b.key))
+		key := cfg.OpenRouterKeys[b.orKey]
+		if key == "" && ks != nil {
+			key, _, _ = ks.Get(context.Background(), b.id)
+		}
+		if key != "" {
+			fetchers = append(fetchers, providers.NewOpenRouter(client, b.id, b.label, key))
 		} else {
 			fetchers = append(fetchers, newStaticFetcher(b.id, b.label, "no key"))
 		}
 	}
 
-	// Groq: real fetcher when key set, static off when not.
-	if cfg.GroqKey != "" {
-		fetchers = append(fetchers, providers.NewGroq(client, cfg.GroqKey, cfg.GroqProbe))
+	// Groq: real fetcher when key set (env first, then keychain).
+	groqKey := cfg.GroqKey
+	if groqKey == "" && ks != nil {
+		groqKey, _, _ = ks.Get(context.Background(), config.ProviderGroq)
+	}
+	if groqKey != "" {
+		fetchers = append(fetchers, providers.NewGroq(client, groqKey, cfg.GroqProbeEnabled()))
 	} else {
 		fetchers = append(fetchers, newStaticFetcher("groq", "Groq", "no key"))
 	}

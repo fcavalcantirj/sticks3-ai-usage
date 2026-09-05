@@ -152,6 +152,92 @@
     .footer-bar { margin-top: 20px; display: flex; justify-content: space-between; align-items: center; }
     .footer-bar .info { font-size: 12px; color: var(--muted); }
 
+    /* --- Settings page --- */
+    .provider-grid { display: flex; flex-direction: column; gap: 12px; }
+    .provider-card {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 14px;
+    }
+    .provider-card-header {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+    }
+    .provider-card-header .provider-label {
+      flex: 1; padding: 6px 10px; border-radius: 6px;
+      border: 1px solid var(--border); background: var(--card);
+      color: var(--text); font-size: 13px;
+    }
+    .toggle-label {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12px; color: var(--text); cursor: pointer; user-select: none;
+    }
+    .toggle { position: relative; display: inline-block; width: 40px; height: 22px; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; cursor: pointer; inset: 0;
+      background: var(--off); border-radius: 11px;
+      transition: background 0.2s;
+    }
+    .toggle-slider::before {
+      position: absolute; content: ""; height: 16px; width: 16px;
+      left: 3px; bottom: 3px; border-radius: 50%;
+      background: var(--bg); transition: transform 0.2s;
+    }
+    .toggle input:checked + .toggle-slider { background: var(--ok); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(18px); }
+    .key-state-row {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+    }
+    .key-state { font-size: 12px; color: var(--muted); }
+    .key-state .env-name { color: var(--text); }
+    .key-state-set { color: var(--ok); }
+    .btn-small {
+      background: var(--card); border: 1px solid var(--border);
+      color: var(--text); padding: 4px 10px; border-radius: 6px;
+      font-size: 12px; cursor: pointer; flex-shrink: 0;
+    }
+    .btn-small:hover { background: var(--border); }
+    .plan-block { margin-top: 10px; }
+    .plan-row {
+      display: flex; gap: 8px; align-items: center; margin-bottom: 8px;
+    }
+    .plan-row:last-child { margin-bottom: 0; }
+    .plan-input {
+      flex: 1; padding: 6px 10px; border-radius: 6px;
+      border: 1px solid var(--border); background: var(--bg);
+      color: var(--text); font-size: 12px;
+    }
+    .plan-row .plan-label { flex: 0 0 70px; font-size: 11px; color: var(--muted); }
+    .field-error {
+      background: rgba(239,68,68,0.1); border: 1px solid var(--crit);
+      border-radius: 6px; padding: 6px 10px; margin-bottom: 8px;
+      font-size: 12px; color: var(--crit);
+    }
+    .saved-ok { color: var(--ok); font-size: 12px; }
+    .saved-err { color: var(--crit); font-size: 12px; }
+    .settings-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px; margin-bottom: 16px;
+    }
+    .settings-card .card-header {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .settings-card .card-title { font-size: 15px; font-weight: 600; }
+    .settings-card .row { margin-bottom: 10px; }
+    .settings-card .row:last-child { margin-bottom: 0; }
+    .settings-card .row-inner { display: flex; align-items: center; gap: 10px; }
+    .settings-card label {
+      font-size: 12px; color: var(--muted); min-width: 140px;
+    }
+    .settings-card select,
+    .settings-card input[type="number"] {
+      padding: 6px 10px; border-radius: 6px;
+      border: 1px solid var(--border); background: var(--bg);
+      color: var(--text); font-size: 13px;
+    }
+    .settings-card select { width: 160px; }
+    .settings-card input[type="number"] { width: 120px; }
+
     /* --- Mobile --- */
     @media (max-width: 959px) {
       .pills { flex-direction: column; align-items: stretch; }
@@ -231,27 +317,43 @@
     <div id="attention" class="cards"></div>
   </div>
 
-  <!-- Settings tab: config editor -->
+  <!-- Settings tab: editable config backed by /v1/config -->
   <div id="tab-settings" class="tab-panel">
     <div id="settings-form" style="display:none;">
-      <div class="card">
+      <div class="settings-card">
         <div class="card-header"><span class="card-title">Poll interval</span></div>
-        <div class="row"><label for="setting-interval">Seconds between auto-refreshes</label></div>
-        <div class="row"><input type="number" id="setting-interval" min="300" step="60"></div>
+        <div class="row">
+          <label for="setting-interval">Refresh every</label>
+          <select id="setting-interval" aria-label="Refresh interval">
+            <option value="300">5 min</option>
+            <option value="600">10 min</option>
+            <option value="900">15 min</option>
+            <option value="1800">30 min</option>
+            <option value="3600">60 min</option>
+          </select>
+        </div>
       </div>
-      <div class="card">
+      <div class="settings-card">
         <div class="card-header"><span class="card-title">Alerts</span></div>
-        <div class="row"><label for="setting-openrouter-low">OpenRouter low-balance threshold (USD)</label></div>
-        <div class="row"><input type="number" id="setting-openrouter-low" step="0.01" min="0"></div>
-        <div class="row"><label for="setting-quota-warn">Quota warn at pct</label></div>
-        <div class="row"><input type="number" id="setting-quota-warn" min="50" max="100"></div>
+        <div class="row">
+          <label for="setting-openrouter-low">OpenRouter low balance (USD)</label>
+          <input type="number" id="setting-openrouter-low" min="0" step="0.01">
+        </div>
+        <div class="row">
+          <label for="setting-quota-warn">Quota warn at</label>
+          <input type="number" id="setting-quota-warn" min="50" max="100">
+          <span style="color:var(--muted);font-size:11px;">%</span>
+        </div>
       </div>
-      <div class="card">
+      <div class="settings-card">
         <div class="card-header"><span class="card-title">Providers</span></div>
-        <div id="provider-list"></div>
+        <div id="provider-list" class="provider-grid"></div>
       </div>
-      <div class="row"><button id="save-config-btn">Save settings</button></div>
-      <div id="settings-status" class="info" style="margin-top:8px;"></div>
+      <div class="field-error" id="settings-error" style="display:none;"></div>
+      <div class="row">
+        <button id="save-config-btn">Save settings</button>
+        <span id="settings-status" class="info" style="margin-left:10px;"></span>
+      </div>
     </div>
   </div>
 
@@ -375,6 +477,8 @@ var lastProviderJson = {}; // id \u2192 JSON string of last-rendered provider
 var lastStatsJson = null;   // JSON string of last-rendered stats report
 var statsRendered = false; // true after the first successful stats paint
 var currentInterval = 300; // seconds, from /v1/config
+var cfg_listen_cache = "";   // listen address from last GET /v1/config
+var cfg_tz_cache = "";       // tz from last GET /v1/config
 
 // ---- Fetch ----
 
@@ -416,11 +520,26 @@ function loadConfig() {
     if (cfg && cfg.interval_sec) {
       currentInterval = cfg.interval_sec;
       var sel = document.getElementById("interval-select");
-      for (var i = 0; i < sel.options.length; i++) {
-        if (Number(sel.options[i].value) === cfg.interval_sec) {
-          sel.selectedIndex = i; break;
+      if (sel) {
+        for (var i = 0; i < sel.options.length; i++) {
+          if (Number(sel.options[i].value) === cfg.interval_sec) {
+            sel.selectedIndex = i; break;
+          }
         }
       }
+      // Sync the settings interval select too.
+      var sel2 = document.getElementById("setting-interval");
+      if (sel2) {
+        for (var j = 0; j < sel2.options.length; j++) {
+          if (Number(sel2.options[j].value) === cfg.interval_sec) {
+            sel2.selectedIndex = j; break;
+          }
+        }
+      }
+    }
+    if (cfg) {
+      cfg_listen_cache = cfg.listen || "";
+      cfg_tz_cache = cfg.tz || "";
     }
     return cfg;
   });
@@ -439,7 +558,23 @@ function renderSettings(cfg) {
   if (!form) return;
   form.style.display = "block";
 
-  document.getElementById("setting-interval").value = cfg.interval_sec || 900;
+  // Populate interval select (syncs with header select too).
+  var intervalSel = document.getElementById("setting-interval");
+  var intervalVal = cfg.interval_sec || 900;
+  for (var i = 0; i < intervalSel.options.length; i++) {
+    if (Number(intervalSel.options[i].value) === intervalVal) {
+      intervalSel.selectedIndex = i; break;
+    }
+  }
+  var headerSel = document.getElementById("interval-select");
+  if (headerSel) {
+    for (var j = 0; j < headerSel.options.length; j++) {
+      if (Number(headerSel.options[j].value) === intervalVal) {
+        headerSel.selectedIndex = j; break;
+      }
+    }
+  }
+
   // Populate alerts.
   if (cfg.alerts) {
     if (cfg.alerts.openrouter_low_usd != null) {
@@ -450,24 +585,160 @@ function renderSettings(cfg) {
     }
   }
 
-  // Render provider list.
+  // Render provider cards.
   var list = document.getElementById("provider-list");
   list.innerHTML = "";
-  if (!cfg.providers) return;
+  var errEl = document.getElementById("settings-error");
+  errEl.style.display = "none";
+  errEl.textContent = "";
+
+  if (!cfg.providers || cfg.providers.length === 0) {
+    list.innerHTML = '<div class="key-state" style="color:var(--muted);">No providers configured</div>';
+    return;
+  }
+
   cfg.providers.forEach(function(p) {
-    var row = document.createElement("div");
-    row.className = "attention-item";
-    row.innerHTML =
-      '<label><input type="checkbox" data-pid="' + esc(p.id) + '" ' + (p.enabled ? "checked" : "") + '> ' +
-      esc(p.id) + (p.label ? " (" + esc(p.label) + ")" : "") + '</label>';
-    list.appendChild(row);
+    list.appendChild(createProviderCard(p));
   });
 }
 
+function createProviderCard(p) {
+  var card = document.createElement("div");
+  card.className = "provider-card";
+  card.setAttribute("data-pid", p.id);
+
+  var header = document.createElement("div");
+  header.className = "provider-card-header";
+
+  // Enabled toggle
+  var toggleWrap = document.createElement("label");
+  toggleWrap.className = "toggle-label";
+  toggleWrap.innerHTML =
+    '<span class="toggle"><input type="checkbox" data-field="enabled" ' +
+    (p.enabled ? "checked" : "") + '><span class="toggle-slider"></span></span>' +
+    '<span style="font-size:12px;">Enabled</span>';
+  header.appendChild(toggleWrap);
+
+  // Label input
+  var labelInput = document.createElement("input");
+  labelInput.type = "text";
+  labelInput.className = "provider-label";
+  labelInput.setAttribute("data-field", "label");
+  labelInput.value = p.label || p.id;
+  header.appendChild(labelInput);
+
+  card.appendChild(header);
+
+  // Key state row
+  var keyRow = document.createElement("div");
+  keyRow.className = "key-state-row";
+  var keyState = document.createElement("span");
+  keyState.className = "key-state";
+  var keyText = "";
+  var keyEnv = p.key_env || "";
+  if (p.key_state === "set") {
+    if (keyEnv) {
+      keyText = '<span class="key-state-set">Key set</span> via env <span class="env-name">' + esc(keyEnv) + '</span>';
+    } else {
+      keyText = '<span class="key-state-set">Key set</span> in Keychain';
+    }
+  } else {
+    if (keyEnv) {
+      keyText = 'Key in env <span class="env-name">' + esc(keyEnv) + '</span> (not set)';
+    } else {
+      keyText = '<span style="color:var(--warn);">No key set</span>';
+    }
+  }
+  keyState.innerHTML = keyText;
+  keyRow.appendChild(keyState);
+
+  // Set/Remove key buttons (only for providers with key_env)
+  if (keyEnv) {
+    var setBtn = document.createElement("button");
+    setBtn.className = "btn-small";
+    setBtn.textContent = "Set key";
+    setBtn.setAttribute("data-pid", p.id);
+    setBtn.setAttribute("data-action", "set-key");
+    setBtn.onclick = function(e) { e.stopPropagation(); setKeyPrompt(p.id); };
+    keyRow.appendChild(setBtn);
+
+    var rmBtn = document.createElement("button");
+    rmBtn.className = "btn-small";
+    rmBtn.textContent = "Remove key";
+    rmBtn.setAttribute("data-action", "remove-key");
+    rmBtn.onclick = function(e) { e.stopPropagation(); removeKey(p.id); };
+    keyRow.appendChild(rmBtn);
+  }
+  card.appendChild(keyRow);
+
+  // Probe toggle for Groq
+  if (p.has_probe) {
+    var probeRow = document.createElement("div");
+    probeRow.className = "key-state-row";
+    var probeLabel = document.createElement("label");
+    probeLabel.className = "toggle-label";
+    probeLabel.innerHTML =
+      '<span class="toggle"><input type="checkbox" data-field="probe" ' +
+      (p.probe ? "checked" : "") + '><span class="toggle-slider"></span></span>' +
+      '<span style="font-size:12px;">Groq probe</span>';
+    probeRow.appendChild(probeLabel);
+    card.appendChild(probeRow);
+  }
+
+  // Plan block for claude/codex
+  if (p.plan) {
+    var planBlock = document.createElement("div");
+    planBlock.className = "plan-block";
+
+    var planTitle = document.createElement("div");
+    planTitle.className = "card-title";
+    planTitle.textContent = "Subscription plan";
+    planTitle.style.fontSize = "12px";
+    planTitle.style.marginBottom = "8px";
+    planBlock.appendChild(planTitle);
+
+    planBlock.appendChild(makePlanRow("cost", "Cost", "number", p.plan.cost || "", "60px"));
+    planBlock.appendChild(makePlanRow("currency", "Currency", "text", p.plan.currency || "USD", "70px"));
+    planBlock.appendChild(makePlanRow("label", "Label", "text", p.plan.label || "", "80px"));
+    planBlock.appendChild(makePlanRow("cost_usd", "USD equiv", "number", p.plan.cost_usd || "", "90px"));
+
+    card.appendChild(planBlock);
+  }
+
+  return card;
+}
+
+function makePlanRow(field, labelText, type, val, labelW) {
+  var row = document.createElement("div");
+  row.className = "plan-row";
+  var lbl = document.createElement("span");
+  lbl.className = "plan-label";
+  lbl.textContent = labelText;
+  lbl.style.minWidth = labelW;
+  var inp = document.createElement("input");
+  inp.className = "plan-input";
+  inp.type = type;
+  inp.setAttribute("data-field", "plan." + field);
+  inp.value = val;
+  if (type === "number") {
+    inp.setAttribute("step", "0.01");
+    inp.setAttribute("min", "0");
+  } else {
+    inp.setAttribute("minlength", "3");
+  }
+  row.appendChild(lbl);
+  row.appendChild(inp);
+  return row;
+}
+
 function saveSettings() {
+  var errEl = document.getElementById("settings-error");
+  errEl.style.display = "none";
+  errEl.textContent = "";
+
   var interval = parseInt(document.getElementById("setting-interval").value, 10);
   if (isNaN(interval) || interval < 300) {
-    showSettingsStatus("Interval must be at least 300 seconds", false);
+    showSettingsStatus("Interval must be at least 5 min (300 s)", false);
     return;
   }
 
@@ -476,20 +747,94 @@ function saveSettings() {
     quota_warn_pct: parseInt(document.getElementById("setting-quota-warn").value, 10) || 95
   };
 
-  // Gather provider enabled states from checkboxes.
+  // Gather provider data from each card.
   var providers = [];
-  document.querySelectorAll("#provider-list input[data-pid]").forEach(function(cb) {
-    providers.push({ id: cb.getAttribute("data-pid"), enabled: cb.checked });
+  var cards = document.querySelectorAll("#provider-list .provider-card");
+  cards.forEach(function(card) {
+    var pid = card.getAttribute("data-pid");
+    var enabled = card.querySelector('input[data-field="enabled"]').checked;
+    var label = card.querySelector('input[data-field="label"]').value.trim();
+
+    var providerObj = { id: pid, enabled: enabled, label: label };
+
+    // Probe (if present)
+    var probeCb = card.querySelector('input[data-field="probe"]');
+    if (probeCb) {
+      providerObj.probe = probeCb.checked;
+    }
+
+    // Plan (if present)
+    var costInp = card.querySelector('input[data-field="plan.cost"]');
+    if (costInp) {
+      providerObj.plan = {
+        cost: parseFloat(costInp.value) || 0,
+        currency: card.querySelector('input[data-field="plan.currency"]').value.trim(),
+        label: card.querySelector('input[data-field="plan.label"]').value.trim(),
+        cost_usd: parseFloat(card.querySelector('input[data-field="plan.cost_usd"]').value) || 0
+      };
+    }
+
+    providers.push(providerObj);
   });
 
-  var payload = JSON.stringify({ interval_sec: interval, alerts: alerts, providers: providers });
+  // Inline validation: name the bad field.
+  var badField = null;
+  if (isNaN(interval)) badField = "interval_sec";
+  providers.forEach(function(p) {
+    if (!p.label) badField = badField || "providers." + p.id + ".label";
+    if (p.plan) {
+      if (p.plan.cost < 0) badField = "providers." + p.id + ".plan.cost";
+      if (p.plan.cost_usd !== 0 && p.plan.cost_usd < 0) badField = "providers." + p.id + ".plan.cost_usd";
+    }
+  });
+
+  if (badField) {
+    errEl.textContent = "Invalid field: " + badField;
+    errEl.style.display = "block";
+    return;
+  }
+
+  var payload = JSON.stringify({
+    interval_sec: interval,
+    listen: cfg_listen_cache,
+    tz: cfg_tz_cache,
+    alerts: alerts,
+    providers: providers
+  });
   var headers = authHeaders();
   headers["Content-Type"] = "application/json";
+
+  var btn = document.getElementById("save-config-btn");
+  btn.disabled = true;
+  btn.textContent = "Saving…";
+
   fetch("/v1/config", { method: "PUT", headers: headers, body: payload })
     .then(function(r) {
       if (r.status === 401) { showTokenInput(); return; }
-      if (!r.ok) { r.text().then(function(t) { showSettingsStatus("Save failed: " + t, false); }); return; }
+      if (!r.ok) {
+        return r.json().then(function(e) {
+          showSettingsStatus("Save failed: " + (e.error || r.statusText), false);
+        }).catch(function() {
+          showSettingsStatus("Save failed: " + r.statusText, false);
+        });
+      }
       showSettingsStatus("Saved", true);
+      // Sync the header interval select.
+      var sel = document.getElementById("interval-select");
+      if (sel) {
+        for (var i = 0; i < sel.options.length; i++) {
+          if (Number(sel.options[i].value) === interval) {
+            sel.selectedIndex = i; break;
+          }
+        }
+      }
+    })
+    .catch(function(err) {
+      showSettingsStatus("Save failed: " + err.message, false);
+    })
+    .finally(function() {
+      btn.disabled = false;
+      btn.textContent = "Save settings";
     });
 }
 
@@ -503,6 +848,39 @@ function loadSettings() {
   fetch("/v1/config", { headers: authHeaders() })
     .then(function(r) { if (r.status === 401) { showTokenInput(); return null; } return r.ok ? r.json() : null; })
     .then(function(cfg) { if (cfg) renderSettings(cfg); });
+}
+
+// ---- Key management ----
+
+function setKeyPrompt(pid) {
+  var val = prompt("Enter the API key for " + pid + ". It is stored in the macOS Keychain and never written to the config file.");
+  if (!val || !val.trim()) return;
+  var headers = authHeaders();
+  headers["Content-Type"] = "application/json";
+  fetch("/v1/keys", {
+    method: "POST",
+    headers: headers,
+    body: JSON.stringify({ id: pid, value: val })
+  }).then(function(r) {
+    if (r.status === 401) { showTokenInput(); return; }
+    if (!r.ok) { r.text().then(function(t) { alert("Failed: " + t); }); return; }
+    alert("Key stored in Keychain for " + pid);
+    loadSettings();
+  });
+}
+
+function removeKey(pid) {
+  if (!confirm("Remove the Keychain key for " + pid + "?")) return;
+  var headers = authHeaders();
+  fetch("/v1/keys?id=" + encodeURIComponent(pid), {
+    method: "DELETE",
+    headers: headers
+  }).then(function(r) {
+    if (r.status === 401) { showTokenInput(); return; }
+    if (!r.ok) { r.text().then(function(t) { alert("Failed: " + t); }); return; }
+    alert("Key removed for " + pid);
+    loadSettings();
+  });
 }
 
 // ---- Tab handling ----
