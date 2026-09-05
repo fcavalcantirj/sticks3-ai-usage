@@ -33,6 +33,7 @@ type Server struct {
 	rateLimit  *rateLimiter        // guards the /v1/keys endpoints (ORDER #52 task 57)
 	logger     *slog.Logger
 	start      time.Time
+	tracker    *clientTracker // per-client /v1/usage access log (ORDER #58 task 61)
 }
 
 // Option configures a Server built by New.
@@ -73,6 +74,7 @@ func New(s *sched.Scheduler, cfg config.Config, configPath string, logger *slog.
 		rateLimit:  newRateLimiter(5, time.Minute),
 		logger:     logger,
 		start:      time.Now(),
+		tracker:    newClientTracker(nil),
 	}
 
 	for _, opt := range opts {
@@ -166,17 +168,45 @@ func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 // an empty body. Go's net/http omits the body and Content-Length on 304
 // responses (RFC 9110); client robustness (no 304 body, no connection reuse)
 // is the firmware's responsibility.
+//
+// ORDER #58 task 61: every /v1/usage request is access-logged (timestamp,
+// peer IP, method, 200-vs-304, If-None-Match) to slog, and the per-client
+// device state is recorded. On 200 responses the device_state field is added
+// to the JSON body — it does NOT participate in the ETag/rev hash, so a 304
+// stays a 304 and the firmware's redraw behaviour is unchanged. The device
+// token and any header carrying it are NEVER logged.
 func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
 	snap := s.withNextSec(s.sched.Current())
 	rev := snap.Rev
 	etag := `"` + rev + `"`
 
-	if etagMatch(r.Header.Get("If-None-Match"), rev) {
+	now := time.Now()
+	peer := peerIP(r)
+	inm := r.Header.Get("If-None-Match")
+	matched := etagMatch(inm, rev)
+
+	status := http.StatusOK
+	if matched {
+		status = http.StatusNotModified
+	}
+
+	// Record the request and log access (never logs the device token).
+	s.tracker.record(peer, now, status)
+	s.logAccess(r, status)
+
+	if matched {
 		writeNotModified(w, etag)
 		return
 	}
 
-	body, err := json.Marshal(snap)
+	// 200 response: include per-client device state so the web dashboard can
+	// prove whether deep sleep is occurring (long, regular intervals between
+	// requests). DeviceState is outside the Snapshot hash so rev is unaffected.
+	resp := usageResponse{
+		Snapshot:    snap,
+		DeviceState: s.tracker.state(peer),
+	}
+	body, err := json.Marshal(resp)
 	if err != nil {
 		s.logger.Error("marshal snapshot", "err", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"ok": "false", "error": "internal"})

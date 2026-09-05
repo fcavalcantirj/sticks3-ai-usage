@@ -147,6 +147,7 @@
     .chip-critical { background: rgba(239,68,68,0.15); color: var(--crit); }
     .chip-watch { background: rgba(245,158,11,0.15); color: var(--warn); }
     .chip-stale { background: rgba(100,116,140,0.15); color: var(--muted); }
+    .device-accent { background: rgba(59,130,246,0.04); border-radius: 6px; margin: 4px 0 8px 0; }
 
     /* --- Footer --- */
     .footer-bar { margin-top: 20px; display: flex; justify-content: space-between; align-items: center; }
@@ -1164,9 +1165,45 @@ function heatmapHtml(src, srcName) {
 
 // ---- Attention rendering ----
 
+// deviceCard renders the device-status card at the top of the Attention tab.
+// It shows last seen, seconds since, observed poll interval, and the 200/304
+// split — enough to prove whether deep sleep is occurring (ORDER #58 task 61).
+// Called only on /v1/usage 200 responses; absent on 304 (no body).
+function deviceCard(ds) {
+  if (!ds) {
+    return '<div class="device-accent">' +
+      attentionItem("Device", "No data", "chip-stale", "waiting for first check-in") +
+      '</div>';
+  }
+
+  var since = ds.seconds_since;
+  var expected = ds.interval_sec > 0 ? ds.interval_sec : currentInterval;
+  var offline = since > expected * 2;
+
+  var chipClass = offline ? "chip-critical" : "chip-stale";
+  var chipText = offline ? "Offline?" : "Awake";
+
+  var parts = [];
+  parts.push("last seen " + fmtTime(ds.last_seen));
+  parts.push(since + "s ago");
+  if (ds.interval_sec > 0) parts.push("~" + ds.interval_sec + "s poll");
+  parts.push("200:" + ds.count_200 + " 304:" + ds.count_304);
+
+  return '<div class="device-accent">' +
+    attentionItem("Device", chipText, chipClass, parts.join(" \u00b7 ")) +
+    '</div>';
+}
+
 function renderAttention(snap, statsReport) {
   var container = document.getElementById("attention");
   container.innerHTML = "";
+
+  // Device status card (ORDER #58 task 61).
+  if (snap && snap.device_state) {
+    container.insertAdjacentHTML("beforeend", deviceCard(snap.device_state));
+  } else if (!snap) {
+    container.insertAdjacentHTML("beforeend", deviceCard(null));
+  }
 
   if (!snap) return;
 

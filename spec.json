@@ -692,7 +692,7 @@
       "THE INVARIANT, if part two happens: the report rides on the REQUEST, so it must not perturb the ETag / If-None-Match path, must not change rev, and must not cause a redraw. A 304 stays a 304 and the screen must not repaint. Assert it in a test rather than assuming it.",
       "Verify part one: `go test ./internal/api -v` grows by at least 4 — a request is logged with its status; the 200/304 split is counted correctly; the observed interval is computed from real timestamps; and NO token value ever appears in a log line. `make verify` and `make smoke` exit 0, then rebuild and kickstart. The UAT needs no cable and no flash: Felipe unplugs the device, waits a few minutes, and reads the last-seen and interval figures in his browser — a stalled last-seen while the screen is dark, and a resumption on button press, is the proof he asked for."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "firmware",
