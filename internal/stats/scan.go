@@ -374,9 +374,16 @@ func (s *Scanner) scanClaudeCode(ctx context.Context, dir string, index Index, n
 	}
 	sort.Slice(dayList, func(i, j int) bool { return dayList[i].key < dayList[j].key })
 	for _, d := range dayList {
+		dayCost := 0.0
+		for model, tok := range d.byModel {
+			if p, ok := s.priceOf(model); ok {
+				dayCost += p.Cost(tok)
+			}
+		}
 		dd := Day{
 			Date:    d.date,
 			Tokens:  d.tokens,
+			Cost:    dayCost,
 			ByModel: d.byModel,
 		}
 		src.Days = append(src.Days, dd)
@@ -673,9 +680,16 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 	}
 	sort.Slice(dayList, func(i, j int) bool { return dayList[i].key < dayList[j].key })
 	for _, d := range dayList {
+		dayCost := 0.0
+		for model, tok := range d.byModel {
+			if p, ok := s.priceOf(model); ok {
+				dayCost += p.Cost(tok)
+			}
+		}
 		dd := Day{
 			Date:    d.date,
 			Tokens:  d.tokens,
+			Cost:    dayCost,
 			ByModel: d.byModel,
 		}
 		src.Days = append(src.Days, dd)

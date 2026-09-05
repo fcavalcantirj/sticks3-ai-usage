@@ -43,6 +43,7 @@ var prices = map[string]Price{
 	"claude-opus-4-8":            {5, 25, 0.50, 6.25},
 	"claude-sonnet-5":            {2, 10, 0.20, 2.5},
 	"claude-sonnet-4-20250514":   {3, 15, 0.30, 3.75},   // Sonnet 4.6
+	"claude-sonnet-4-6":          {3, 15, 0.30, 3.75},   // Sonnet 4.6 (alt ID in transcripts)
 	"claude-opus-4-20250514":     {15, 75, 1.50, 18.75}, // Opus 4.1 (retired)
 	"claude-3-7-sonnet-20250219": {3, 15, 0.30, 3.75},   // Sonnet 4.6
 	"claude-3-5-sonnet-20241022": {3, 15, 0.30, 3.75},   // Sonnet 4 (retired)

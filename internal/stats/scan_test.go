@@ -670,3 +670,73 @@ func TestScanAliasModels(t *testing.T) {
 		t.Error("alias 'sonnet' should map to a priced model")
 	}
 }
+
+// TestScanCostReconciliation is the ORDER #45 regression test: it pins the
+// invariant that month.cost equals the sum of per-day costs AND the sum of
+// per-model costs. This is the three-way agreement that silently broke when
+// the carry-forward fix landed in one aggregation path but not the other.
+func TestScanCostReconciliation(t *testing.T) {
+	codexDir := filepath.Join(fixtureDir(t), "test_cost_recon")
+	if err := os.MkdirAll(codexDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(codexDir) })
+
+	// Two days, two priced models via turn_context carry-forward.
+	lines := []string{
+		// Sep 2 — gpt-5.6-sol: 500 in + 100 out
+		`{"type":"turn_context","timestamp":"2026-09-02T10:00:00Z","payload":{"model":"gpt-5.6-sol"}}`,
+		`{"type":"event_msg","timestamp":"2026-09-02T10:01:00Z","payload":{"type":"token_count","info":{"model":"unknown","last_token_usage":{"input_tokens":500,"cached_input_tokens":0,"output_tokens":100,"reasoning_output_tokens":0}}}}`,
+		// Sep 3 — gpt-5.5: 600 in + 150 out
+		`{"type":"turn_context","timestamp":"2026-09-03T10:00:00Z","payload":{"model":"gpt-5.5"}}`,
+		`{"type":"event_msg","timestamp":"2026-09-03T10:01:00Z","payload":{"type":"token_count","info":{"model":"unknown","last_token_usage":{"input_tokens":600,"cached_input_tokens":0,"output_tokens":150,"reasoning_output_tokens":0}}}}`,
+	}
+	dst := filepath.Join(codexDir, "recon.jsonl")
+	if err := os.WriteFile(dst, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	s := NewScanner(testTZ)
+	s.Clock = func() time.Time { return fixedScanNow }
+	cfg := ScanConfig{TZ: testTZ, CodexDir: codexDir}
+	report, _, err := s.Scan(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	src := report.Sources["codex"]
+
+	// Sum of per-day costs (src.Days[].Cost).
+	dayCostSum := 0.0
+	for _, d := range src.Days {
+		dayCostSum += d.Cost
+	}
+
+	// Sum of per-model costs (src.Models[].Cost).
+	modelCostSum := 0.0
+	for _, m := range src.Models {
+		modelCostSum += m.Cost
+	}
+
+	// The three must agree: month.cost == sum per-day == sum per-model.
+	if src.Month.Cost == 0 {
+		t.Fatal("Month.Cost is 0 — ORDER #45 BUG: day buckets not resolving model for cost")
+	}
+	if src.Today.Cost == 0 {
+		t.Fatal("Today.Cost is 0 — ORDER #45 BUG")
+	}
+	if diff := src.Month.Cost - dayCostSum; diff > 1e-9 || diff < -1e-9 {
+		t.Errorf("Month.Cost (%.6f) != sum of per-day costs (%.6f) — gap=%e",
+			src.Month.Cost, dayCostSum, diff)
+	}
+	if diff := src.Month.Cost - modelCostSum; diff > 1e-9 || diff < -1e-9 {
+		t.Errorf("Month.Cost (%.6f) != sum of per-model costs (%.6f) — gap=%e",
+			src.Month.Cost, modelCostSum, diff)
+	}
+
+	// Today cost should come from only the Sep 3 day.
+	for _, d := range src.Days {
+		if d.Date == "2026-09-03" && d.Cost == 0 {
+			t.Errorf("Sep 3 day Cost is 0 — model carry-forward not applied to day buckets")
+		}
+	}
+}
