@@ -41,9 +41,10 @@ struct RenderPlan {
     uint8_t pageCount;    // total pages across all kinds
     uint8_t lineCount;
     Line lines[5];        // max 5 lines per page (4 when crit banner active)
-    char footer[25];      // ORDER #51: when no crit banner, "seq N \xc2\xb7 v<sha>";
-                          //      when crit, the banner text (full-width alert).
-                          //      screen.cpp left-aligns this and right-aligns the hint.
+    char footer[25];      // ORDER #51+57: when no crit banner, just the version
+                          //     "v<sha>" (seq dropped entirely — ORDER #57 task 60).
+                          //     When crit, the banner text (full-width alert).
+                          //     screen.cpp left-aligns this and right-aligns the hint.
     char banner[25];      // crit/warn banner text (24 chars + NUL), "" when none
     uint8_t bannerTier;   // 0 none, 2 crit (warn uses per-row tint, not banner)
 };

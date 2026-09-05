@@ -308,18 +308,15 @@ void buildPlan(const Model& model, uint8_t page, const char* buildId,
     }
 
     out.lineCount = lineIdx;
-    // ORDER #51: footer now carries the seq/version line when there is no
-    // crit banner.  When crit, it carries the banner text (full-width alert).
-    // screen.cpp left-aligns the footer text and right-aligns the hint.
+    // ORDER #51 + ORDER #57 (task 60 correction): the footer carries ONLY the
+    // version string (e.g. "v3c639cd") when there is no crit banner — seq was
+    // dropped entirely (it is developer noise, already on the serial line and
+    // in the snapshot).  screen.cpp left-aligns the footer text and
+    // right-aligns the hint.  When crit, the footer carries the banner text.
     if (out.bannerTier >= 2 && out.banner[0] != '\0') {
         copyStr(out.footer, out.banner, sizeof(out.footer));
     } else {
-        // Build "seq N · v<short-sha>" from the already-computed asOf and
-        // buildId fields.  Fits in footer[25] (e.g. "seq 5 · vtest" = 11 chars).
-        char footBuf[25];
-        std::snprintf(footBuf, sizeof(footBuf), "%s \xc2\xb7 %s",
-                      out.asOf, out.buildId);
-        copyStr(out.footer, footBuf, sizeof(out.footer));
+        copyStr(out.footer, out.buildId, sizeof(out.footer));
     }
 }
 

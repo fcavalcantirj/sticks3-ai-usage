@@ -274,10 +274,9 @@ TEST(plan_stale_dim_and_footer) {
     buildTestPlan(m, 0, plan);
     ASSERT_EQ(1, (int)plan.lineCount);
     ASSERT_EQ(1, (int)plan.lines[0].dim);
-    // No crit banner (severity defaults to ok) → footer carries the seq/version
-    // line (ORDER #51).  The stale msg is not shown in the footer (BUG 52b:
-    // footer is device state).  seq=5, buildId="test" → "seq 5 · vtest".
-    ASSERT_STREQ("seq 5 \xc2\xb7 vtest", plan.footer);
+    // Footer holds the version only (ORDER #57: seq dropped from footer).
+    // No crit banner → footer is just "vtest".
+    ASSERT_STREQ("vtest", plan.footer);
 }
 
 // --- tier helpers -----------------------------------------------------------

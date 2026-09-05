@@ -186,13 +186,16 @@ void drawPlan(const usage::RenderPlan& plan, bool wifiOk,
         M5.Display.setCursor((W - fw) / 2, 120);
         M5.Display.println(fh);
     } else {
-        // Normal: left-aligned seq/version, right-aligned hint.
-        // ORDER #56 task 60: measure-then-fit — shorten hint first, then seq,
-        // NEVER the version.  Hint covers both click-refresh and hold-flip.
-        const char* hint = "blue: page   side: r/h";
+        // Normal: left-aligned version, right-aligned hint.
+        // ORDER #56/57 task 60: seq dropped from footer entirely; hint uses
+        // whole words ("click hold" = click refreshes, hold flips).  On
+        // collision footnoteCompute shortens the hint first, then would drop
+        // seq (kept for future longer left strings), but the version is NEVER
+        // shortened.
+        const char* hint = "blue: page   side: click hold";
 
         usage::FooterLayout fl;
-        usage::footerCompute(fl, W, plan.asOf, plan.buildId, hint, measureText);
+        usage::footerCompute(fl, W, "", plan.buildId, hint, measureText);
 
         M5.Display.setTextColor(0xFD20);  // amber
         M5.Display.setCursor(fl.leftX, 120);
