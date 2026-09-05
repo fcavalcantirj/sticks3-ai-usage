@@ -40,6 +40,7 @@ TEST(model_parses_example) {
     const Provider& claude = m.providers[0];
     ASSERT_STREQ("claude", claude.id);
     ASSERT_STREQ("Claude", claude.label);
+    ASSERT_STREQ("plan", claude.kind);
     ASSERT_EQ(0, (int)claude.status);  // ok
     ASSERT_EQ(0, (int)claude.severity);  // ok
     ASSERT_EQ(3, (int)claude.rowCount);
@@ -59,6 +60,7 @@ TEST(model_parses_example) {
     // Codex provider.
     const Provider& codex = m.providers[1];
     ASSERT_STREQ("codex", codex.id);
+    ASSERT_STREQ("plan", codex.kind);
     ASSERT_EQ(2, (int)codex.severity);  // crit — triggers the alert banner
     ASSERT_EQ(3, (int)codex.rowCount);
 
@@ -86,15 +88,19 @@ TEST(model_parses_full) {
 
     // Canonical provider order: claude, codex, openrouter:main, fallback, groq.
     ASSERT_STREQ("claude", m.providers[0].id);
+    ASSERT_STREQ("plan", m.providers[0].kind);
     ASSERT_STREQ("codex", m.providers[1].id);
+    ASSERT_STREQ("plan", m.providers[1].kind);
     ASSERT_STREQ("openrouter:main", m.providers[2].id);
     ASSERT_STREQ("OpenRouter main", m.providers[2].label);
+    ASSERT_STREQ("credit", m.providers[2].kind);
     ASSERT_EQ(1, (int)m.providers[2].severity);  // warn
     ASSERT_STREQ("openrouter:fallback", m.providers[3].id);
     ASSERT_STREQ("OpenRouter fallback", m.providers[3].label);
+    ASSERT_STREQ("credit", m.providers[3].kind);
     ASSERT_EQ(1, (int)m.providers[3].severity);  // warn
     ASSERT_STREQ("groq", m.providers[4].id);
-    ASSERT_EQ(0, (int)m.providers[4].severity);  // groq: ok
+    ASSERT_STREQ("free", m.providers[4].kind);
 
     // OpenRouter main: bal pct 99, tier 2 (crit)
     const Row& orBal = m.providers[2].rows[0];

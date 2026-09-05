@@ -48,8 +48,11 @@ hardware behaviour is verified without a camera or extra tools.
 | `[FETCH]` | `[FETCH] code=-1 err=timeout ms=8000`  (error; rev reused as err)     |
 | `[RENDER]`| `[RENDER] page=1 lines=5 rev=abcd1234`                                 |
 | `[GESTURE]`| `[GESTURE] flip rot=3`  (IMU double-tap, 180° rotation)          |
-| `[BTN]`    | `[BTN] a_hold refresh`  (BtnA long-press → force fetch)          |
-| `[BTN]`    | `[BTN] a_click page`  (BtnA short-press → page cycle)            |
+| `[BTN]`    | `[BTN] gpio=11 click page`  (blue button short → page cycle)     |
+| `[BTN]`    | `[BTN] gpio=11 hold refresh`  (blue button long → POST /v1/refresh)|
+| `[BTN]`    | `[BTN] gpio=12 click refresh`  (side button → POST /v1/refresh) |
+| `[REFRESH]`| `[REFRESH] code=200 ms=310`  (POST /v1/refresh, fresh data ready) |
+| `[REFRESH]`| `[REFRESH] code=202 retry`  (server poll still running)        |
 | `[HEAP]`  | `[HEAP] free=123456 min=65432`  (60 s watchdog)                        |
 | `[ERR]`   | `[ERR] <what>`                                                        |
 | `[WAKE]`  | `[WAKE] cause=timer vbus=0`  (deep-sleep wake cause)                   |
@@ -152,10 +155,19 @@ upside-down frame.
 
 ### Button gestures
 
-- **BtnA short press** (wasClicked): cycles to the next page.
-- **BtnA long press** (wasHold, 600 ms threshold): forces an immediate fetch
-  (`[BTN] a_hold refresh`), equivalent to pressing BtnB.
-- **BtnB short press**: forces an immediate fetch (ORDER #38 refresh).
+ORDER #49 settled the physical button mapping empirically. The footer relabels
+them by physical position, not GPIO number:
+
+- **Blue button** (GPIO 11, BtnA) short press: cycles to the next page.
+- **Blue button** long press (600 ms threshold): POSTs `/v1/refresh` then does
+  a conditional GET (ORDER #38).
+- **Side button** (GPIO 12, BtnB) short press: POSTs `/v1/refresh` then does a
+  conditional GET, with a 10 s throttle and a single 202-retry after ~2 s.
+
+The device emits `[BTN] gpio=11 click page`, `[BTN] gpio=11 hold refresh`, or
+`[BTN] gpio=12 click refresh` on every button event. The `gpio=` field is the
+physical GPIO number so Felipe can correlate a press with the hardware pin
+without consulting the source.
 
 ### Hardware capture notes (from Felipe's real device)
 

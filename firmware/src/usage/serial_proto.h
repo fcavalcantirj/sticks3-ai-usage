@@ -60,10 +60,17 @@ int fmtOta(char* out, size_t n, const char* kind, unsigned int param);
 //   [GESTURE] flip rot=3
 int fmtGesture(char* out, size_t n, uint8_t rot);
 
-// fmtBtn formats a button event line:
-//   [BTN] a_hold refresh
-//   [BTN] a_click page
-int fmtBtn(char* out, size_t n, const char* event);
+// fmtBtn formats a button event line with the GPIO number and action:
+//   [BTN] gpio=11 click page
+//   [BTN] gpio=11 hold refresh
+//   [BTN] gpio=12 click refresh
+int fmtBtn(char* out, size_t n, int gpio, const char* action);
+
+// fmtRefresh formats a /v1/refresh POST result (ORDER #38):
+//   200 (immediate):    [REFRESH] code=200 ms=310
+//   202 (poll running):  [REFRESH] code=202 retry
+//   <0  (transport err): [REFRESH] err=timeout ms=8000
+int fmtRefresh(char* out, size_t n, int code, uint32_t ms);
 
 // fmtBatt formats a battery change line:
 //   [BATT] pct=87 usb=1

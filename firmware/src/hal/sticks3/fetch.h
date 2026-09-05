@@ -20,4 +20,11 @@ struct FetchResult {
 // false on transport error or non-200/304 HTTP codes.
 bool fetchUsage(const char* lastRev, FetchResult& out);
 
+// POST /v1/refresh to trigger an immediate server-side poll.  Emits a [REFRESH]
+// line via serial_proto.  Returns the FetchResult with code 200 (fresh data
+// ready), 202 (poll still running, should retry), or negative (transport error).
+// The body is populated only on 200 (the refreshed snapshot).  On 202 the body
+// is empty.
+bool refreshUpstream(FetchResult& out);
+
 } // namespace sticks3

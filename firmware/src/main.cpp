@@ -9,7 +9,7 @@
 //   now = nowMs()
 //   netUpdate(now)           — Wi-Fi state machine + [NET] lines
 //   pollUpdate(now)          — first fetch / periodic poll / backoff
-//   buttonsUpdate(now)       — BtnA page, BtnB refresh
+//   buttonsUpdate(now)       — BtnA(gpio11) page/hold-refresh, BtnB(gpio12) refresh
 //   updateBrightness(now)    — dim after 30 min idle, restore on activity
 //   heapWatchdog(now)        — [HEAP] line every 60 s
 //   if (view.needsRedraw || (!paintedThisBoot && hasModel)) { redraw }
@@ -25,6 +25,7 @@
 #include "usage/model.h"
 #include "usage/power.h"
 #include "usage/render_plan.h"
+#include "usage/refresh.h"
 #include "usage/serial_proto.h"
 #include "usage/gesture.h"
 #include "usage/battery.h"
@@ -75,7 +76,12 @@ static bool g_hasModel = false;
 static uint32_t g_netUpAt = 0;
 static bool g_netWasUp = false;
 static uint32_t g_nextPoll = 0;
+static uint32_t g_lastPoll = 0;
 static uint32_t g_failCount = 0;
+
+// ORDER #38: last device-initiated refresh (POST /v1/refresh) timestamp,
+// for the 10 s throttle.  Zero = never refreshed.
+static uint32_t g_lastRefreshMs = 0;
 
 // --- brightness / watchdog state --------------------------------------------
 
@@ -124,7 +130,7 @@ static uint32_t pollInterval() {
 // Full-screen redraw: build plan, draw, emit [RENDER], clear the flag.
 static void redraw() {
     usage::RenderPlan plan;
-    usage::buildPlan(g_model, g_view.page, plan);
+    usage::buildPlan(g_model, g_view.page, buildId(), plan);
     drawPlan(plan, netUp(), g_batt);
 
     char buf[64];
@@ -263,6 +269,31 @@ static void imuGestureUpdate(uint32_t now) {
     }
 }
 
+// doDeviceRefresh implements ORDER #38/#49: POST /v1/refresh to trigger an
+// immediate server-side poll, retry once on 202 after ~2 s, then fall back to
+// the conditional GET (doFetch).  Throttled via the pure-core refreshThrottleOk.
+// Both BtnA hold and BtnB click trigger this.
+static void doDeviceRefresh(uint32_t now) {
+    if (!usage::refreshThrottleOk(now, g_lastRefreshMs)) {
+        return;  // within 10 s throttle window
+    }
+    g_lastRefreshMs = now;
+
+    // ORDER #38: paint a brief "refreshing…" state for visual feedback.
+    drawRefreshStatus();
+
+    FetchResult refreshResult;
+    if (refreshUpstream(refreshResult)) {
+        // 202 = server poll still running; retry once after ~2 s.
+        if (usage::shouldRefreshRetry(refreshResult.code)) {
+            delay(2000);
+            refreshUpstream(refreshResult);
+        }
+    }
+    // Regardless of POST outcome, do the conditional GET to pick up data.
+    doFetch();
+}
+
 // --- state machine steps ----------------------------------------------------
 
 // Poll: first fetch after netUp, then periodic kPollMs.
@@ -289,31 +320,35 @@ static void pollUpdate(uint32_t now) {
     }
 }
 
-// Buttons: BtnA short-press cycles pages; BtnA long-press forces a fetch;
-// BtnB short-press forces a fetch.
+// Buttons: BtnA (GPIO 11) short-press cycles pages; BtnA long-press and BtnB
+// (GPIO 12) short-press both POST /v1/refresh then conditional GET.
+// ORDER #49: emit [BTN] gpio=N <action> for physical-button clarity.
 static void buttonsUpdate(uint32_t now) {
     // BtnA short press: cycle pages (only when we have a model).
     if (M5.BtnA.wasClicked() && g_hasModel) {
         usage::nextPage(g_view, g_model);
         g_lastActivity = now;
         char buf[64];
-        usage::fmtBtn(buf, sizeof(buf), "a_click page");
+        usage::fmtBtn(buf, sizeof(buf), 11, "click page");
         serialLine(buf);
     }
 
-    // BtnA long press (hold threshold 600 ms in boardInit): force fetch.
+    // BtnA long press: POST /v1/refresh + retry + conditional GET.
     if (M5.BtnA.wasHold() && netUp()) {
-        doFetch();
+        doDeviceRefresh(now);
         g_lastActivity = now;
         char buf[64];
-        usage::fmtBtn(buf, sizeof(buf), "a_hold refresh");
+        usage::fmtBtn(buf, sizeof(buf), 11, "hold refresh");
         serialLine(buf);
     }
 
-    // BtnB short press: immediate fetch.
+    // BtnB short press: POST /v1/refresh + retry + conditional GET.
     if (M5.BtnB.wasClicked() && netUp()) {
-        doFetch();
+        doDeviceRefresh(now);
         g_lastActivity = now;
+        char buf[64];
+        usage::fmtBtn(buf, sizeof(buf), 12, "click refresh");
+        serialLine(buf);
     }
 }
 

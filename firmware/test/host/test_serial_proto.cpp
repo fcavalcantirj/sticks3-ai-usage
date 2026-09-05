@@ -195,19 +195,49 @@ TEST(serial_gesture_flip) {
     ASSERT_EQ(r, (int)std::strlen(buf));
 }
 
-// --- fmtBtn ---------------------------------------------------------------------
+// --- fmtBtn (ORDER #49: GPIO-based) --------------------------------------------------
 
-TEST(serial_btn_a_hold_refresh) {
+TEST(serial_btn_gpio11_click_page) {
     char buf[64];
-    int r = usage::fmtBtn(buf, sizeof(buf), "a_hold refresh");
-    ASSERT_STREQ("[BTN] a_hold refresh", buf);
+    int r = usage::fmtBtn(buf, sizeof(buf), 11, "click page");
+    ASSERT_STREQ("[BTN] gpio=11 click page", buf);
     ASSERT_EQ(r, (int)std::strlen(buf));
 }
 
-TEST(serial_btn_a_click_page) {
+TEST(serial_btn_gpio11_hold_refresh) {
     char buf[64];
-    int r = usage::fmtBtn(buf, sizeof(buf), "a_click page");
-    ASSERT_STREQ("[BTN] a_click page", buf);
+    int r = usage::fmtBtn(buf, sizeof(buf), 11, "hold refresh");
+    ASSERT_STREQ("[BTN] gpio=11 hold refresh", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+TEST(serial_btn_gpio12_click_refresh) {
+    char buf[64];
+    int r = usage::fmtBtn(buf, sizeof(buf), 12, "click refresh");
+    ASSERT_STREQ("[BTN] gpio=12 click refresh", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+// --- fmtRefresh (ORDER #38) ---------------------------------------------------------
+
+TEST(serial_refresh_200) {
+    char buf[64];
+    int r = usage::fmtRefresh(buf, sizeof(buf), 200, 310);
+    ASSERT_STREQ("[REFRESH] code=200 ms=310", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+TEST(serial_refresh_202) {
+    char buf[64];
+    int r = usage::fmtRefresh(buf, sizeof(buf), 202, 50);
+    ASSERT_STREQ("[REFRESH] code=202 retry", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+TEST(serial_refresh_error) {
+    char buf[64];
+    int r = usage::fmtRefresh(buf, sizeof(buf), -1, 8000);
+    ASSERT_STREQ("[REFRESH] err=timeout ms=8000", buf);
     ASSERT_EQ(r, (int)std::strlen(buf));
 }
 

@@ -406,6 +406,110 @@ func TestIndexHTML(t *testing.T) {
 	}
 }
 
+// TestStatsServedFromScan verifies that after a PollOnce with StatsCfg
+// configured (REGRESSION 51), GET /v1/stats returns a report with non-empty
+// sources — i.e. the scheduler's scan populates the served report rather than
+// returning an empty sources map from a stale loaded file.
+func TestStatsServedFromScan(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "127.0.0.1:0", Interval: 900 * time.Second,
+		TZ: testLoc, DeviceToken: "x",
+	}
+
+	client := &httpx.Client{HTTP: &http.Client{Transport: httpx.NewFixtureTransport(dir)}}
+	runner := creds.FixtureRunner(dir)
+	fetchers := []providers.Fetcher{
+		providers.NewClaude(client, runner, "testuser", testLoc),
+		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc),
+	}
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
+
+	// Set StatsCfg BEFORE PollOnce so scanStats runs against fixture transcripts.
+	statsDir := filepath.Join("..", "stats", "testdata", "transcripts")
+	s.StatsCfg = stats.ScanConfig{
+		TZ:        testLoc,
+		ClaudeDir: filepath.Join(statsDir, "claude"),
+		CodexDir:  filepath.Join(statsDir, "codex"),
+	}
+	s.PollOnce(context.Background())
+
+	srv, err := New(s, cfg, logger)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ts := httptest.NewServer(srv.Handler)
+	t.Cleanup(ts.Close)
+
+	resp, err := http.Get(ts.URL + "/v1/stats")
+	if err != nil {
+		t.Fatalf("GET /v1/stats: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	var report stats.Report
+	if err := json.Unmarshal(body, &report); err != nil {
+		t.Fatalf("decode stats: %v\n%s", err, body)
+	}
+	if len(report.Sources) == 0 {
+		t.Errorf("served /v1/stats has empty sources — scan never populated the report")
+	}
+	if _, ok := report.Sources["claude_code"]; !ok {
+		t.Errorf("served /v1/stats missing claude_code source")
+	}
+	if report.GeneratedAt == 0 {
+		t.Error("generated_at is 0, want fresh timestamp from scan")
+	}
+}
+
+// TestStatsScanErrorDoesNotWipeReport verifies that when the stats scan fails
+// (non-existent transcript directory), the previously loaded report is preserved
+// rather than overwritten with an empty sources map (REGRESSION 51 fix).
+func TestStatsScanErrorDoesNotWipeReport(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "127.0.0.1:0", Interval: 900 * time.Second,
+		TZ: testLoc, DeviceToken: "x",
+	}
+
+	client := &httpx.Client{HTTP: &http.Client{Transport: httpx.NewFixtureTransport(dir)}}
+	runner := creds.FixtureRunner(dir)
+	fetchers := []providers.Fetcher{
+		providers.NewClaude(client, runner, "testuser", testLoc),
+		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc),
+	}
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
+	s.StatsCfg = stats.ScanConfig{
+		TZ:        testLoc,
+		ClaudeDir: "/nonexistent/transcript/dir/claude",
+		CodexDir:  "/nonexistent/transcript/dir/codex",
+	}
+
+	// Load a known-good report first.
+	statsFixture := filepath.Join(fixturesRoot, "..", "scenarios", "stats-demo", "stats.json")
+	if _, err := os.Stat(statsFixture); err != nil {
+		t.Skipf("stats-demo fixture not found: %v", err)
+	}
+	s.LoadStatsReport(statsFixture)
+
+	// PollOnce triggers scanStats, which will fail (bad dirs) but must NOT
+	// wipe the loaded report.
+	s.PollOnce(context.Background())
+
+	report := s.CurrentStats()
+	if report == nil {
+		t.Fatal("CurrentStats returned nil — loaded report was wiped by scan error")
+	}
+	if len(report.Sources) == 0 {
+		t.Error("loaded report's sources were wiped after scan error")
+	}
+}
+
 // --- Auth middleware tests ---
 
 func TestAuthLoopbackNoToken(t *testing.T) {

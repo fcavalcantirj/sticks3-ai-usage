@@ -1,5 +1,10 @@
 // firmware/src/usage/render_plan.h — page layout and change detection for the
 // 135×240 StickS3 LCD (240×135 landscape, 5 visible rows per page).
+//
+// ORDER #36 / task 51: pages are grouped by provider KIND (plan/credit/free),
+// one page per kind that has at least one row, in the fixed order plan, credit,
+// free.  A kind with no rows is skipped (does not consume a page number).
+// More than 5 rows overflow onto another page of the same kind.
 #pragma once
 
 #include "model.h"
@@ -7,6 +12,12 @@
 #include <cstdint>
 
 namespace usage {
+
+// Kind identifies a provider's billing category — drives the firmware's
+// page-grouping logic.  Mirrors the Go snapshot's "kind" field.
+static const uint8_t KIND_PLAN   = 1;  // paid subscription with quota windows
+static const uint8_t KIND_CREDIT = 2;  // prepaid balance that real money drains
+static const uint8_t KIND_FREE   = 3;  // no per-request cost
 
 // Line: one rendered row on the 5-line screen.
 struct Line {
@@ -20,12 +31,15 @@ struct Line {
 
 // RenderPlan: the full frame buffer for one screen page.
 struct RenderPlan {
-    char title[12];       // "AI USAGE"
+    char title[12];       // "PLANS", "CREDITS", "FREE" (was "AI USAGE")
     char asOf[12];        // "seq N" — device has no clock
+    char buildId[13];     // "v<buildid>" — visible without serial
+    uint8_t kind;         // KIND_PLAN / KIND_CREDIT / KIND_FREE
+    uint16_t kindColor;   // RGB565 accent for stripe + title
     uint8_t page;         // 1-indexed for display
-    uint8_t pageCount;
+    uint8_t pageCount;    // total pages across all kinds
     uint8_t lineCount;
-    Line lines[5];        // max 5 lines per page
+    Line lines[5];        // max 5 lines per page (4 when crit banner active)
     char footer[25];      // msg of first non-ok provider on this page, else ""
     char banner[25];      // crit/warn banner text (24 chars + NUL), "" when none
     uint8_t bannerTier;   // 0 none, 1 warn, 2 crit
@@ -39,10 +53,17 @@ struct View {
 };
 
 // buildPlan fills in the render plan for the given 0-indexed page.
-// Page 0 = claude + codex rows (max 5, excluding bal rows).
-// Page 1 = openrouter + groq rows (max 5).
-// pageCount = 2 when any provider beyond codex exists, 1 otherwise.
-void buildPlan(const Model& model, uint8_t page, RenderPlan& out);
+// The buildId (git short sha, or "unknown") is rendered as "v<buildId>" in
+// the top bar so an OTA is visible without serial.
+//
+// Pages are grouped by kind (plan → credit → free), one page per kind with
+// at least one row.  More than 5 rows (4 with a crit banner) overflow onto
+// additional pages of the same kind.
+void buildPlan(const Model& model, uint8_t page, const char* buildId,
+               RenderPlan& out);
+
+// countPages returns the total number of kind-grouped pages for the model.
+uint8_t countPages(const Model& model);
 
 // onSnapshot updates the view: sets needsRedraw only if rev changed
 // (and stores the new rev).  Called on every poll.

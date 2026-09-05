@@ -103,6 +103,7 @@ bool parseSnapshot(const char* json, size_t len, Model& out,
         copyStr(prov.id, p["id"].as<const char*>(), sizeof(prov.id));
         copyStr(prov.label, p["label"].as<const char*>(), sizeof(prov.label));
         copyStr(prov.plan, p["plan"].as<const char*>(), sizeof(prov.plan));
+        copyStr(prov.kind, p["kind"].as<const char*>(), sizeof(prov.kind));
         prov.severity = tierFromText(p["severity"].as<const char*>());
         prov.status = statusFromText(p["status"].as<const char*>());
         copyStr(prov.msg, p["msg"].as<const char*>(), sizeof(prov.msg));

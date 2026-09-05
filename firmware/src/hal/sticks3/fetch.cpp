@@ -131,4 +131,85 @@ bool fetchUsage(const char* lastRev, FetchResult& out) {
     return false;
 }
 
+// --- ORDER #38: POST /v1/refresh -----------------------------------------------
+
+bool refreshUpstream(FetchResult& out) {
+    out.code = 0;
+    out.rev[0] = '\0';
+    out.ms = 0;
+    out.body = "";
+
+    WiFiClient client;
+    HTTPClient http;
+    http.setTimeout(8000);
+    http.setReuse(false);
+
+    char url[128];
+    std::snprintf(url, sizeof(url), "http://%s:%d/v1/refresh",
+                  USAGED_HOST, (int)USAGED_PORT);
+    http.begin(client, url);
+
+    // Device-token header (always sent to the usaged server).
+    http.addHeader("X-Device-Token", USAGED_DEVICE_TOKEN);
+    http.addHeader("Content-Type", "application/json");
+
+    uint32_t startMs = nowMs();
+    int code = http.POST("");
+    out.ms = nowMs() - startMs;
+
+    if (code < 0) {
+        // Transport error.
+        const char* errDesc = (code <= -4) ? "timeout" : "conn";
+        char buf[64];
+        usage::fmtRefresh(buf, sizeof(buf), code, out.ms);
+        serialLine(buf);
+        out.code = code;
+        http.end();
+        return false;
+    }
+
+    // Extract ETag rev if present (refresh carries the same ETag semantics).
+    String etagStr = http.header("ETag");
+    if (etagStr.length() > 0) {
+        extractRev(out.rev, sizeof(out.rev), etagStr.c_str());
+    }
+
+    if (code == 202) {
+        // Poll still running — caller should retry once.
+        char buf[64];
+        usage::fmtRefresh(buf, sizeof(buf), 202, out.ms);
+        serialLine(buf);
+        out.code = 202;
+        http.end();
+        return true;  // true = "response received", code tells the caller what to do
+    }
+
+    if (code == 200) {
+        String body = http.getString();
+        if (body.length() > 8192) {
+            char buf[64];
+            usage::fmtRefresh(buf, sizeof(buf), -1, out.ms);
+            serialLine(buf);
+            out.code = -1;
+            http.end();
+            return false;
+        }
+        out.body = body;
+        out.code = 200;
+        char buf[64];
+        usage::fmtRefresh(buf, sizeof(buf), 200, out.ms);
+        serialLine(buf);
+        http.end();
+        return true;
+    }
+
+    // Other HTTP status codes.
+    char buf[64];
+    usage::fmtRefresh(buf, sizeof(buf), code, out.ms);
+    serialLine(buf);
+    out.code = code;
+    http.end();
+    return false;
+}
+
 } // namespace sticks3

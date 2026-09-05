@@ -47,33 +47,46 @@ uint16_t tierColor565(uint8_t tier, bool dim) {
     return c;
 }
 
-// --- page management ------------------------------------------------------
+// --- kind helpers ----------------------------------------------------------
 
-// hasPage2Providers returns true if the snapshot has any provider beyond
-// codex (i.e. openrouter or groq), which means content spills onto page 2.
-static bool hasPage2Providers(const Model& m) {
-    for (uint8_t i = 0; i < m.providerCount; i++) {
-        const char* id = m.providers[i].id;
-        if (std::strcmp(id, "openrouter:main") == 0 ||
-            std::strcmp(id, "openrouter:fallback") == 0 ||
-            std::strcmp(id, "groq") == 0) {
-            return true;
-        }
+// kindFromStr converts a Go snapshot "kind" string to the Kind enum.
+// Unknown/empty → KIND_NONE (0).
+static uint8_t kindFromStr(const char* s) {
+    if (s == nullptr || s[0] == '\0') return 0;
+    if (std::strcmp(s, "plan") == 0) return KIND_PLAN;
+    if (std::strcmp(s, "credit") == 0) return KIND_CREDIT;
+    if (std::strcmp(s, "free") == 0) return KIND_FREE;
+    return 0;
+}
+
+// kindTitle returns the display title for a kind.
+static const char* kindTitle(uint8_t kind) {
+    switch (kind) {
+        case KIND_PLAN:   return "PLANS";
+        case KIND_CREDIT: return "CREDITS";
+        case KIND_FREE:   return "FREE";
+        default:          return "AI USAGE";
     }
-    return false;
 }
 
-// providerIsPage1 returns true for the page-1 providers (claude, codex).
-static bool providerIsPage1(const char* id) {
-    return std::strcmp(id, "claude") == 0 || std::strcmp(id, "codex") == 0;
+// kindColor565 returns the RGB565 accent color for a kind.
+static uint16_t kindColor565(uint8_t kind) {
+    switch (kind) {
+        case KIND_PLAN:   return 0x3B9F; // blue
+        case KIND_CREDIT: return 0x07E0; // green
+        case KIND_FREE:   return 0x8410; // grey
+        default:          return 0x3B9F; // blue fallback
+    }
 }
+
+// --- page management ------------------------------------------------------
 
 // providerIsDim returns true when the status warrants dimming (stale/auth/error).
 static bool providerIsDim(uint8_t status) {
     return status == 1 || status == 2 || status == 3; // stale, auth, error
 }
 
-// --- banner severity scanning (ORDER #36 / task 50) --------------------------
+// --- banner severity scanning (ORDER #36 / task 50) -------------------------
 
 // Returns the worst severity across ALL providers (0 ok, 1 warn, 2 crit, 3 off).
 // The banner decision is global: every page shows the same banner.
@@ -110,11 +123,90 @@ static void appendWarnBang(char* label, size_t n) {
     }
 }
 
-void buildPlan(const Model& model, uint8_t page, RenderPlan& out) {
+// --- kind page iteration --------------------------------------------------
+
+// KindOrder is the fixed display order for kinds.
+static const uint8_t kKindOrder[] = {KIND_PLAN, KIND_CREDIT, KIND_FREE};
+
+// kindRowCount sums all rows belonging to providers of the given kind.
+static uint8_t kindRowCount(const Model& m, uint8_t kind) {
+    uint8_t count = 0;
+    for (uint8_t i = 0; i < m.providerCount; i++) {
+        if (kindFromStr(m.providers[i].kind) != kind) continue;
+        count += m.providers[i].rowCount;
+    }
+    return count;
+}
+
+// countPages returns the total number of kind-grouped pages.
+uint8_t countPages(const Model& model) {
+    uint8_t worst = worstSeverity(model);
+    uint8_t maxLines = (worst >= 2) ? 4 : 5;
+    uint8_t total = 0;
+    for (int ki = 0; ki < 3; ki++) {
+        uint8_t rows = kindRowCount(model, kKindOrder[ki]);
+        if (rows > 0) {
+            total += (rows + maxLines - 1) / maxLines;
+        }
+    }
+    return total;
+}
+
+// resolvePage maps a flat 0-indexed page to (kind, subPage, startRow) and
+// fills the RenderPlan.  Returns true if the page is valid.
+static void resolvePage(const Model& model, uint8_t flatPage,
+                        uint8_t& outKind, uint8_t& outSubPage,
+                        uint8_t& outStartRow) {
+    uint8_t worst = worstSeverity(model);
+    uint8_t maxLines = (worst >= 2) ? 4 : 5;
+
+    uint8_t remaining = flatPage;
+    for (int ki = 0; ki < 3; ki++) {
+        uint8_t kind = kKindOrder[ki];
+        uint8_t rows = kindRowCount(model, kind);
+        if (rows == 0) continue;
+
+        uint8_t pages = (rows + maxLines - 1) / maxLines;
+        if (remaining < pages) {
+            outKind = kind;
+            outSubPage = remaining;
+            outStartRow = remaining * maxLines;
+            return;
+        }
+        remaining -= pages;
+    }
+
+    // Page out of range — default to plan.
+    outKind = KIND_PLAN;
+    outSubPage = 0;
+    outStartRow = 0;
+}
+
+void buildPlan(const Model& model, uint8_t page, const char* buildId,
+               RenderPlan& out) {
     std::memset(&out, 0, sizeof(out));
-    copyStr(out.title, "AI USAGE", sizeof(out.title));
+
+    // Version string: "v<buildId>" (e.g. "vabc123").
+    char verBuf[13];
+    if (buildId != nullptr && buildId[0] != '\0') {
+        std::snprintf(verBuf, sizeof(verBuf), "v%s", buildId);
+    } else {
+        copyStr(verBuf, "v?", sizeof(verBuf));
+    }
+    copyStr(out.buildId, verBuf, sizeof(out.buildId));
+
+    uint8_t totalPages = countPages(model);
+    out.pageCount = totalPages;
     out.page = (uint8_t)(page + 1); // 1-indexed for display
-    out.pageCount = (uint8_t)(hasPage2Providers(model) ? 2 : 1);
+
+    if (totalPages == 0) return;
+
+    // Resolve which kind this flat page belongs to.
+    uint8_t kind = 0, subPage = 0, startRow = 0;
+    resolvePage(model, page, kind, subPage, startRow);
+    out.kind = kind;
+    out.kindColor = kindColor565(kind);
+    copyStr(out.title, kindTitle(kind), sizeof(out.title));
 
     // asOf shows "seq N" (the device has no real-time clock).
     char asOfBuf[12];
@@ -122,12 +214,9 @@ void buildPlan(const Model& model, uint8_t page, RenderPlan& out) {
     copyStr(out.asOf, asOfBuf, sizeof(out.asOf));
 
     // --- alert banner (ORDER #36 / task 50) ---
-    // When ANY provider is crit, show a red banner on EVERY page (including
-    // page 2) and shrink the row area to 4 lines.  When the worst is warn,
-    // append '!' to the warn provider's rows and tint them amber — no banner.
     uint8_t worst = worstSeverity(model);
+    out.bannerTier = (worst >= 2) ? 2 : 0;
     if (worst >= 2) {
-        out.bannerTier = 2;
         const Provider* cp = firstProviderWithSeverity(model, 2);
         if (cp) {
             char combined[25];
@@ -141,28 +230,28 @@ void buildPlan(const Model& model, uint8_t page, RenderPlan& out) {
         }
     }
 
+    // Crit banner steals one row slot.
     uint8_t maxLines = (worst >= 2) ? 4 : 5;
 
     uint8_t lineIdx = 0;
+    uint8_t currentRow = 0;  // row counter within the current kind
     const char* footerMsg = nullptr;
 
-    for (uint8_t i = 0; i < model.providerCount; i++) {
+    for (uint8_t i = 0; i < model.providerCount && lineIdx < maxLines; i++) {
         const Provider& prov = model.providers[i];
-        bool onThisPage = (page == 0) ? providerIsPage1(prov.id)
-                                      : !providerIsPage1(prov.id);
-        if (!onThisPage) continue;
+        if (kindFromStr(prov.kind) != kind) continue;
 
-        // Track the first non-ok provider's msg for the footer.
-        if (prov.status != 0 && footerMsg == nullptr) {
-            footerMsg = prov.msg;
-        }
+        bool providerShown = false;
 
-        for (uint8_t r = 0; r < prov.rowCount && lineIdx < maxLines; r++) {
-            const Row& row = prov.rows[r];
-            // bal rows never go on page 1.
-            if (page == 0 && std::strcmp(row.k, "bal") == 0) {
+        for (uint8_t r = 0; r < prov.rowCount; r++) {
+            if (currentRow < startRow) {
+                currentRow++;
                 continue;
             }
+            if (lineIdx >= maxLines) break;
+
+            providerShown = true;
+            const Row& row = prov.rows[r];
             Line& line = out.lines[lineIdx];
             copyStr(line.left, row.label, sizeof(line.left));
             line.pct = row.pct;
@@ -178,6 +267,13 @@ void buildPlan(const Model& model, uint8_t page, RenderPlan& out) {
             }
 
             lineIdx++;
+            currentRow++;
+        }
+
+        // Track the first non-ok provider's msg for the footer (only if
+        // this provider has rows on the current page).
+        if (providerShown && prov.status != 0 && footerMsg == nullptr) {
+            footerMsg = prov.msg;
         }
     }
 
@@ -195,8 +291,10 @@ void onSnapshot(View& view, const Model& model) {
 }
 
 void nextPage(View& view, const Model& model) {
-    uint8_t total = hasPage2Providers(model) ? 2 : 1;
-    view.page = (view.page + 1) % total;
+    uint8_t total = countPages(model);
+    if (total > 0) {
+        view.page = (view.page + 1) % total;
+    }
     view.needsRedraw = true;
 }
 

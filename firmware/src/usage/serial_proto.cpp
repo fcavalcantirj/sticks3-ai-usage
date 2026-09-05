@@ -56,7 +56,24 @@ int fmtFetch(char* out, size_t n, int code, const char* rev,
                          static_cast<unsigned int>(ms));
 }
 
+// fmtRefresh formats a /v1/refresh POST result (ORDER #38):
+//   200 (immediate):    [REFRESH] code=200 ms=310
+//   202 (poll running):  [REFRESH] code=202 retry
+//   <0  (transport err): [REFRESH] err=timeout ms=8000
+int fmtRefresh(char* out, size_t n, int code, uint32_t ms) {
+    if (code < 0) {
+        return std::snprintf(out, n, "[REFRESH] err=timeout ms=%u",
+                             static_cast<unsigned int>(ms));
+    }
+    if (code == 202) {
+        return std::snprintf(out, n, "[REFRESH] code=202 retry");
+    }
+    return std::snprintf(out, n, "[REFRESH] code=%d ms=%u",
+                         code, static_cast<unsigned int>(ms));
+}
+
 // fmtRender formats a screen redraw:
+
 //   [RENDER] page=1 lines=5 rev=abcd1234
 int fmtRender(char* out, size_t n, uint8_t page, uint8_t lines,
               const char* rev) {
@@ -127,12 +144,13 @@ int fmtGesture(char* out, size_t n, uint8_t rot) {
                          static_cast<unsigned int>(rot));
 }
 
-// fmtBtn formats a button event line:
-//   [BTN] a_hold refresh
-//   [BTN] a_click page
-int fmtBtn(char* out, size_t n, const char* event) {
-    return std::snprintf(out, n, "[BTN] %s",
-                         event != nullptr ? event : "");
+// fmtBtn formats a button event line with the GPIO number (ORDER #49):
+//   [BTN] gpio=11 click page
+//   [BTN] gpio=11 hold refresh
+//   [BTN] gpio=12 click refresh
+int fmtBtn(char* out, size_t n, int gpio, const char* action) {
+    return std::snprintf(out, n, "[BTN] gpio=%d %s",
+                         gpio, action != nullptr ? action : "");
 }
 
 // fmtBatt formats a battery change line:

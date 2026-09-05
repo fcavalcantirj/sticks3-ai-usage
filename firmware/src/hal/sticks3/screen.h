@@ -16,6 +16,11 @@ void drawBootScreen(const char* build);
 void drawPlan(const usage::RenderPlan& plan, bool wifiOk,
               const sticks3::battery::BatteryView& batt);
 
+// Paint a brief "refreshing…" status centred on screen (ORDER #38).
+// Called when the user presses the refresh button before the POST /v1/refresh
+// returns, so the device gives visual feedback that a refresh is in flight.
+void drawRefreshStatus();
+
 // Paint a full-screen OTA status: "OTA <pct>%" centred.
 // Called every loop pass while a transfer is in flight.
 void drawOtaStatus(uint8_t pct);

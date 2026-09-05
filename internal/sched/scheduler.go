@@ -211,7 +211,23 @@ func (s *Scheduler) scanStats(ctx context.Context, now time.Time) {
 
 	report, index, err := sc.Scan(ctx, s.StatsCfg, index)
 	if err != nil {
-		slog.Debug("sched: stats scan error", "err", err)
+		// REGRESSION 51 fix: don't overwrite a previously loaded (or scanned)
+		// report with a failed one — an error means the transcript directories
+		// are missing or unreadable, so the new report has empty/partial sources.
+		// Keep the existing StatsReport (if any) and just persist the updated
+		// index so the next scan can resume incrementally.  Log loudly so the
+		// failure is visible (was slog.Debug, now Warn).
+		slog.Warn("sched: stats scan error", "err", err)
+		s.mu.Lock()
+		s.StatsIndex = index
+		s.mu.Unlock()
+		if s.StatsScanPath != "" {
+			s.mu.RLock()
+			idxData := s.StatsIndex
+			s.mu.RUnlock()
+			_ = stats.SaveIndex(s.StatsScanPath, idxData)
+		}
+		return
 	}
 
 	// Warn loudly about any unpriced models (cost estimates will be partial).
