@@ -95,18 +95,43 @@ func (t *clientTracker) state(clientKey string) *deviceState {
 		Count200:     entry.count200,
 		Count304:     entry.count304,
 		LastStatus:   entry.lastStatus,
+		State:        computeDeviceState(int64(entry.lastSeen.Sub(entry.prevSeen).Seconds()), int64(now.Sub(entry.lastSeen).Seconds())),
 	}
 }
 
 // deviceState is the per-client device state exposed on /v1/usage. It does NOT
 // participate in the ETag/rev hash and never appears in a 304 body.
 type deviceState struct {
-	LastSeen     int64 `json:"last_seen"`     // unix s of the latest request
-	SecondsSince int64 `json:"seconds_since"` // seconds elapsed since lastSeen
-	IntervalSec  int64 `json:"interval_sec"`  // seconds between the last two requests
-	Count200     int   `json:"count_200"`     // 200 OK responses observed
-	Count304     int   `json:"count_304"`     // 304 Not Modified responses observed
-	LastStatus   int   `json:"last_status"`   // 200 or 304
+	LastSeen     int64  `json:"last_seen"`     // unix s of the latest request
+	SecondsSince int64  `json:"seconds_since"` // seconds elapsed since lastSeen
+	IntervalSec  int64  `json:"interval_sec"`  // seconds between the last two requests
+	Count200     int    `json:"count_200"`     // 200 OK responses observed
+	Count304     int    `json:"count_304"`     // 304 Not Modified responses observed
+	LastStatus   int    `json:"last_status"`   // 200 or 304
+	State        string `json:"state"`         // "connected", "absent", or "unknown"
+}
+
+// computeDeviceState returns an explicit presence state from the observed
+// polling cadence rather than leaving the caller to interpret a raw number.
+//
+// On USB the device polls every 300 s; on battery it sleeps, so a gap far
+// longer than the observed interval IS deep sleep. "absent" is reported when
+// seconds_since exceeds 3× the expected interval (observed interval if
+// available, else 600 s) — enough slack to ride out jitter without hiding a
+// real disappearance. "unknown" covers a client that has never made a
+// request.
+func computeDeviceState(intervalSec, secondsSince int64) string {
+	if secondsSince == 0 && intervalSec == 0 {
+		return "connected"
+	}
+	expected := intervalSec
+	if expected == 0 {
+		expected = 600 // seconds — fallback when no interval has been observed yet
+	}
+	if secondsSince > 3*expected {
+		return "absent"
+	}
+	return "connected"
 }
 
 // usageResponse wraps the snapshot with optional device state for the client

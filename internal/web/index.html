@@ -1178,16 +1178,25 @@ function deviceCard(ds) {
 
   var since = ds.seconds_since;
   var expected = ds.interval_sec > 0 ? ds.interval_sec : currentInterval;
-  var offline = since > expected * 2;
 
-  var chipClass = offline ? "chip-critical" : "chip-stale";
-  var chipText = offline ? "Offline?" : "Awake";
+  var chipClass, chipText;
+  if (ds.state === "absent") {
+    chipClass = "chip-critical";
+    chipText = "Absent";
+  } else if (ds.state === "connected") {
+    chipClass = "chip-stale";
+    chipText = "Awake";
+  } else {
+    chipClass = "chip-stale";
+    chipText = "Unknown";
+  }
 
   var parts = [];
   parts.push("last seen " + fmtTime(ds.last_seen));
   parts.push(since + "s ago");
   if (ds.interval_sec > 0) parts.push("~" + ds.interval_sec + "s poll");
   parts.push("200:" + ds.count_200 + " 304:" + ds.count_304);
+  parts.push("state: " + (ds.state || "unknown"));
 
   return '<div class="device-accent">' +
     attentionItem("Device", chipText, chipClass, parts.join(" \u00b7 ")) +

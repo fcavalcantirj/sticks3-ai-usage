@@ -342,3 +342,55 @@ func TestAccessLogDifferentClients(t *testing.T) {
 		t.Errorf("client 2: count_200=%d count_304=%d, want 0/1", st2.Count200, st2.Count304)
 	}
 }
+
+// --- computeDeviceState unit tests ---
+
+// TestComputeDeviceStateConnected verifies that a client within the expected
+// polling window is reported as "connected".
+func TestComputeDeviceStateConnected(t *testing.T) {
+	// interval 300s, last seen 120s ago → well within 3×300=900s.
+	if got := computeDeviceState(300, 120); got != "connected" {
+		t.Errorf("computeDeviceState(300, 120) = %q, want %q", got, "connected")
+	}
+}
+
+// TestComputeDeviceStateAbsent verifies that a client absent beyond 3× the
+// observed interval is reported as "absent".
+func TestComputeDeviceStateAbsent(t *testing.T) {
+	// interval 300s, last seen 1000s ago → exceeds 3×300=900.
+	if got := computeDeviceState(300, 1000); got != "absent" {
+		t.Errorf("computeDeviceState(300, 1000) = %q, want %q", got, "absent")
+	}
+}
+
+// TestComputeDeviceStateBoundary verifies the boundary: exactly 3× the
+// interval is still "connected", 3×+1 is "absent".
+func TestComputeDeviceStateBoundary(t *testing.T) {
+	if got := computeDeviceState(300, 900); got != "connected" {
+		t.Errorf("300, 900 = %q, want connected", got)
+	}
+	if got := computeDeviceState(300, 901); got != "absent" {
+		t.Errorf("300, 901 = %q, want absent", got)
+	}
+}
+
+// TestComputeDeviceStateFallbackInterval verifies that when no interval has
+// been observed yet (first request), the 600s default is used.
+func TestComputeDeviceStateFallbackInterval(t *testing.T) {
+	// No interval observed, last seen 60s ago → connected.
+	if got := computeDeviceState(0, 60); got != "connected" {
+		t.Errorf("computeDeviceState(0, 60) = %q, want %q", got, "connected")
+	}
+	// No interval observed, last seen 1801s ago → exceeds 3×600=1800 → absent.
+	if got := computeDeviceState(0, 1801); got != "absent" {
+		t.Errorf("computeDeviceState(0, 1801) = %q, want %q", got, "absent")
+	}
+}
+
+// TestComputeDeviceStateJustSeen verifies that a freshly-seen client is
+// always "connected" regardless of the expected interval.
+func TestComputeDeviceStateJustSeen(t *testing.T) {
+	if got := computeDeviceState(300, 0); got != "connected" {
+		t.Errorf("computeDeviceState(300, 0) = %q, want %q", got, "connected")
+	}
+}
