@@ -47,7 +47,7 @@ hardware behaviour is verified without a camera or extra tools.
 | `[FETCH]` | `[FETCH] code=200 rev=abcd1234 seq=43 ms=310`  (200, new data)        |
 | `[FETCH]` | `[FETCH] code=-1 err=timeout ms=8000`  (error; rev reused as err)     |
 | `[RENDER]`| `[RENDER] page=1 lines=5 rev=abcd1234`                                 |
-| `[GESTURE]`| `[GESTURE] flip rot=3`  (IMU double-tap, 180° rotation)          |
+| `[GESTURE]`| `[GESTURE] flip rot=3`  (BtnB hold ≥ 1500 ms, 180° rotation)         |
 | `[BTN]`    | `[BTN] gpio=11 click page`  (blue button short → page cycle)     |
 | `[BTN]`    | `[BTN] gpio=11 hold refresh`  (blue button long → POST /v1/refresh)|
 | `[BTN]`    | `[BTN] gpio=12 click refresh`  (side button → POST /v1/refresh) |
@@ -127,36 +127,31 @@ shares `barY` (also vertically centred).  Previously the text was top-datum
 (`rowY`) while the bar was at `rowY + 4`, making the value look like it belonged
 to the row above.
 
-## IMU & gestures (task 48)
+## Screen rotation & gestures (ORDER #53 REVISED, task 58)
 
-The BMI270 IMU is at I2C address 0x68 (not 0x69) on SDA GPIO47 / SCL GPIO48.
-M5Unified probes both and the hardcoded 0x68 value is the real address on this
-board.  `internal_imu` is set to `true` in `boardInit()`.
+The BMI270 IMU is **not used** — `internal_imu` is `false` and `M5.Imu.begin()`
+is never called. The device has no vibration motor.
 
-### Double-tap to flip
+### Hold-to-flip screen
 
-The gesture logic lives entirely in `firmware/src/usage/gesture.{h,cpp}` — a
-pure state machine with no M5/Arduino headers, host-tested by
-`test/host/test_gesture.cpp`.  The HAL polls `M5.Imu.getAccelData` at ~50 Hz
-(every 20 ms) while awake and feeds raw m/s² samples to the detector.
+Rotation is toggled by **BtnB (GPIO 12, side button) hold**:
+- Click (release before 1500 ms): POST `/v1/refresh` + conditional GET.
+- Hold (≥ 1500 ms): toggle rotation 1 ↔ 3, persist to NVS, emit `[GESTURE]`.
+- Hint (at 500 ms into a hold): amber "hold to flip 180°" in the footer.
 
-**Detection algorithm:**
-1. Compute true-g magnitude: `mag = sqrt(ax² + ay² + az²) / 9.80665`.
-2. A spike is a transient where `mag > 2.5g` lasting under 120 ms.
-3. Two spikes separated by 120–500 ms form a double-tap.
-4. A 1-second lockout follows each double-tap.
-5. A slow ramp (picking the device up) exceeds 120 ms and is ignored.
+The detection is a pure C++17 state machine in `usage/hold_flip.{h,cpp}`,
+host-tested by `test/host/test_hold_flip.cpp`. `M5.BtnB.setHoldThresh(1500)`
+is set in `boardInit()` for documentation — the state machine handles timing
+via `isPressed()` polling.
 
-On a double-tap, the screen rotation toggles between 1 (upright) and 3
-(180-degree flip).  The rotation is persisted in NVS (namespace `"usaged"`,
-key `"rot"`) so it survives reboot, deep sleep, and OTA.  It is loaded during
-`boardInit()` before the first paint so a flipped device never shows one
-upside-down frame.
+Rotation is persisted in NVS (namespace `"usaged"`, key `"rot"`) as 1
+(upright) or 3 (180° flip). Loaded before the first paint so a flipped device
+never shows one upside-down frame. Survives reboot, deep sleep, and OTA.
 
 ### Button gestures
 
-ORDER #49 settled the physical button mapping empirically. The footer relabels
-them by physical position, not GPIO number:
+ORDER #49 settled the physical button mapping empirically. The footer
+relables them by physical position, not GPIO number:
 
 - **Blue button** (GPIO 11, BtnA) short press: cycles to the next page.
 - **Blue button** long press (600 ms threshold): POSTs `/v1/refresh` then does
@@ -168,14 +163,3 @@ The device emits `[BTN] gpio=11 click page`, `[BTN] gpio=11 hold refresh`, or
 `[BTN] gpio=12 click refresh` on every button event. The `gpio=` field is the
 physical GPIO number so Felipe can correlate a press with the hardware pin
 without consulting the source.
-
-### Hardware capture notes (from Felipe's real device)
-
-The thresholds (2.5g spike, 120 ms max spike duration, 120–500 ms gap,
-1 s lockout) were tuned from real double-tap captures recorded while the device
-was on USB power.  Raw accelerometer magnitude was logged as `[IMU] mag=<f>`
-behind a build flag during tuning; see docs/DEVICES.md for the captured values.
-
-The BMI270 draws ~1 mA when active.  During deep-sleep teardown it is
-suspended (0x68: 0x7D=0x00, 0x7C=0x03) so it does not waste battery on the
-60-second timer wake.  IMU polling is skipped during fetches and OTA transfers.

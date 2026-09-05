@@ -27,7 +27,7 @@
 #include "usage/render_plan.h"
 #include "usage/refresh.h"
 #include "usage/serial_proto.h"
-#include "usage/gesture.h"
+#include "usage/hold_flip.h"
 #include "usage/battery.h"
 
 #include <cstdio>
@@ -99,12 +99,10 @@ static bool g_graceActive = false;     // grace window started (first render/fet
 static bool g_paintedThisBoot = false; // at least one redraw() completed
 static bool g_prevVbusPresent = false; // for USB→battery transition detection
 
-// --- IMU gesture state (task 48) ---------------------------------------------
-// Double-tap detector: pure state machine, fed from the HAL IMU poll.
-static sticks3::gesture::DoubleTapDetector g_gesture;
-// IMU poll rate.
-static const uint32_t kImuPollMs = 20;
-static uint32_t g_lastImuPoll = 0;
+// --- hold-to-flip state (ORDER #53 REVISED, task 58) --------------------------
+// BtnB hold-to-flip state machine replaces the IMU double-tap detector.
+static sticks3::holdflip::HoldFlipDetector g_flipDetector;
+static bool g_holdHintActive = false;  // true while a flip hint is on screen
 
 // --- battery polling (task 49) ------------------------------------------------
 // PTT-style gauge on the top bar; polled every 30 s, redrawn on change.
@@ -238,38 +236,6 @@ static void doFetch() {
     }
 }
 
-// --- IMU gesture polling ----------------------------------------------------
-
-// imuGestureUpdate polls the BMI270 at ~50 Hz and feeds samples to the
-// double-tap detector.  On a detected gesture, toggles rotation, persists
-// it, emits [GESTURE], and forces a redraw.
-static void imuGestureUpdate(uint32_t now) {
-    if ((int32_t)(now - g_lastImuPoll) < (int32_t)kImuPollMs) {
-        return;
-    }
-    g_lastImuPoll = now;
-
-    // Read raw acceleration from the BMI270 via M5Unified.
-    // Units are m/s²; the detector converts to g internally.
-    float ax = 0, ay = 0, az = 0;
-    M5.Imu.getAccelData(&ax, &ay, &az);
-
-    sticks3::gesture::Gesture g = g_gesture.feed(ax, ay, az, now);
-    if (g == sticks3::gesture::Gesture::double_tap) {
-        uint8_t rot = (uint8_t)g_gesture.rotation();
-        setRotation(rot);
-        saveRotation(rot);
-
-        char buf[64];
-        usage::fmtGesture(buf, sizeof(buf), rot);
-        serialLine(buf);
-
-        // Force a redraw in the new orientation.
-        g_view.needsRedraw = true;
-        g_lastActivity = now;
-    }
-}
-
 // doDeviceRefresh implements ORDER #38/#49: POST /v1/refresh to trigger an
 // immediate server-side poll, retry once on 202 after ~2 s, then fall back to
 // the conditional GET (doFetch).  Throttled via the pure-core refreshThrottleOk.
@@ -321,8 +287,14 @@ static void pollUpdate(uint32_t now) {
     }
 }
 
-// Buttons: BtnA (GPIO 11) short-press cycles pages; BtnA long-press and BtnB
-// (GPIO 12) short-press both POST /v1/refresh then conditional GET.
+// drawFlipHint paints a brief "flip…" indicator in the footer area without a
+// full screen wipe — just enough feedback that the hold gesture is active.
+static void drawFlipHint();
+
+// Buttons: BtnA (GPIO 11) short-press cycles pages; BtnA long-press refreshes.
+// BtnB (GPIO 12) short-press refreshes; BtnB hold (>= 1500 ms) flips the
+// screen 180°.  ORDER #53 REVISED: one threshold governs click and hold on
+// BtnB — a short click still refreshes exactly as today.
 // ORDER #49: emit [BTN] gpio=N <action> for physical-button clarity.
 static void buttonsUpdate(uint32_t now) {
     // BtnA short press: cycle pages (only when we have a model).
@@ -343,14 +315,70 @@ static void buttonsUpdate(uint32_t now) {
         serialLine(buf);
     }
 
-    // BtnB short press: POST /v1/refresh + retry + conditional GET.
-    if (M5.BtnB.wasClicked() && netUp()) {
-        doDeviceRefresh(now);
-        g_lastActivity = now;
-        char buf[64];
-        usage::fmtBtn(buf, sizeof(buf), 12, "click refresh");
-        serialLine(buf);
+    // BtnB: click = refresh, hold (>= 1500 ms) = flip.  The hold state machine
+    // in usage/hold_flip.h disambiguates click vs hold using a single threshold.
+    bool btnBPressed = M5.BtnB.isPressed();
+    sticks3::holdflip::FlipAction action = g_flipDetector.feed(btnBPressed, now);
+
+    switch (action) {
+        case sticks3::holdflip::FlipAction::click:
+            // BtnB short press: POST /v1/refresh + retry + conditional GET.
+            if (netUp()) {
+                doDeviceRefresh(now);
+            }
+            g_lastActivity = now;
+            {
+                char buf[64];
+                usage::fmtBtn(buf, sizeof(buf), 12, "click refresh");
+                serialLine(buf);
+            }
+            break;
+
+        case sticks3::holdflip::FlipAction::hint:
+            // Hold reached 500 ms — show a brief hint without a full repaint.
+            g_holdHintActive = true;
+            drawFlipHint();
+            break;
+
+        case sticks3::holdflip::FlipAction::flip: {
+            // Hold reached 1500 ms — flip 180°, persist, force redraw.
+            g_holdHintActive = false;
+            // The screen rotates regardless of whether data has been fetched.
+            uint8_t rot = (uint8_t)g_flipDetector.rotation();
+            setRotation(rot);
+            saveRotation(rot);
+            {
+                char buf[64];
+                usage::fmtGesture(buf, sizeof(buf), rot);
+                serialLine(buf);
+            }
+            g_view.needsRedraw = true;
+            g_lastActivity = now;
+            break;
+        }
+
+        default:
+            // If the button is not held and a hint was active, clear it.
+            if (!btnBPressed && g_holdHintActive) {
+                g_holdHintActive = false;
+                // The next redraw() will paint normally.
+                if (g_view.needsRedraw || (!g_paintedThisBoot && g_hasModel)) {
+                    redraw();
+                }
+            }
+            break;
     }
+}
+
+// drawFlipHint paints a brief "flip…" indicator in the footer area without a
+// full screen wipe — just enough feedback that the hold gesture is active.
+static void drawFlipHint() {
+    M5.Display.setTextColor(0xFD20);  // amber
+    const char* hint = "hold to flip 180°";
+    int16_t w = M5.Display.width();
+    int16_t tw = M5.Display.textWidth(hint);
+    M5.Display.setCursor(w - tw - 4, 120);
+    M5.Display.println(hint);
 }
 
 // Brightness policy: 80 normally; 20 after 30 min without rev change or
@@ -394,12 +422,12 @@ void setup() {
 
     drawBootScreen(buildId());
 
-    // --- IMU + rotation (task 48) ------------------------------------------
+    // --- rotation (ORDER #53 REVISED, task 58) -------------------------------
     // Load persisted rotation BEFORE the first paint so a flipped device
     // never shows one upside-down frame.
     uint8_t rot = loadRotation();
     setRotation(rot);
-    M5.Imu.begin(); // BMI270 at 0x68; safe to call even if IMU is disabled
+    // No IMU init — the BMI270 is not polled.  Wake is via ext1 buttons + timer.
 
     // --- power: wake cause + RTC snapshot restore ---
     WakeCause wakeCause = readWakeCause();
@@ -486,13 +514,6 @@ void loop() {
     // paint of the cached snapshot (paintedThisBoot guard).
     if (g_view.needsRedraw || (!g_paintedThisBoot && g_hasModel)) {
         redraw();
-    }
-
-    // --- IMU gesture polling (task 48) -----------------------------------
-    // Poll every 20 ms while awake and no fetch/OTA is in flight.
-    // The detector is pure C++ — hardware access is in the HAL.
-    if (netUp() && !otaInProgress()) {
-        imuGestureUpdate(now);
     }
 
     // ORDER #30: when grace is not yet active (pre-first-render on wake),

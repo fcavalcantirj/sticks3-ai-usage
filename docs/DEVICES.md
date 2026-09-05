@@ -61,28 +61,28 @@ If so, `esp_sleep_enable_ext0_wakeup(GPIO_NUM_13, 0)` with the standard
 pullup/pulldown pair may work without writing any PM1 IRQ registers. This
 must be validated on hardware before any code change.
 
-### IMU calibration (task 48)
+### Hold-to-flip screen (ORDER #53 REVISED, task 58)
 
-The BMI270 is at I2C address 0x68 (not 0x69) on SDA GPIO47 / SCL GPIO48.
-M5Unified probes both; the hardcoded 0x68 value is the working address on
-this board. `internal_imu` is set to `true` in `boardInit()`.
+The BMI270 IMU is **not used**. `internal_imu` is `false` in `boardInit()`
+and `M5.Imu.begin()` is never called. The device has no vibration motor, so
+haptic feedback is not an option.
 
-Double-tap thresholds were tuned from real captures (device on USB, double-tapping
-the case):
+Screen rotation is controlled by **BtnB (GPIO 12, the side button) hold**:
+- **Click** (release before 1500 ms): POST `/v1/refresh` + conditional GET,
+  same as today.
+- **Hold** (1500 ms threshold): toggle the screen 180° (rotation 1 ↔ 3).
+- **Hint** (500 ms into a hold): a brief amber "hold to flip 180°" text
+  appears in the footer area without a full repaint.
 
-| Parameter       | Value  | Rationale                                        |
-|-----------------|--------|--------------------------------------------------|
-| Spike threshold | 2.5 g  | Sharp tap transient above gravity baseline       |
-| Spike duration  | 120 ms | Longer than this is a slow ramp (pick-up motion) |
-| Inter-tap gap   | 120–500 ms | Too fast or too slow is not a natural double-tap |
-| Lockout         | 1 s    | Prevents accidental triple-tap triggers          |
-
-Raw magnitude samples were logged as `[IMU] mag=<f>` behind a build flag during
-tuning. The thresholds separate genuine double-taps from pick-up/set-down ramps
-and button presses.
+The logic is a pure C++17 state machine in `usage/hold_flip.{h,cpp}`,
+host-tested by `test/host/test_hold_flip.cpp` — no sensor polling, no
+hardware dependency. `M5.BtnB.setHoldThresh(1500)` documents the threshold
+even though the state machine handles the timing via `isPressed()` polling.
 
 Rotation is persisted in NVS (namespace `"usated"`, key `"rot"`) as values
-1 (upright) or 3 (flipped). It survives reboot, deep sleep, and OTA.
+1 (upright) or 3 (flipped). It is loaded before the first paint so a flipped
+device never shows one upside-down frame. It survives reboot, deep sleep,
+and OTA.
 
 **SDA conflict (ORDER #29, reiterated):** Never write PM1 GPIO1 IRQ registers.
 The PM1 GPIO1 line shares the I2C SDA bus and driving it as an IRQ output
@@ -96,6 +96,9 @@ but the app never runs and serial stays silent. Recovery:
 3. Single press (on).
 4. Replug USB.
 5. Re-open the serial monitor.
+
+**No vibration motor** — the StickS3 PCB has no haptic actuator, so
+hold-to-flip feedback is visual only (the 500 ms hint line).
 
 ## Unit #1 — off-limits
 

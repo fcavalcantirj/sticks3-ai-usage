@@ -10,8 +10,10 @@
 // docs/DEVICES.md under "Unit #2 power/wake errata".
 //
 // Deep-sleep teardown follows the ptt.ino lineage (ptt.ino:191-211) verbatim —
-// every register write is a measured leak fix: ES8311 codec, BMI270 IMU,
-// PM1 PA + LCD rails.  Do NOT thin this teardown.
+// every register write is a measured leak fix: ES8311 codec, PM1 PA + LCD rails.
+// Do NOT thin this teardown.  The BMI270 IMU is not initialized (internal_imu
+// = false) so it needs no suspend write; it draws negligible current when
+// unpowered via M5.begin() defaults.
 #include "hal/sticks3/power.h"
 
 #include "hal/sticks3/board.h"   // serialLine
@@ -88,12 +90,6 @@ static void teardownCodecs() {
     M5.In_I2C.writeRegister8(0x18, 0x00, 0x00, 400000);
 }
 
-static void teardownImu() {
-    // BMI270 suspend — ~1 mA leak eats the µA win otherwise.
-    M5.In_I2C.writeRegister8(0x68, 0x7D, 0x00, 400000);
-    M5.In_I2C.writeRegister8(0x68, 0x7C, 0x03, 400000);
-}
-
 static void teardownPowerRails() {
     // PA off (PM1 GPIO3) + LCD rail off (PM1 GPIO2).
     M5.Power.M5pm1.setGPIOOutput(m5::M5PM1_Class::gpio3, false);
@@ -152,7 +148,6 @@ void powerSleep() {
     screenOff();
     radioOff();
     teardownCodecs();
-    teardownImu();
     teardownPowerRails();
     armWakeSources();
 

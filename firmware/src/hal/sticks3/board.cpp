@@ -12,7 +12,7 @@ namespace sticks3 {
 
 void boardInit() {
     auto cfg = M5.config();
-    cfg.internal_imu = true;
+    cfg.internal_imu = false;  // ORDER #53 REVISED: no IMU polling
     cfg.internal_spk = false;
     cfg.internal_mic = false;
     cfg.output_power = false;
@@ -22,7 +22,7 @@ void boardInit() {
     M5.Display.setBrightness(80);
 
     M5.BtnA.setHoldThresh(600);
-    M5.BtnB.setHoldThresh(600);
+    M5.BtnB.setHoldThresh(1500);  // ORDER #53 REVISED: hold-to-flip
 }
 
 int boardId() {
