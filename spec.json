@@ -635,7 +635,7 @@
       "Only after all non-optional tasks pass. Spike, read-only, no commitment: run `printf '%s\\n' '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"account/rateLimits/read\"}' | codex -s read-only -a never app-server` (codex-cli 0.150.1 at ~/.local/bin/codex; check `codex app-server --help` first — the daemon/proxy subcommands are NOT what we want; if stdio JSON-RPC needs an `initialize` handshake, send it first) and capture the response shape into `docs/spikes/codex-app-server.md` with a verdict: does it return the same windows as wham/usage, does it refresh `~/.codex/auth.json` by itself (compare mtime before/after), latency. If viable, implement `internal/providers/codex_cli.go` as an alternative fetcher enabled by `USAGED_CODEX_SOURCE=cli` (default stays `http`), with tests using a FakeRunner that replays the captured JSON.",
       "Verify: `test -f docs/spikes/codex-app-server.md`; if implemented, `go test ./internal/providers -run CodexCLI -v | grep -c '^--- PASS'` ≥ 2 and `make verify` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "optional",
