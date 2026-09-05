@@ -682,6 +682,19 @@
     "passes": false
   },
   {
+    "category": "firmware",
+    "description": "Sleep and wake are unobservable without a cable: [WAKE]/[SLEEP] go to serial only, so deep sleep cannot be proven — report wake cause and counters over the network instead",
+    "steps": [
+      "Firmware context: M5StickS3 unit #2, hostname sticks3-usage. PlatformIO espressif32@6.12.0 / Arduino core 2.0.17 / ESP-IDF 4.4.7, M5Unified 0.2.19 + M5GFX 0.2.28. Purity rule: gesture LOGIC goes in the pure core (firmware/src/usage/, no M5 or Arduino headers, host-tested by 'make fw-test'); only firmware/src/hal/sticks3/* and main.cpp may touch M5. Flash this over OTA ('make fw-ota'), no cable. Any upload needs Felipe's explicit authorization in the Solvr room.",
+      "Felipe: 'does deep sleep REALLY occurs, can you validate?' The planner could only half-answer, and the missing half IS the defect. From the source the policy is unambiguous — powerDecide returns StayAwake unconditionally when vbusPresent, so on wall power the device never sleeps by design, and on battery it sleeps 20 s past the grace anchor with ext1 wake on GPIO11/GPIO12 and a 60 s timer backstop. What nobody can do is PROVE it happened: fmtWake and fmtSleep (serial_proto.cpp:104, :111) emit [WAKE] cause=... vbus=... and [SLEEP] reason=... to the serial port only, there is no cable any more, and main.cpp:433 reads the wake cause for the instant-wake guard and then discards it. The device's power history is invisible from the Mac.",
+      "Make sleep and wake provable over the NETWORK, since serial is gone. Keep in RTC_DATA_ATTR — so they survive deep sleep — a wake counter, the last wake cause, and a count of sleep entries. Report them to the agent on the next successful fetch, as extra query parameters on the conditional GET or a small request header, whichever is least invasive.",
+      "THE INVARIANT THIS MUST NOT BREAK: the 304-no-redraw contract that the whole project rests on. The report travels on the REQUEST, so it must not perturb the ETag / If-None-Match path, must not change rev, and must not cause a redraw. A 304 must still be a 304 and the screen must still not repaint. Assert that in a test rather than assuming it.",
+      "On the host side the agent logs each report and exposes the latest as device state: last wake cause, wake count, sleep count, and how long ago it was reported — on /v1/usage and in the Attention tab of the dashboard. This is what turns 'the code says it sleeps' into 'here is the evidence it slept'.",
+      "Verify: firmware host tests for the counter surviving a simulated wake and for the report leaving rev untouched (a 304 stays a 304, no redraw); Go tests for parsing the report, exposing it, and tolerating a device that never sends one. `make fw-test` Failed 0, `make fw-build` SUCCESS, `go test ./...` green, `make verify` and `make smoke` exit 0. Then the UAT Felipe can actually run WITHOUT A CABLE: he unplugs the device, watches the screen go dark, presses a button, and sees the wake cause and an incremented count appear in his browser. Do not flash — the planner holds the OTA lane and Felipe authorizes each upload."
+    ],
+    "passes": false
+  },
+  {
     "category": "optional",
     "description": "OPTIONAL v3: spike `codex app-server` JSON-RPC account/rateLimits/read so the Codex CLI owns token refresh",
     "steps": [
