@@ -645,7 +645,7 @@
       "Only if the founder explicitly authorises editing `~/.claude/settings.json` in the session (ask; default NO). Design: a shim script `scripts/statusline-tee.sh` that reads Claude Code's statusline stdin JSON, writes `rate_limits` (five_hour/seven_day used_percentage + resets_at epoch s) atomically to `~/.local/state/usaged/claude-statusline.json`, then execs the existing `node ~/.claude/hooks/gsd-statusline.js` with the same stdin (chain, never replace). Add `internal/providers/claude_statusline.go` that prefers this file when it is younger than 10 min (status ok, plan from the file if present), falling back to the OAuth endpoint otherwise; document the switch `USAGED_CLAUDE_SOURCE=auto|oauth|statusline`.",
       "Verify: shim `bash -n` ok and unit-tested with a sample stdin (fixture `testdata/fixtures/statusline_stdin.json` built from the documented shape `{\"rate_limits\":{\"five_hour\":{\"used_percentage\":23.5,\"resets_at\":1738425600},\"seven_day\":{\"used_percentage\":41.2,\"resets_at\":1738857600}}}`); `go test ./internal/providers -run Statusline -v | grep -c '^--- PASS'` ≥ 2; `make verify` exits 0. The settings.json change itself is done by the founder, never by the loop."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "optional",
