@@ -46,7 +46,9 @@ func runServe(args []string, stdout io.Writer) int {
 	clock := time.Now
 	s := sched.NewScheduler(fetchers, cfg.Interval, cfg.StatePath, clock, logger)
 
-	// Configure stats scanning.
+	// Configure snapshot publishing (task 59).
+	s.PublishURL = cfg.PublishURL
+	s.PublishToken = cfg.PublishToken
 	s.StatsCfg = stats.ScanConfig{
 		TZ:        cfg.TZ,
 		ClaudeDir: cfg.ClaudeDir,

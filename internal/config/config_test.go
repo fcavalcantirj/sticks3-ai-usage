@@ -59,6 +59,8 @@ func TestLoadEnvOverrides(t *testing.T) {
 		"USAGED_LOG_LEVEL":            "debug",
 		"USAGED_CODEX_SOURCE":         "cli",
 		"USAGED_CLAUDE_SOURCE":        "oauth",
+		"USAGED_PUBLISH_URL":          "https://example.com/snapshot",
+		"USAGED_PUBLISH_TOKEN":        "publish-secret",
 	}
 	cfg, err := Load(nil, envFrom(env))
 	if err != nil {
@@ -90,6 +92,27 @@ func TestLoadEnvOverrides(t *testing.T) {
 	}
 	if cfg.ClaudeSource != "oauth" {
 		t.Errorf("ClaudeSource = %q, want oauth", cfg.ClaudeSource)
+	}
+	if cfg.PublishURL != "https://example.com/snapshot" {
+		t.Errorf("PublishURL = %q", cfg.PublishURL)
+	}
+	if cfg.PublishToken != "publish-secret" {
+		t.Errorf("PublishToken = %q", cfg.PublishToken)
+	}
+}
+
+func TestLoadPublishDefaultsEmpty(t *testing.T) {
+	cfg, err := Load(nil, envFrom(map[string]string{
+		"USAGED_DEVICE_TOKEN": "test-token",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.PublishURL != "" {
+		t.Errorf("PublishURL = %q, want empty by default", cfg.PublishURL)
+	}
+	if cfg.PublishToken != "" {
+		t.Errorf("PublishToken = %q, want empty by default", cfg.PublishToken)
 	}
 }
 

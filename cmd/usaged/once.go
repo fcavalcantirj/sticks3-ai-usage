@@ -63,6 +63,8 @@ func runOnce(args []string, stdout io.Writer) int {
 	ctx := context.Background()
 	clock := nowFunc
 	s := sched.NewScheduler(fetchers, cfg.Interval, statePath, clock, logger)
+	s.PublishURL = cfg.PublishURL
+	s.PublishToken = cfg.PublishToken
 	s.StatsCfg = stats.ScanConfig{
 		TZ:        cfg.TZ,
 		ClaudeDir: cfg.ClaudeDir,

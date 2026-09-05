@@ -655,7 +655,7 @@
       "Add `USAGED_PUBLISH_URL` + `USAGED_PUBLISH_TOKEN` (env; both empty by default): after every poll whose rev changed, `PUT` the snapshot JSON to the URL with `Authorization: Bearer <token>` (5 s timeout, best-effort, logged). Provide a 60-line reference receiver `contrib/receiver/main.go` (Go, stdlib) that stores the last snapshot in memory and serves it with the same ETag/304 semantics at `/v1/usage` behind the same bearer token — deployable on any always-on box the founder chooses (his call; NOT the Onvida enterprise fleet). Never publish tokens, only the snapshot.",
       "Verify: `go test ./internal/sched -run Publish -v | grep -c '^--- PASS'` ≥ 2 (httptest receiver; publish only on rev change); `go build ./contrib/receiver`; `make verify` exits 0."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "optional",

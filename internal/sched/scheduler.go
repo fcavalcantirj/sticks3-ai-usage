@@ -1,10 +1,13 @@
 package sched
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
+	"net/http"
 	"sync"
 	"time"
 
@@ -33,6 +36,13 @@ type Scheduler struct {
 	StatsReport   *stats.Report
 	StatsScanPath string // path to persist the stats index
 	StatsPath     string // path to persist the stats report (stats.json)
+
+	// Snapshot publishing (task 59): after every poll whose rev changed,
+	// PUT the snapshot JSON to PublishURL with Authorization: Bearer <token>.
+	// PublishClient, if nil, defaults to http.DefaultClient. Best-effort.
+	PublishURL    string
+	PublishToken  string
+	PublishClient *http.Client
 }
 
 // NewScheduler creates a Scheduler with sane defaults. If clock is nil,
@@ -184,13 +194,20 @@ func (s *Scheduler) pollOnce(ctx context.Context) {
 	}
 
 	s.mu.Lock()
+	seqBefore := s.State.Snapshot.Seq
 	s.State.Snapshot.Apply(ordered, nowUnix)
+	revChanged := s.State.Snapshot.Seq > seqBefore
 	if s.StatePath != "" {
 		if err := snapshot.Save(s.StatePath, s.State); err != nil {
 			slog.Debug("sched: save state error", "err", err)
 		}
 	}
 	s.mu.Unlock()
+
+	// Publish on rev change (task 59). Best-effort, outside the lock.
+	if revChanged && s.PublishURL != "" {
+		s.publish(ctx)
+	}
 
 	// Run local stats scan after poll (bounded, non-fatal on error).
 	if s.StatsCfg.ClaudeDir != "" || s.StatsCfg.CodexDir != "" {
@@ -369,4 +386,48 @@ func (s *Scheduler) Current() snapshot.Snapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.State.Snapshot
+}
+
+// publish does a best-effort PUT of the current snapshot to PublishURL.
+// It uses a 5 s timeout and is never called when PublishURL is empty.
+// Only the snapshot is sent — never tokens or credentials.
+func (s *Scheduler) publish(ctx context.Context) {
+	client := s.PublishClient
+	if client == nil {
+		client = http.DefaultClient
+	}
+
+	s.mu.RLock()
+	snap := s.State.Snapshot
+	s.mu.RUnlock()
+
+	body, err := json.Marshal(snap)
+	if err != nil {
+		slog.Debug("publish: marshal error", "err", err)
+		return
+	}
+
+	reqCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, "PUT", s.PublishURL, bytes.NewReader(body))
+	if err != nil {
+		slog.Debug("publish: request error", "err", err)
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+s.PublishToken)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		slog.Debug("publish: transport error", "err", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		slog.Debug("publish: ok", "status", resp.StatusCode, "seq", snap.Seq)
+	} else {
+		slog.Debug("publish: non-2xx", "status", resp.StatusCode, "seq", snap.Seq)
+	}
 }

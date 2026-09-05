@@ -2,6 +2,10 @@ package sched
 
 import (
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -321,4 +325,107 @@ func TestSchedulerNoGoroutineLeak(t *testing.T) {
 	if after > before+2 {
 		t.Errorf("goroutine leak: before=%d after=%d (diff=%d)", before, after, after-before)
 	}
+}
+
+// --- Publish tests (task 59) ---
+
+// publishTestServer returns an httptest server that records PUT requests
+// and checks the Bearer token. Returns the server, a request-count counter,
+// and the last received body.
+func publishTestServer(token string, cnt *atomic.Int32, body *atomic.Value) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer "+token {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		cnt.Add(1)
+		b, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+		body.Store(b)
+		w.WriteHeader(http.StatusOK)
+	}))
+}
+
+func TestPublishOnRevChange(t *testing.T) {
+	clock := testClock()
+	pct := 19
+	r := int64(1788411000)
+
+	f := &fakeFetcher{
+		id: "claude",
+		fn: func(ctx context.Context, now time.Time) (snapshot.Provider, providers.Outcome) {
+			return okProvider("claude", "Claude", "max_20x", pct, r, now), providers.Outcome{}
+		},
+	}
+
+	var cnt atomic.Int32
+	var body atomic.Value
+	srv := publishTestServer("secret-token", &cnt, &body)
+	defer srv.Close()
+
+	s := NewScheduler([]providers.Fetcher{f}, 900*time.Second, "", clock, nil)
+	s.PublishURL = srv.URL
+	s.PublishToken = "secret-token"
+	s.PublishClient = srv.Client()
+
+	// First poll: rev goes from "" to something → publish fires.
+	s.PollOnce(context.Background())
+	if cnt.Load() != 1 {
+		t.Fatalf("publish count = %d, want 1 after first poll", cnt.Load())
+	}
+	b := body.Load()
+	if b == nil {
+		t.Fatal("expected published body, got nil")
+	}
+	var published snapView
+	if err := json.Unmarshal(b.([]byte), &published); err != nil {
+		t.Fatalf("published body is not valid JSON snapshot: %v", err)
+	}
+	if published.Seq != 1 {
+		t.Errorf("published seq = %d, want 1", published.Seq)
+	}
+}
+
+func TestPublishOnlyOnRevChange(t *testing.T) {
+	clock := testClock()
+	pct := 19
+	r := int64(1788411000)
+
+	f := &fakeFetcher{
+		id: "claude",
+		fn: func(ctx context.Context, now time.Time) (snapshot.Provider, providers.Outcome) {
+			return okProvider("claude", "Claude", "max_20x", pct, r, now), providers.Outcome{}
+		},
+	}
+
+	var cnt atomic.Int32
+	var body atomic.Value
+	srv := publishTestServer("t", &cnt, &body)
+	defer srv.Close()
+
+	s := NewScheduler([]providers.Fetcher{f}, 900*time.Second, "", clock, nil)
+	s.PublishURL = srv.URL
+	s.PublishToken = "t"
+	s.PublishClient = srv.Client()
+
+	// First poll: rev changes → publish.
+	s.PollOnce(context.Background())
+	if cnt.Load() != 1 {
+		t.Fatalf("after first poll: publish count = %d, want 1", cnt.Load())
+	}
+
+	// Second poll: identical content, rev unchanged → NO publish.
+	s.PollOnce(context.Background())
+	if cnt.Load() != 1 {
+		t.Errorf("after second identical poll: publish count = %d, want 1 (no publish on unchanged rev)", cnt.Load())
+	}
+}
+
+// snapView is a minimal view of Snapshot for test assertions.
+type snapView struct {
+	V         int    `json:"v"`
+	Seq       int64  `json:"seq"`
+	Rev       string `json:"rev"`
+	Providers []struct {
+		ID string `json:"id"`
+	} `json:"providers"`
 }

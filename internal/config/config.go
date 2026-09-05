@@ -49,6 +49,12 @@ type Config struct {
 	StatsIndexPath string // on-disk stats index file (default ~/.local/state/usaged/stats-index.json)
 	StatsPath      string // on-disk stats report (default ~/.local/state/usaged/stats.json)
 
+	// Publish target (task 59): after every poll whose rev changed, PUT the
+	// snapshot JSON to PublishURL with Authorization: Bearer <token>. Both
+	// empty by default (publishing disabled).
+	PublishURL   string
+	PublishToken string
+
 	// Alert thresholds (from YAML config file; used by snapshot formatting)
 	AlertOpenRouterLowUSD float64
 	AlertQuotaWarnPct     int
@@ -216,6 +222,12 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 	if v := getenv("USAGED_STATS_PATH"); v != "" {
 		cfg.StatsPath = expandHome(home, v)
 	}
+	if v := getenv("USAGED_PUBLISH_URL"); v != "" {
+		cfg.PublishURL = v
+	}
+	if v := getenv("USAGED_PUBLISH_TOKEN"); v != "" {
+		cfg.PublishToken = v
+	}
 
 	// Flags override env
 	if setFlags["config"] {
@@ -379,6 +391,8 @@ func (c Config) Redacted() map[string]any {
 	m["groq_key"] = fmt.Sprintf("set(len=%d)", len(c.GroqKey))
 	m["codex_source"] = c.CodexSource
 	m["claude_source"] = c.ClaudeSource
+	m["publish_url"] = c.PublishURL
+	m["publish_token"] = fmt.Sprintf("set(len=%d)", len(c.PublishToken))
 	return m
 }
 
