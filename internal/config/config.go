@@ -44,6 +44,7 @@ type Config struct {
 	JSONOutput     bool   // once command: emit snapshot as indented JSON
 	ClaudeDir      string // Claude Code transcript dir (default ~/.claude/projects/)
 	CodexDir       string // Codex rollout dir (default ~/.codex/sessions/)
+	CodexSource    string // codex data source: "http" (wham/usage) or "cli" (app-server)
 	StatsIndexPath string // on-disk stats index file (default ~/.local/state/usaged/stats-index.json)
 	StatsPath      string // on-disk stats report (default ~/.local/state/usaged/stats.json)
 
@@ -83,6 +84,7 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 	cfg.LogLevel = slog.LevelInfo
 	cfg.AlertOpenRouterLowUSD = 1.00 // sensible default for OpenRouter low-balance warning
 	cfg.AlertQuotaWarnPct = 95
+	cfg.CodexSource = "http"
 
 	tz, err := time.LoadLocation(DefaultTZ)
 	if err != nil {
@@ -193,6 +195,12 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 	}
 	if v := getenv("USAGED_CODEX_DIR"); v != "" {
 		cfg.CodexDir = expandHome(home, v)
+	}
+	if v := getenv("USAGED_CODEX_SOURCE"); v != "" {
+		if v != "http" && v != "cli" {
+			return cfg, fmt.Errorf("USAGED_CODEX_SOURCE %q: want \"http\" or \"cli\"", v)
+		}
+		cfg.CodexSource = v
 	}
 	if v := getenv("USAGED_STATS_INDEX"); v != "" {
 		cfg.StatsIndexPath = expandHome(home, v)
@@ -361,6 +369,7 @@ func (c Config) Redacted() map[string]any {
 		m["openrouter_keys"] = keys
 	}
 	m["groq_key"] = fmt.Sprintf("set(len=%d)", len(c.GroqKey))
+	m["codex_source"] = c.CodexSource
 	return m
 }
 

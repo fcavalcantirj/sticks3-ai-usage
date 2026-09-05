@@ -105,7 +105,20 @@ func buildFetchers(cfg config.Config) []providers.Fetcher {
 	loc := cfg.TZ
 	var fetchers []providers.Fetcher
 	fetchers = append(fetchers, providers.NewClaude(client, runner, claudeUsername(), loc))
-	fetchers = append(fetchers, providers.NewCodex(client, authPath, loc))
+
+	// Codex: HTTP (wham/usage) or CLI (app-server) source.
+	switch cfg.CodexSource {
+	case "cli":
+		var cliRunner providers.CodexCLIRunner
+		if cfg.FixturesDir != "" {
+			cliRunner = providers.NewCodexFixtureRunner(cfg.FixturesDir)
+		} else {
+			cliRunner = providers.NewCodexCLIRunner()
+		}
+		fetchers = append(fetchers, providers.NewCodexCLI(cliRunner, loc))
+	default:
+		fetchers = append(fetchers, providers.NewCodex(client, authPath, loc))
+	}
 
 	// OpenRouter fetchers: real when keys are set, static off blocks when not.
 	for _, b := range []struct{ id, label, key string }{

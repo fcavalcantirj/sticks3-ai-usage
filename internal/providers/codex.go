@@ -39,7 +39,10 @@ func NewCodex(client *httpx.Client, authPath string, loc *time.Location) Fetcher
 
 func (p *codexProvider) ID() string { return codexID }
 
-func (p *codexProvider) block(status, msg, plan string, rows []snapshot.Row, fetchedAt int64) snapshot.Provider {
+// codexBlock returns a canonical codex snapshot.Provider block. Shared by the
+// HTTP (wham/usage) and CLI (app-server) fetchers so they produce identical
+// output fields.
+func codexBlock(status, msg, plan string, rows []snapshot.Row, fetchedAt int64) snapshot.Provider {
 	return snapshot.Provider{
 		ID:        codexID,
 		Label:     codexLabel,
@@ -58,15 +61,15 @@ func (p *codexProvider) Fetch(ctx context.Context, now time.Time) (snapshot.Prov
 
 	if errors.Is(err, creds.ErrNotLoggedIn) {
 		slog.Debug("codex: not logged in")
-		return p.block("auth", "run codex", c.PlanType, nil, now.Unix()), Outcome{}
+		return codexBlock("auth", "run codex", c.PlanType, nil, now.Unix()), Outcome{}
 	}
 	if errors.Is(err, creds.ErrExpired) {
 		slog.Debug("codex: token expired")
-		return p.block("auth", "run codex", c.PlanType, nil, now.Unix()), Outcome{}
+		return codexBlock("auth", "run codex", c.PlanType, nil, now.Unix()), Outcome{}
 	}
 	if err != nil {
 		slog.Debug("codex: cred read error", "err", err)
-		return p.block("error", "cred read", "", nil, now.Unix()), Outcome{}
+		return codexBlock("error", "cred read", "", nil, now.Unix()), Outcome{}
 	}
 
 	plan := c.PlanType
@@ -85,34 +88,34 @@ func (p *codexProvider) Fetch(ctx context.Context, now time.Time) (snapshot.Prov
 		if errors.Is(err, context.DeadlineExceeded) {
 			msg = "api timeout"
 		}
-		return p.block("error", msg, plan, nil, now.Unix()), Outcome{}
+		return codexBlock("error", msg, plan, nil, now.Unix()), Outcome{}
 	}
 
 	slog.Debug("codex: response", "status", resp.Status)
 
 	switch {
 	case resp.Status == http.StatusUnauthorized || resp.Status == http.StatusForbidden:
-		return p.block("auth", "run codex", plan, nil, now.Unix()), Outcome{}
+		return codexBlock("auth", "run codex", plan, nil, now.Unix()), Outcome{}
 	case resp.Status == http.StatusTooManyRequests:
 		cooldown, ok := httpx.RetryAfter(resp.Header, now)
 		if !ok {
 			cooldown = 300 * time.Second
 		}
 		until := now.Add(cooldown)
-		return p.block("error", fmt.Sprintf("429 until %s", until.In(p.loc).Format("15:04")), plan, nil, now.Unix()),
+		return codexBlock("error", fmt.Sprintf("429 until %s", until.In(p.loc).Format("15:04")), plan, nil, now.Unix()),
 			Outcome{CooldownUntil: until}
 	case resp.Status != http.StatusOK:
-		return p.block("error", fmt.Sprintf("http %d", resp.Status), plan, nil, now.Unix()), Outcome{}
+		return codexBlock("error", fmt.Sprintf("http %d", resp.Status), plan, nil, now.Unix()), Outcome{}
 	}
 
 	var body codexUsageResponse
 	if err := json.Unmarshal(resp.Body, &body); err != nil {
 		slog.Debug("codex: parse error", "err", err)
-		return p.block("error", fmt.Sprintf("http %d", resp.Status), plan, nil, now.Unix()), Outcome{}
+		return codexBlock("error", fmt.Sprintf("http %d", resp.Status), plan, nil, now.Unix()), Outcome{}
 	}
 
 	rows := parseCodexRows(body, now, p.loc)
-	return p.block("ok", "", body.PlanType, rows, now.Unix()), Outcome{}
+	return codexBlock("ok", "", body.PlanType, rows, now.Unix()), Outcome{}
 }
 
 // --- response parsing ---
