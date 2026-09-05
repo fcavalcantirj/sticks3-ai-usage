@@ -4,6 +4,7 @@
 #include "usage/battery.h"   // BatteryView (pure C++17, testable on host)
 #include "usage/textfit.h"   // fitRight (pure C++17, testable on host)
 #include "usage/topbar.h"    // topbar::compute (pure layout, host-tested)
+#include "usage/render_plan.h" // usage::FooterLayout, footerCompute (ORDER #56)
 
 #include <M5Unified.h>
 #include <cstdio>
@@ -185,18 +186,21 @@ void drawPlan(const usage::RenderPlan& plan, bool wifiOk,
         M5.Display.setCursor((W - fw) / 2, 120);
         M5.Display.println(fh);
     } else {
-        // Normal: left-aligned seq/version line, right-aligned button hint.
-        // (ORDER #51: seq and version moved from header to footer.)
+        // Normal: left-aligned seq/version, right-aligned hint.
+        // ORDER #56 task 60: measure-then-fit — shorten hint first, then seq,
+        // NEVER the version.  Hint covers both click-refresh and hold-flip.
+        const char* hint = "blue: page   side: r/h";
+
+        usage::FooterLayout fl;
+        usage::footerCompute(fl, W, plan.asOf, plan.buildId, hint, measureText);
+
         M5.Display.setTextColor(0xFD20);  // amber
-        const char* left = plan.footer;
-        const char* hint = "blue: page   side: refresh";
-        // Left: seq/version line.
-        M5.Display.setCursor(5, 120);
-        M5.Display.println(left);
-        // Right: button hint.
-        int16_t hw = M5.Display.textWidth(hint);
-        M5.Display.setCursor(W - hw - 4, 120);
-        M5.Display.println(hint);
+        M5.Display.setCursor(fl.leftX, 120);
+        M5.Display.println(fl.left);
+        if (fl.hintDrawn) {
+            M5.Display.setCursor(fl.hintX, 120);
+            M5.Display.println(fl.hint);
+        }
     }
 }
 

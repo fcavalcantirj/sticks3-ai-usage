@@ -31,15 +31,16 @@ void compute(Layout& out, int16_t W,
     std::memset(&out, 0, sizeof(out));
     out.W = W;
 
-    // Items that are always drawn.
-    int16_t cursor = W - kRightMargin;  // right edge of the packer
+    // --- right-hand cluster (wifi dot + battery unit) ---
+    // Packed right-to-left from x = W - kRightMargin.
+    int16_t cursor = W - kRightMargin;  // cursor starts at the right margin
 
     // 1. Wifi dot (r=3, diameter 6).  Centre at (cursor - r), right edge at cursor.
     int16_t dotCx = cursor - 3;
     out.wifiDot.x = dotCx;
     out.wifiDot.w = 6;       // diameter
     out.wifiDot.drawn = true;
-    cursor = dotCx - 3 - kGapWifi;  // left edge of dot, minus 8px gap
+    cursor = dotCx - 3 - kGapWifi;  // left edge of dot, minus gap
 
     // 2. Battery: label text is to the LEFT of the gauge.
     char battLabel[8];
@@ -59,40 +60,45 @@ void compute(Layout& out, int16_t W,
     out.battLabel.w = labelW;
     out.battLabel.drawn = true;
 
-    cursor = labelLeft - kGap;  // left of the battery unit, minus 4px gap
+    // cursor now = left edge of the battery unit (labelLeft), minus 4px gap.
+    cursor = labelLeft - kGap;
 
-    // Title width — used for overlap checks.
+    // --- title (left-aligned at x=5) ---
     const char* tstr = (title != nullptr) ? title : "";
     int16_t titleW = measure(tstr);
     out.title.w = titleW;
+    int16_t titleRight = 5 + titleW;  // right edge of title text
+    bool titleFits = (titleRight + kGap <= cursor);
 
-    // Minimum safe position: title needs its left edge >= 5.
-    int16_t titleMinRight = 5 + titleW;
+    out.title.x = -1;
+    out.title.drawn = false;
+    if (titleFits) {
+        out.title.x = 5;
+        out.title.drawn = true;
+    }
 
-    // Page indicator (only when pageCount > 1).  Dropped before the title.
+    // --- page indicator (CENTERED in the free span) ---
+    // Placed in the gap between the title's right edge and the cluster's left
+    // edge.  Dropped BEFORE the title when there is no room (drop-precedence:
+    // the indicator only appears when the title also fits).
     out.pageInd.drawn = false;
     out.pageInd.x = -1;
     out.pageInd.w = 0;
-    if (pageCount > 1) {
+    if (pageCount > 1 && titleFits) {
         char pageBuf[8];
         std::snprintf(pageBuf, sizeof(pageBuf), "%u/%u",
                       (unsigned)(page + 1), (unsigned)pageCount);
         int16_t pw = measure(pageBuf);
-        int16_t px = cursor - pw;
-        if (px >= titleMinRight + kGap) {
-            out.pageInd.x = px;
+
+        // Free span: [titleRight + kGap, cursor - 0] (cursor = clusterLeft).
+        int16_t freeLeft = titleRight + kGap;
+        int16_t freeW = cursor - freeLeft;
+        if (freeW >= pw) {
+            // Centre the indicator in the free span.
+            out.pageInd.x = (freeLeft + cursor - pw) / 2;
             out.pageInd.w = pw;
             out.pageInd.drawn = true;
-            cursor = px - kGap;
         }
-    }
-
-    // Title (left-aligned at x=5, drawn only if it doesn't overlap).
-    out.title.x = -1;
-    out.title.drawn = false;
-    if (5 + titleW + kGap <= cursor) {
-        out.title.x = 5;
-        out.title.drawn = true;
     }
 }
 

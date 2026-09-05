@@ -199,3 +199,77 @@ TEST(topbar_item_ordering_right_to_left) {
     // pageInd is right of title (title is left-aligned at x=5).
     ASSERT_TRUE(l.pageInd.x > l.title.x);
 }
+
+// --- page indicator CENTERED in the free span (ORDER #56 task 60) ---------------
+
+TEST(topbar_pageind_centred_in_free_span) {
+    // 240px screen, page 1/3, short title "PLANS" (30px).
+    // Battery unit: battLabel "87%+" = 24px, gauge 32+3=35, labelLeft=161.
+    // cursor = labelLeft - kGap = 157.  Title right = 5 + 30 = 35.
+    // Free span: [35+4, 157] = [39, 157].  "1/3" = 18px.
+    // Centred: (39 + 157 - 18) / 2 = 89.
+    Layout l = buildLayout(0, 3, "PLANS", 87, true, true);
+
+    ASSERT_TRUE(l.pageInd.drawn);
+    ASSERT_TRUE(l.title.drawn);
+
+    int16_t pageW = measureFixed("1/3");  // 18
+    // The indicator must be centred: (freeLeft + cursor - pw) / 2.
+    int16_t titleRight = l.title.x + l.title.w;   // 5 + 30 = 35
+    int16_t freeLeft = titleRight + sticks3::topbar::kGap;  // 39
+    int16_t cursor = l.battLabel.x - sticks3::topbar::kGap;  // 161 - 4 = 157
+    int16_t expectedX = (freeLeft + cursor - pageW) / 2;    // = 89
+
+    ASSERT_EQ(expectedX, l.pageInd.x);
+    ASSERT_EQ(pageW, l.pageInd.w);
+}
+
+// --- page indicator does NOT overlap title or cluster -------------------------
+
+TEST(topbar_pageind_no_overlap_centred) {
+    Layout l = buildLayout(0, 3, "CREDITS", 87, false, true);
+
+    ASSERT_TRUE(l.pageInd.drawn);
+    ASSERT_TRUE(l.title.drawn);
+
+    int16_t titleRight = l.title.x + l.title.w;
+    int16_t pageLeft = l.pageInd.x;
+    // Title right + gap must not overlap indicator.
+    ASSERT_TRUE(titleRight + sticks3::topbar::kGap <= pageLeft);
+
+    int16_t pageRight = l.pageInd.x + l.pageInd.w;
+    int16_t battLabelLeft = l.battLabel.x;
+    // Indicator right + gap must not overlap battery label.
+    ASSERT_TRUE(pageRight + sticks3::topbar::kGap <= battLabelLeft);
+}
+
+// --- narrow bar: page indicator dropped before title --------------------------
+
+TEST(topbar_pageind_centred_dropped_before_title_narrow) {
+    // 240px with a very long title — title doesn't fit, so page indicator
+    // is also dropped (it is centred in the span between title and cluster,
+    // which only exists when the title fits).
+    Layout l = buildLayout(0, 3, "ANEXTREMELYLONGTITLETHATWILLNOTFIT",
+                              87, false, true);
+    ASSERT_FALSE(l.pageInd.drawn);
+    ASSERT_FALSE(l.title.drawn);
+}
+
+// --- page indicator centred with 2-digit page numbers ------------------------
+
+TEST(topbar_pageind_centred_two_digit_pages) {
+    // 12 pages: "1/12" = 24px.  Centre still works.
+    Layout l = buildLayout(0, 12, "FREE", 50, false, true);
+
+    ASSERT_TRUE(l.pageInd.drawn);
+    ASSERT_TRUE(l.title.drawn);
+
+    int16_t pageW = measureFixed("1/12");  // 24
+    int16_t titleRight = l.title.x + l.title.w;  // 5 + 24 = 29
+    int16_t freeLeft = titleRight + sticks3::topbar::kGap;  // 33
+    int16_t cursor = l.battLabel.x - sticks3::topbar::kGap;
+    int16_t expectedX = (freeLeft + cursor - pageW) / 2;
+
+    ASSERT_EQ(expectedX, l.pageInd.x);
+    ASSERT_EQ(pageW, l.pageInd.w);
+}

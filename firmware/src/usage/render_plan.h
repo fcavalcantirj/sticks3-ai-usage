@@ -10,6 +10,7 @@
 #include "model.h"
 
 #include <cstdint>
+#include <cstddef>
 
 namespace usage {
 
@@ -54,6 +55,18 @@ struct View {
     bool needsRedraw;
 };
 
+// FooterLayout: the computed positions and fitted strings for the footer row
+// (ORDER #56 task 60).  The footer is a left-aligned "seq N · v<sha>" and a
+// right-aligned hint.  On collision the hint is shortened first, then the seq,
+// but the version is NEVER shortened.
+struct FooterLayout {
+    char left[48];       // fitted left string: "seq N · v<sha>" or just "v<sha>"
+    char hint[64];       // fitted hint string (possibly shortened or empty)
+    int16_t leftX;       // x for left string (always 5)
+    int16_t hintX;       // x for hint string (right-aligned)
+    bool hintDrawn;      // false when the hint was dropped entirely
+};
+
 // buildPlan fills in the render plan for the given 0-indexed page.
 // The buildId (git short sha, or "unknown") is rendered as "v<buildId>" in
 // the FOOTER (ORDER #51: moved from the top bar) so an OTA is visible without
@@ -82,5 +95,15 @@ const char* tierName(uint8_t tier);
 // (dim halves each 565 channel to signal stale/auth/error providers).
 //   ok   0x3B9F blue   warn 0xFD20 amber   crit 0xF800 red   off 0x8410 grey
 uint16_t tierColor565(uint8_t tier, bool dim);
+
+// footerCompute lays out the footer row: left-aligned "seq N · v<sha>" and
+// right-aligned hint, with measure-then-fit shrinking.  On collision the
+// hint is shortened first (via fitRight), then the seq prefix is dropped
+// (keeping only the version), but the version is NEVER shortened.
+// W is the display width; measure returns the pixel width of a string.
+void footerCompute(FooterLayout& out, int16_t W,
+                   const char* asOf, const char* buildId,
+                   const char* hint,
+                   int (*measure)(const char*));
 
 } // namespace usage

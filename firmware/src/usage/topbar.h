@@ -4,16 +4,17 @@
 // items right-to-left from x = W-4:
 //
 //   [wifi dot r=3] [gap 8px] [battery: label + gauge 32×13 + nub]
-//   [page indicator] [title — left-aligned]
+//   [title — left-aligned at x=5]
 //
-// 4 px gaps between items (8 px between wifi dot and battery).  Every item
-// is vertically centred on the bar midline (y=11).  Text baseline = y=7
-// (8-px font, (22-8)/2=7).  Gauge top = y=4 (13-px tall, (22-13)/2=4.5→4).
-// Nothing crosses y=21.
+// 4 px gaps between items (8 px between wifi dot and battery — at 4 they
+// read as one blob).  Every item is vertically centred on the bar midline
+// (y=11).  Text baseline = y=7 (8-px font, (22-8)/2=7).  Gauge top = y=4
+// (13-px tall, (22-13)/2=4.5→4).  Nothing crosses y=21.
 //
-// Items are dropped right-to-left when space is tight: seq first (now in
-// the footer, not the header), then the title text.  The battery and wifi
-// dot are never dropped.
+// The page indicator is CENTRED in the free span between the title's right
+// edge and the battery unit's left edge (ORDER #56 task 60: it was stranded
+// against the cluster, leaving ~80 px of dead space).  It is dropped before
+// the title when there is no room.
 //
 // ORDER #51: version and seq moved to the footer — they are no longer
 // computed in this packer.

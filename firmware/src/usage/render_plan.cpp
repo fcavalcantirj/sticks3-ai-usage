@@ -1,6 +1,7 @@
 // firmware/src/usage/render_plan.cpp — implementation of buildPlan, onSnapshot,
-// nextPage, tierName, tierColor565.
+// nextPage, tierName, tierColor565, footerCompute.
 #include "usage/render_plan.h"
+#include "usage/textfit.h"
 
 #include <cstdio>
 #include <cstring>
@@ -320,6 +321,66 @@ void buildPlan(const Model& model, uint8_t page, const char* buildId,
                       out.asOf, out.buildId);
         copyStr(out.footer, footBuf, sizeof(out.footer));
     }
+}
+
+// --- footer layout (ORDER #56 task 60) ---------------------------------------
+
+// footerCompute implements the measure-then-fit discipline for the footer:
+// a left-aligned "seq N · v<sha>" and a right-aligned hint.  On collision the
+// hint is shortened first (via fitRight), then the seq prefix is dropped
+// (keeping only the version), but the version is NEVER shortened.
+void footerCompute(FooterLayout& out, int16_t W,
+                   const char* asOf, const char* buildId,
+                   const char* hint,
+                   int (*measure)(const char*)) {
+    std::memset(&out, 0, sizeof(out));
+    out.leftX = 5;
+
+    const char* seq = (asOf != nullptr) ? asOf : "";
+    const char* ver = (buildId != nullptr) ? buildId : "";
+
+    // Full left string: "seq N · v<sha>".
+    char fullLeft[48];
+    if (seq[0] != '\0') {
+        std::snprintf(fullLeft, sizeof(fullLeft), "%s %s %s", seq, "\xc2\xb7", ver);
+    } else {
+        copyStr(fullLeft, ver, sizeof(fullLeft));
+    }
+
+    int gap = 4;        // gap between left and hint
+    int rightMarg = 4;  // right margin
+    int avail = W - 5 - rightMarg;  // total space for left + gap + hint
+
+    // Step 1: try full left string + shortened hint.
+    char hintFitted[64];
+    int maxHintW = avail - measure(fullLeft) - gap;
+    if (maxHintW > 0) {
+        fitRight(hint, hintFitted, sizeof(hintFitted), maxHintW, measure);
+    } else {
+        hintFitted[0] = '\0';
+    }
+    int hintW = measure(hintFitted);
+
+    // Step 2: if still doesn't fit, drop seq — keep only the version (never
+    // shortened).
+    if (measure(fullLeft) + gap + hintW > avail) {
+        int verW = measure(ver);
+        maxHintW = avail - verW - gap;
+        if (maxHintW > 0) {
+            fitRight(hint, hintFitted, sizeof(hintFitted), maxHintW, measure);
+        } else {
+            hintFitted[0] = '\0';
+        }
+        hintW = measure(hintFitted);
+
+        copyStr(out.left, ver, sizeof(out.left));
+    } else {
+        copyStr(out.left, fullLeft, sizeof(out.left));
+    }
+
+    out.hintX = W - hintW - rightMarg;
+    out.hintDrawn = (hintW > 0);
+    copyStr(out.hint, hintFitted, sizeof(out.hint));
 }
 
 void onSnapshot(View& view, const Model& model) {
