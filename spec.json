@@ -613,7 +613,7 @@
       "Safety, because this endpoint rewrites configuration: PUT requires the device token exactly like the other /v1 routes even on loopback; every write is preceded by a backup of the previous file alongside it with a timestamp; an invalid payload changes nothing and returns 400 with the offending field named; and a write that would leave the server unable to start (for example a non-loopback listen with no device token) is refused with an explanation rather than applied.",
       "Verify: `go test ./internal/api ./internal/config -v` grows by at least 6 (GET redacts secrets; PUT round-trips a plan block and an interval; PUT rejects a key-shaped value; PUT rejects an invalid interval; a backup file appears; a rejected payload leaves the file byte-identical); `make verify` and `make smoke` exit 0. UAT: Felipe changes his ChatGPT plan cost and the poll interval entirely from the browser, reloads, and both persist — with the resulting plan-value ratio visible on the Quota tab."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "optional",

@@ -774,3 +774,183 @@ func TestConfigSetIntervalTooLow(t *testing.T) {
 		t.Errorf("PUT /v1/config/interval sec=200: status = %d, want 400", rec.Code)
 	}
 }
+
+// TestConfigSetFullRoundTrip verifies PUT /vv1/config writes the full editable
+// config to the YAML file atomically and the next GET reflects it.
+func TestConfigSetFullRoundTrip(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen:      "127.0.0.1:0",
+		Interval:    900 * time.Second,
+		TZ:          testLoc,
+		DeviceToken: "x",
+	}
+	configPath := filepath.Join(dir, "config.yaml")
+	initial := "interval_sec: 900\n"
+	if err := os.WriteFile(configPath, []byte(initial), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	handler := buildTestHandlerWithConfigPath(t, dir, cfg, configPath)
+
+	payload := `{"interval_sec":600,"listen":"127.0.0.1:0","tz":"America/Sao_Paulo","alerts":{"openrouter_low_usd":1.0},"providers":[{"id":"openrouter:main","enabled":true,"label":"OR Main","key_env":"OPENROUTER_API_KEY","probe":false}]}`
+
+	req := httptest.NewRequest(http.MethodPut, "/v1/config", strings.NewReader(payload))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT /v1/config: status = %d, want 200, body = %s", rec.Code, rec.Body.String())
+	}
+
+	// Verify the file was written.
+	written, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config file: %v", err)
+	}
+	if !strings.Contains(string(written), "interval_sec: 600") {
+		t.Errorf("config file missing interval_sec: 600, got:\n%s", written)
+	}
+	if !strings.Contains(string(written), "key_env: OPENROUTER_API_KEY") {
+		t.Errorf("config file missing key_env, got:\n%s", written)
+	}
+
+	// Verify a backup was created.
+	files, _ := filepath.Glob(configPath + ".bak.*")
+	if len(files) == 0 {
+		t.Error("no backup file created")
+	}
+
+	// Verify GET reflects the change.
+	ts := httptest.NewServer(handler)
+	t.Cleanup(ts.Close)
+	resp, err := http.Get(ts.URL + "/v1/config")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var cfg2 map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&cfg2); err != nil {
+		t.Fatalf("decode GET: %v", err)
+	}
+	if cfg2["interval_sec"] != float64(600) {
+		t.Errorf("GET interval_sec = %v, want 600", cfg2["interval_sec"])
+	}
+}
+
+// TestConfigSetRejectsKeyValue verifies PUT /v1/config rejects a payload
+// containing a literal API key value.
+func TestConfigSetRejectsKeyValue(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen:      "127.0.0.1:0",
+		Interval:    900 * time.Second,
+		TZ:          testLoc,
+		DeviceToken: "x",
+	}
+	configPath := filepath.Join(dir, "config.yaml")
+	os.WriteFile(configPath, []byte("interval_sec: 900\n"), 0o600)
+	handler := buildTestHandlerWithConfigPath(t, dir, cfg, configPath)
+
+	payload := `{"interval_sec":600,"providers":[{"id":"openrouter:main","key":"sk-or-v1-actual-secret-key"}]}`
+	req := httptest.NewRequest(http.MethodPut, "/v1/config", strings.NewReader(payload))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("PUT with literal key: status = %d, want 400", rec.Code)
+	}
+
+	// The file should be unchanged.
+	written, _ := os.ReadFile(configPath)
+	if strings.Contains(string(written), "600") {
+		t.Error("config file was modified despite validation failure")
+	}
+}
+
+// TestConfigSetInvalidInterval verifies PUT /v1/config rejects an interval
+// below the minimum.
+func TestConfigSetInvalidInterval(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen:      "127.0.0.1:0",
+		Interval:    900 * time.Second,
+		TZ:          testLoc,
+		DeviceToken: "x",
+	}
+	configPath := filepath.Join(dir, "config.yaml")
+	os.WriteFile(configPath, []byte("interval_sec: 900\n"), 0o600)
+	handler := buildTestHandlerWithConfigPath(t, dir, cfg, configPath)
+
+	payload := `{"interval_sec":200}`
+	req := httptest.NewRequest(http.MethodPut, "/v1/config", strings.NewReader(payload))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("PUT with interval 200: status = %d, want 400", rec.Code)
+	}
+}
+
+// TestConfigSetRejectedPayloadLeavesFileUnchanged verifies that any validation
+// failure leaves the existing config file byte-identical.
+func TestConfigSetRejectedPayloadLeavesFileUnchanged(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen:      "127.0.0.1:0",
+		Interval:    900 * time.Second,
+		TZ:          testLoc,
+		DeviceToken: "x",
+	}
+	configPath := filepath.Join(dir, "config.yaml")
+	original := "interval_sec: 900\nlisten: 127.0.0.1:0\n"
+	os.WriteFile(configPath, []byte(original), 0o600)
+	handler := buildTestHandlerWithConfigPath(t, dir, cfg, configPath)
+
+	// Send a payload missing provider id.
+	payload := `{"providers":[{"label":"test"}]}`
+	req := httptest.NewRequest(http.MethodPut, "/v1/config", strings.NewReader(payload))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("PUT with missing provider id: status = %d, want 400", rec.Code)
+	}
+
+	// File should be unchanged.
+	written, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(written) != original {
+		t.Errorf("config file changed: got %q, want %q", string(written), original)
+	}
+}
+
+// buildTestHandlerWithConfigPath creates a test handler with a specific config
+// path for testing config persistence.
+func buildTestHandlerWithConfigPath(t *testing.T, dir string, cfg config.Config, configPath string) http.Handler {
+	t.Helper()
+	client := &httpx.Client{HTTP: &http.Client{Transport: httpx.NewFixtureTransport(dir)}}
+	runner := creds.FixtureRunner(dir)
+	fetchers := []providers.Fetcher{
+		providers.NewClaude(client, runner, "testuser", testLoc),
+		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc),
+	}
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
+	s.PollOnce(context.Background())
+	srv, err := New(s, cfg, configPath, logger)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return srv.Handler
+}

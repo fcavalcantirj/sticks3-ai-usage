@@ -200,6 +200,7 @@
     <button id="tab-activity-tab" role="tab" aria-controls="tab-activity" aria-selected="false">Activity</button>
     <button id="tab-models-tab" role="tab" aria-controls="tab-models" aria-selected="false">Models</button>
     <button id="tab-attention-tab" role="tab" aria-controls="tab-attention" aria-selected="false">Needs attention</button>
+    <button id="tab-settings-tab" role="tab" aria-controls="tab-settings" aria-selected="false">Settings</button>
   </div>
 
   <!-- Quota tab: provider cards -->
@@ -228,6 +229,30 @@
   <!-- Attention tab: attention list -->
   <div id="tab-attention" class="tab-panel">
     <div id="attention" class="cards"></div>
+  </div>
+
+  <!-- Settings tab: config editor -->
+  <div id="tab-settings" class="tab-panel">
+    <div id="settings-form" style="display:none;">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Poll interval</span></div>
+        <div class="row"><label for="setting-interval">Seconds between auto-refreshes</label></div>
+        <div class="row"><input type="number" id="setting-interval" min="300" step="60"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Alerts</span></div>
+        <div class="row"><label for="setting-openrouter-low">OpenRouter low-balance threshold (USD)</label></div>
+        <div class="row"><input type="number" id="setting-openrouter-low" step="0.01" min="0"></div>
+        <div class="row"><label for="setting-quota-warn">Quota warn at pct</label></div>
+        <div class="row"><input type="number" id="setting-quota-warn" min="50" max="100"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Providers</span></div>
+        <div id="provider-list"></div>
+      </div>
+      <div class="row"><button id="save-config-btn">Save settings</button></div>
+      <div id="settings-status" class="info" style="margin-top:8px;"></div>
+    </div>
   </div>
 
   <div class="footer-bar">
@@ -407,6 +432,79 @@ function loadHealthz() {
     .then(function(h) { if (h) updateFooterChecked(h); });
 }
 
+// ---- Settings rendering ----
+
+function renderSettings(cfg) {
+  var form = document.getElementById("settings-form");
+  if (!form) return;
+  form.style.display = "block";
+
+  document.getElementById("setting-interval").value = cfg.interval_sec || 900;
+  // Populate alerts.
+  if (cfg.alerts) {
+    if (cfg.alerts.openrouter_low_usd != null) {
+      document.getElementById("setting-openrouter-low").value = cfg.alerts.openrouter_low_usd;
+    }
+    if (cfg.alerts.quota_warn_pct != null) {
+      document.getElementById("setting-quota-warn").value = cfg.alerts.quota_warn_pct;
+    }
+  }
+
+  // Render provider list.
+  var list = document.getElementById("provider-list");
+  list.innerHTML = "";
+  if (!cfg.providers) return;
+  cfg.providers.forEach(function(p) {
+    var row = document.createElement("div");
+    row.className = "attention-item";
+    row.innerHTML =
+      '<label><input type="checkbox" data-pid="' + esc(p.id) + '" ' + (p.enabled ? "checked" : "") + '> ' +
+      esc(p.id) + (p.label ? " (" + esc(p.label) + ")" : "") + '</label>';
+    list.appendChild(row);
+  });
+}
+
+function saveSettings() {
+  var interval = parseInt(document.getElementById("setting-interval").value, 10);
+  if (isNaN(interval) || interval < 300) {
+    showSettingsStatus("Interval must be at least 300 seconds", false);
+    return;
+  }
+
+  var alerts = {
+    openrouter_low_usd: parseFloat(document.getElementById("setting-openrouter-low").value) || 0,
+    quota_warn_pct: parseInt(document.getElementById("setting-quota-warn").value, 10) || 95
+  };
+
+  // Gather provider enabled states from checkboxes.
+  var providers = [];
+  document.querySelectorAll("#provider-list input[data-pid]").forEach(function(cb) {
+    providers.push({ id: cb.getAttribute("data-pid"), enabled: cb.checked });
+  });
+
+  var payload = JSON.stringify({ interval_sec: interval, alerts: alerts, providers: providers });
+  var headers = authHeaders();
+  headers["Content-Type"] = "application/json";
+  fetch("/v1/config", { method: "PUT", headers: headers, body: payload })
+    .then(function(r) {
+      if (r.status === 401) { showTokenInput(); return; }
+      if (!r.ok) { r.text().then(function(t) { showSettingsStatus("Save failed: " + t, false); }); return; }
+      showSettingsStatus("Saved", true);
+    });
+}
+
+function showSettingsStatus(msg, ok) {
+  var el = document.getElementById("settings-status");
+  el.textContent = msg;
+  el.style.color = ok ? "var(--ok)" : "var(--crit)";
+}
+
+function loadSettings() {
+  fetch("/v1/config", { headers: authHeaders() })
+    .then(function(r) { if (r.status === 401) { showTokenInput(); return null; } return r.ok ? r.json() : null; })
+    .then(function(cfg) { if (cfg) renderSettings(cfg); });
+}
+
 // ---- Tab handling ----
 
 function setupTabs() {
@@ -444,6 +542,10 @@ function showTab(panelId) {
   var btn = document.querySelector(".tab-strip button[aria-controls=\"" + panelId + "\"]");
   if (btn) btn.setAttribute("aria-selected", "true");
   localStorage.setItem("usaged_tab", panelId);
+  // Lazy-load settings when the tab is first opened.
+  if (panelId === "tab-settings") {
+    loadSettings();
+  }
 }
 
 // ---- Rendering ----
@@ -791,6 +893,7 @@ function init() {
   document.getElementById("refresh-btn").addEventListener("click", doRefresh);
   document.getElementById("token-save").addEventListener("click", saveToken);
   document.getElementById("interval-select").addEventListener("change", saveInterval);
+  document.getElementById("save-config-btn").addEventListener("click", saveSettings);
   // Polling intervals are derived from currentInterval so the
   // interval selector applies without a page reload.
   reloadIntervals();

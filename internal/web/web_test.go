@@ -108,3 +108,37 @@ func TestIndexHTMLStatsFirstPaintFix(t *testing.T) {
 		t.Error("index.html missing First-paint fix comment")
 	}
 }
+
+// TestIndexHTMLSettingsTab verifies the Settings tab exists with the
+// config form elements (task 54).
+func TestIndexHTMLSettingsTab(t *testing.T) {
+	html := string(IndexHTML)
+	if !strings.Contains(html, `id="tab-settings-tab"`) {
+		t.Fatal(`index.html missing id="tab-settings-tab"`)
+	}
+	if !strings.Contains(html, `id="tab-settings"`) {
+		t.Fatal(`index.html missing id="tab-settings"`)
+	}
+	// Settings form elements.
+	for _, want := range []string{
+		`id="setting-interval"`,
+		`id="setting-openrouter-low"`,
+		`id="setting-quota-warn"`,
+		`id="save-config-btn"`,
+		`id="settings-form"`,
+		`id="provider-list"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("index.html missing settings element %q", want)
+		}
+	}
+	// The settings tab must appear in the tab strip.
+	settingsTabIdx := strings.Index(html, `id="tab-settings-tab"`)
+	footerIdx := strings.Index(html, `class="footer-bar"`)
+	if settingsTabIdx < 0 || footerIdx < 0 {
+		t.Fatal("missing tab or footer markers")
+	}
+	if settingsTabIdx > footerIdx {
+		t.Error("settings tab should appear before footer in markup")
+	}
+}
