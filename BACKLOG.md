@@ -67,29 +67,50 @@ Someone who flashes a published build gets a device that tries to join **our**
 SSID and talk to **our** Mac at a fixed address. It cannot work, and there is
 no screen anywhere that lets them fix it.
 
-### The shape of the fix, in the order it must be built
+### The fix is now fully specced
 
-Felipe's instinct is to put Wi-Fi under Settings in the web UI. That is right
-for **changing** networks and wrong for **bootstrapping**, and the distinction
-is the whole design: the web UI is served by the Mac, so a device that has
-never joined a network cannot reach it to be told how to join one. The device
-must serve its own first screen.
+**`spec.json` tasks 75-78 (PROVISIONING 1/4 … 4/4).** Researched September 2026;
+the reasoning behind the shape is below, the executable detail is in the ledger.
 
-1. **Device-hosted captive portal (bootstrap).** With no stored credentials the
-   device boots as its own access point. You join it from a phone, pick your
-   network from a scan, enter the password, and give it the agent's address.
-   Store both in NVS. This is the only step that cannot live on the Mac.
-2. **Pairing code.** Once on the LAN the device shows a short code; you type it
-   into the dashboard and the server hands back a device token it stores in NVS.
-   That removes the token from the build.
-3. **Wi-Fi under Settings (Felipe's request), for the everyday case.** Once the
-   device is reachable, changing networks belongs in the dashboard like every
-   other setting. Push new credentials to the device and have it store them and
-   re-join — with the portal as the fallback when the new network fails, or the
-   only recovery is a USB reflash.
+**The decisive constraint:** every off-the-shelf framework — Espressif's
+`WiFiProv` (already in our Arduino core), Improv, WiFiManager — conveys **Wi-Fi
+credentials only**. This device additionally needs to learn *which agent* to
+talk to and to obtain a *device token*. A generic BLE provisioning app solves
+half the problem and leaves a second setup step; a custom portal collects all
+four fields on one screen. That, more than any feature comparison, is why the
+captive portal wins.
 
-The end state: `secrets.h` disappears from the user's path entirely, the binary
-carries no credentials, and a published build is safe to hand to a stranger.
+**Build order, which is design rather than preference:**
+
+1. **Credential store + state machine** (task 75) — NVS record, validation, and
+   the N-failed-joins-back-to-portal rule, so a moved house never needs a cable.
+   Pure C++17, host-tested, no radio. Includes the build check that fails if any
+   credential appears in `firmware.bin`.
+2. **SoftAP captive portal** (task 76) — the only step that cannot live on the
+   Mac. Per-device AP name from the MAC, **WPA2-protected with the password shown
+   on the device screen** (an open AP lets a neighbour reach setup; the screen is
+   why we can do this without a printed label). Live scan, hidden-SSID path, DNS
+   hijack so the sheet pops by itself on iOS and Android.
+3. **Pairing code** (task 77) — short, unambiguous alphabet, `crypto/rand`,
+   short-lived, single-use, rate-limited, LAN-only. The agent issues the token so
+   the build never carries one.
+4. **Wi-Fi under Settings** (task 78) — Felipe's original request, and correctly
+   *last*: the Settings page is served by the Mac, so it maintains rather than
+   bootstraps. Its hard part is the failure path — a bad password must fall back
+   to the old network or the portal, never strand the device.
+
+**Rejected, with reasons:** BLE via `WiFiProv` is slicker and Espressif ships
+official phone apps, but it needs an app install and still only carries Wi-Fi —
+keep as a later addition. Improv is neat over Web Serial while the user already
+has a cable in hand, but it is Chrome/Edge only and, again, Wi-Fi only. Entering
+a password **on the device** with two buttons is miserable and was ruled out;
+picking an SSID from a list that way would be fine.
+
+**Worth one cheap experiment first:** M5Burner has its own Wi-Fi configuration
+step that injects credentials at flash time rather than into the binary. If we
+can read whatever it writes, a published build could arrive pre-configured with
+no portal at all. It may be UIFlow-specific, but confirming that costs very
+little and would shortcut the whole group.
 
 ### Constraints already established
 
