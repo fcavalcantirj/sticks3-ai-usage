@@ -129,6 +129,8 @@ static uint32_t g_lastBatteryPoll = 0;
 static uint32_t g_dataAgeAtFetch = 0;   // server-reported age at last 200 fetch
 static uint32_t g_lastFetchMs = 0;      // millis() at last 200 fetch
 RTC_DATA_ATTR uint32_t g_effectiveAgeAtSleep = 0; // full effective age at last powerSleep()
+RTC_DATA_ATTR uint32_t g_rtcSleepStartMs = 0;     // RTC ms at powerSleep entry (task 65)
+RTC_DATA_ATTR bool g_justSlept = false;           // true after powerSleep(), consumed on wake
 
 // --- helpers ----------------------------------------------------------------
 
@@ -505,14 +507,26 @@ void setup() {
             g_lastRev[i] = g_model.rev[i];
         g_lastRev[8] = '\0';
 
-        // ORDER #65 / #64: on warm boot, restore the effective age that was
-        // computed and stored BEFORE the sleep (in the powerSleep path below).
-        // This preserves the sleep duration in the freshness calculation — the
-        // old code restored g_model.age and reset lastFetchMs, discarding the
-        // gap and showing GREEN on 12-hour-old data.  After wake the lamp reads
-        // yellow/red on the cached snapshot (correct — it IS old) and turns
-        // green only when the fetch lands.
-        g_dataAgeAtFetch = g_effectiveAgeAtSleep;
+        // On warm boot, restore the effective age that was computed and stored
+        // BEFORE the sleep (see the powerSleep call-site below).  Before sleeping
+        // we read the RTC clock (esp_timer_get_time, which survives deep sleep)
+        // and compute the full effective age — server-reported age at last fetch
+        // + elapsed time since that fetch, INCLUDING the sleep duration we are
+        // about to incur — into g_effectiveAgeAtSleep.  On wake we read the RTC
+        // clock again and ADD the real sleep duration to the effective age, so
+        // even if the pre-sleep computation was slightly stale the lamp reflects
+        // the true gap.  No special-casing of the wake cause: a timer wake and a
+        // button wake both restore the same accumulated age.  g_lastFetchMs is
+        // reset to nowMs() so post-wake elapsed time accumulates from the wake
+        // instant onward.
+        if (g_justSlept) {
+            uint32_t rtcEndMs = rtcNowMs();
+            uint32_t sleepMs = rtcEndMs - g_rtcSleepStartMs;
+            g_dataAgeAtFetch = usage::accumulateAge(g_effectiveAgeAtSleep, sleepMs);
+            g_justSlept = false;  // consume so a cold boot doesn't use stale data
+        } else {
+            g_dataAgeAtFetch = g_effectiveAgeAtSleep;
+        }
         g_lastFetchMs = nowMs();
 
         // ORDER #60 (task 63d): ORDER #31 forces one paint on warm boot, BUT
@@ -584,9 +598,13 @@ void loop() {
     uint32_t anchor = g_graceActive ? g_lastActivity : now;
     if (usage::powerDecide(vbusNow, now, anchor)
             == usage::PowerAction::SleepNow) {
-        // ORDER #64: record the full effective data age (server-reported +
-        // elapsed since last fetch) so it survives the deep-sleep wake where
-        // millis() resets and we cannot recompute the gap.
+        // Task 65: read the RTC clock immediately before powerSleep() so we can
+        // compute the real sleep duration on wake (esp_timer_get_time survives
+        // deep sleep; millis() resets).  Store the full effective age — server-
+        // reported age at last fetch + elapsed since that fetch, INCLUDING the
+        // sleep we are about to incur — into RTC memory.
+        g_rtcSleepStartMs = rtcNowMs();
+        g_justSlept = true;
         g_effectiveAgeAtSleep = usage::accumulateAge(g_dataAgeAtFetch,
                                                      now - g_lastFetchMs);
         powerSleep();  // emits [SLEEP], teardown, arm wakes, never returns

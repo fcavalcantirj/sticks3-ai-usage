@@ -26,6 +26,12 @@ const char* buildId();
 // Milliseconds since boot (wraps millis()).
 uint32_t nowMs();
 
+// RTC-backed milliseconds since boot that survive deep sleep.
+// Reads esp_timer_get_time() (RTC slow clock).  Use to measure real elapsed
+// time across a sleep: call immediately before powerSleep() and again right
+// after wake.
+uint32_t rtcNowMs();
+
 // Print a line to the serial monitor.
 void serialLine(const char* s);
 

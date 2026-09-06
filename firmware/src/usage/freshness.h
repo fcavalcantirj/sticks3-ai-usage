@@ -1,13 +1,16 @@
 // firmware/src/usage/freshness.h — pure-C++17 data-freshness logic for the
 // StickS3 usage monitor.
 //
-// ORDER #65 task 65: the device has no real-time clock, so it cannot compute
+// ORDER #65: the device has no real-time clock, so it cannot compute
 // "how old is this data".  The server sends an `age` field (seconds since
-// checked_at, evaluated at response time) on 200 responses.  The device adds
-// its own elapsed milliseconds since that fetch to get the effective age:
-//   effectiveAge = serverAgeAtLastFetch + (nowMs - lastFetchMs) / 1000
-// This stays correct across a 12-hour deep sleep because the device knows how
-// long it slept (via the [WAKE] gap in the access log).
+// checked_at, evaluated at response time) on 200 responses.  The device
+// reads the RTC clock (esp_timer_get_time, which survives deep sleep)
+// immediately before powerSleep() and again on wake, adding the real sleep
+// duration to the accumulated effective age:
+//   effectiveAge = serverAgeAtLastFetch + elapsed_ms_since_fetch / 1000
+// This stays correct across a 12-hour deep sleep because the device knows
+// exactly how long it slept (RTC clock delta), not just how long it was
+// awake.
 #pragma once
 
 #include <cstdint>

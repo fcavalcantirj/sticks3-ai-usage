@@ -42,6 +42,15 @@ uint32_t nowMs() {
     return (uint32_t)millis();
 }
 
+// Task 65: RTC clock that survives deep sleep.  esp_timer_get_time() is
+// wall-clock since boot backed by the RTC slow clock, so it keeps counting
+// across esp_deep_sleep_start() whereas millis() resets on wake.  We read it
+// immediately before powerSleep() and again on wake to compute the real sleep
+// duration.
+uint32_t rtcNowMs() {
+    return (uint32_t)(esp_timer_get_time() / 1000);
+}
+
 void serialLine(const char* s) {
     Serial.println(s);
 }
