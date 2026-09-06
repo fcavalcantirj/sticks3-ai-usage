@@ -204,8 +204,16 @@ bash firmware/scripts/upload_ota.sh
 
 **Why it is split:** the build takes ~25 s but the device is only awake for
 ~20 s after a button press (12-hour backstop).  Splitting lets the build run
-while the device is on USB power, then the ~5 s upload starts on the next
+while the device is on USB power, then the upload starts on the next
 button press.
+
+**Upload timing vs awake window:** espota.py takes about 31 s to transfer
+this binary — more than the 19 s awake window.  This is fine because once a
+transfer starts, `main.cpp:554` returns early while `otaInProgress()` is true
+and the sleep decision is skipped entirely, so only the INVITATION has to
+land inside the awake window.  The upload phase polls with ICMP ping (not a
+TCP port probe — see below) and launches espota the instant the device
+responds.
 
 **From the Makefile:**
 ```make
@@ -223,7 +231,9 @@ binary can never be flashed silently.
 upload phase checks again right before flashing, because DHCP may have
 reassigned the address during the build.
 
-**Port poll:** the upload phase polls OTA port 3232 and prints
+**Wake poll:** the upload phase pings the device with ICMP (not a TCP port
+probe — ArduinoOTA listens on UDP 3232 and a `socket.socket()` TCP connect
+always fails, as ORDER #72 documented) and prints
 "waiting for device — press a button" until the device answers, so Felipe's
 press and the upload meet reliably instead of racing on timing.
 

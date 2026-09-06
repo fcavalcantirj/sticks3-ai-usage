@@ -87,24 +87,26 @@ get_espota_paths() {
     fi
 }
 
-# --- port poll ---------------------------------------------------------------
-# Polls the OTA port so the upload starts the instant the device answers
-# instead of depending on human timing.  Uses pio's Python (already required
-# for espota) so no extra dependency is needed.
+# --- wake poll ---------------------------------------------------------------
+# Waits for the device to wake and join Wi-Fi by pinging it.  ORDER #72
+# (task 69 fix): ArduinoOTA listens on UDP port 3232, but the original probe
+# opened a TCP socket (socket.socket() defaults to SOCK_STREAM), which can
+# never connect against a UDP listener — it always timed out and the phase
+# exited 'device not listening on port 3232' even when OTA was fully armed.
+# ICMP ping answers the real question 'is the device awake on the LAN' without
+# depending on the OTA protocol state.  Then espota.py is started immediately.
 
 wait_for_ota_port() {
     ota_ip="$1"
     echo "waiting for device — press a button" >&2
     for _ in 1 2 3 4 5 6 7 8 9 10; do
-        if "$pio_python" -c \
-            "import socket,sys; s=socket.socket(); s.settimeout(1); s.connect(('$ota_ip', $ota_port)); s.close()" \
-            2>/dev/null; then
-            echo "device is listening on port $ota_port" >&2
+        if ping -c 1 -W 2000 "$ota_ip" >/dev/null 2>&1; then
+            echo "device is awake on Wi-Fi" >&2
             return 0
         fi
         sleep 1
     done
-    echo "Refusing: device not listening on port $ota_port after 10s" >&2
+    echo "Refusing: device not responding to ping after 10s" >&2
     echo "  is the device awake on Wi-Fi? (the screen lights when it is ready)" >&2
     exit 1
 }
