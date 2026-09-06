@@ -22,6 +22,7 @@ struct BatteryView {
     int  pct;     // 0..100, or -1 when unknown
     bool onUsb;   // VBUS > 4000 mV
     bool known;   // false when pct is -1 (sensor read failed)
+    bool charging; // PM1 CHG_STAT GPIO0 low (cell is actively charging)
 };
 
 // batteryLabel produces the human-readable label:

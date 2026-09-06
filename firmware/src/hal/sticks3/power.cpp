@@ -51,6 +51,13 @@ int32_t batteryVoltageMv() {
     return M5.Power.getBatteryVoltage();
 }
 
+// ORDER #71 (task 71): report whether the cell is actively charging.
+// M5.Power.isCharging() for M5StickS3 reads PM1 GPIO0 (CHG_STAT, low=charging)
+// — a real I2C GPIO read, not the M5PM1_Class::isCharging() no-op stub.
+bool batteryCharging() {
+    return M5.Power.isCharging() == m5::Power_Class::is_charging;
+}
+
 // ORDER #26: debounce VBUS reads so a single I2C glitch (0 mV) or noise
 // spike on the PM1 I2C bus can never make the device deep-sleep while on USB.
 bool vbusPresent() {

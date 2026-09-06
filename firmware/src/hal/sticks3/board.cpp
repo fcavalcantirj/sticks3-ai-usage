@@ -18,6 +18,28 @@ void boardInit() {
     cfg.output_power = false;
     M5.begin(cfg);
 
+    // ORDER #71 (task 71): enable battery charging. The M5Unified board init
+    // for M5StickS3 configures GPIO0 (CHG_STAT input) but does NOT call
+    // setBatteryCharge(true) — only M5PaperS3 does, so the PM1's CHG_EN bit
+    // (PWR_CFG bit 0, reg 0x06) stays clear and the cell discharges even on
+    // USB. setBatteryCharge writes that bit for real on the M5PM1.
+    //
+    // Charge current: 200 mA deliberate choice — 0.8C for the 250 mAh cell,
+    // within the 0.5C-1C window ORDER #71 named. The M5PM1 has no
+    // charge-current register (M5PM1_Class::setChargeCurrent is a permanent
+    // stub returning false), so on this board setChargeCurrent falls through
+    // to the hardware CHG_PROG resistor (~100 mA) — calling it documents
+    // intent without harm. setChargeVoltage(4200) for a single-cell Li-ion,
+    // also a documented-stub on M5PM1.
+    //
+    // isCharging() reads the CHG_STAT pin (PM1 GPIO0, low=charging) directly
+    // in Power_Class for board_M5StickS3 — a real GPIO read we log on [BATT].
+    // CAUTION (seq 347): GPIO0 is input-only here, never configured as output;
+    // only GPIO1 conflicts with SDA (ORDER #29).
+    M5.Power.setBatteryCharge(true);
+    M5.Power.setChargeCurrent(200);   // 0.8C for 250 mAh — intent; hardware-set on M5PM1
+    M5.Power.setChargeVoltage(4200);  // single-cell Li-ion ceiling
+
     M5.Display.setRotation(1);
     // ORDER #60 (task 63): brightness is set in setup() AFTER reading the wake
     // cause.  A timer wake must not raise the backlight.

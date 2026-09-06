@@ -72,12 +72,14 @@ int fmtBtn(char* out, size_t n, int gpio, const char* action);
 //   <0  (transport err): [REFRESH] err=timeout ms=8000
 int fmtRefresh(char* out, size_t n, int code, uint32_t ms);
 
-// fmtBatt formats a battery change line:
-//   [BATT] pct=87 v=4012 usb=1
-//   [BATT] pct=27 v=3520 usb=0
+// fmtBatt formats a battery change line (ORDER #48 defect c):
+//   [BATT] pct=87 v=4012 usb=1 chg=1
+//   [BATT] pct=27 v=3520 usb=0 chg=0
 // `v` is the raw battery voltage in millivolts from M5.Power.getBatteryVoltage()
 // so a flat cell (~3.3-3.5 V) is distinguishable from a broken read.
+// `chg` is 1 when the PM1 CHG_STAT pin reports charging, 0 otherwise
+// (ORDER #71 task 71: usb=1 with chg=0 revealed the charging bug).
 // (ORDER #48 defect c)
-int fmtBatt(char* out, size_t n, int pct, int mv, int usb);
+int fmtBatt(char* out, size_t n, int pct, int mv, int usb, int chg);
 
 } // namespace usage

@@ -153,17 +153,15 @@ int fmtBtn(char* out, size_t n, int gpio, const char* action) {
                          gpio, action != nullptr ? action : "");
 }
 
-// fmtBatt formats a battery change line:
-//   [BATT] pct=87 usb=1
-//   [BATT] pct=27 usb=0
-// fmtBatt formats a battery change line (ORDER #48 defect c):
-//   [BATT] pct=87 v=4012 usb=1
-//   [BATT] pct=27 v=3520 usb=0
-// `v` is the raw battery voltage millivolts so a flat cell (~3.3-3.5 V)
-// is distinguishable from a broken read.
-int fmtBatt(char* out, size_t n, int pct, int mv, int usb) {
-    return std::snprintf(out, n, "[BATT] pct=%d v=%d usb=%d",
-                         pct, mv, usb);
+// fmtBatt formats a battery change line (ORDER #48 defect c, ORDER #71):
+//   [BATT] pct=87 v=4012 usb=1 chg=1
+//   [BATT] pct=27 v=3520 usb=0 chg=0
+// `v` is the raw battery voltage millivolts; `chg` is 1 when the PM1 CHG_STAT
+// pin reports charging, 0 when discharging, so usb=1 with chg=0 reveals the
+// charging-disabled defect (ORDER #71 task 71).
+int fmtBatt(char* out, size_t n, int pct, int mv, int usb, int chg) {
+    return std::snprintf(out, n, "[BATT] pct=%d v=%d usb=%d chg=%d",
+                         pct, mv, usb, chg);
 }
 
 } // namespace usage

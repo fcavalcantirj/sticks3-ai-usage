@@ -34,6 +34,13 @@ int batteryLevel();
 // is distinguishable from a broken read.  (ORDER #48 defect c)
 int32_t batteryVoltageMv();
 
+// True if the battery is currently charging. Uses M5.Power.isCharging()
+// which on the M5StickS3 reads PM1 GPIO0 (the CHG_STAT input pin, low=charging)
+// — a real read, unlike the M5PM1_Class::isCharging() stub that always returns
+// false.  Reports charge_unknown as false (conservative: unknown ≠ charging).
+// ORDER #71 (task 71): make charge state observable on the [BATT] line.
+bool batteryCharging();
+
 // Turn the screen fully off: display sleep + flush + cut the PM1 GPIO2
 // (LCD panel) rail.  M5GFX re-asserts the rail on the next boot.
 void screenOff();
