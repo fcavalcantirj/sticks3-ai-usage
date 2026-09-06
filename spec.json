@@ -800,6 +800,19 @@
     "passes": false
   },
   {
+    "category": "ops",
+    "description": "Flash on battery is impossible: upload_ota.sh builds for ~25 s inside the device's 20 s awake window, so espota knocks after it has already slept",
+    "steps": [
+      "Context: usaged (Go, stdlib only) at /Users/fcavalcanti/dev/m5/sticks3-ai-usage; firmware/scripts/upload_ota.sh is the MAC-guarded OTA lane. House rules in AGENTS.md: you never flash — the planner runs this and Felipe authorizes.",
+      "Felipe: 'ota only works with device screen on - lmk when you need me to press button'. He is right, and the script makes it worse than it needs to be. On battery the device is awake for the 20 s grace window after a button press, but upload_ota.sh does its MAC check, then rm -f the elf and bin to force a relink, then a full pio run — about 25 s — and only THEN calls espota. The compile consumes the entire awake window, so the invitation arrives at a sleeping device and the flash fails. Today the only workaround is USB, where powerDecide returns StayAwake unconditionally and the device never sleeps.",
+      "What is already RIGHT and must not be broken: once a transfer starts it cannot be cut off — main.cpp:554 returns early while otaInProgress(), skipping fetch, render and the sleep decision, so a flash in flight is safe. The problem is purely the window BEFORE espota connects.",
+      "FIX: split the script into build and upload phases. Add a flag — --build-only and --upload-only, or a positional phase — so the planner can compile ahead of time (no device needed, no awake window consumed) and then, on Felipe's button press, run only the upload, which starts espota within a second or two. Keep BOTH MAC verifications: one before the build as now, and one immediately before the upload in the upload phase, since that is the guard that stops us flashing someone else's board. The upload phase must refuse to run if no firmware.bin exists or if it is older than the newest source file, so a stale binary can never be flashed silently — that failure would be very hard to diagnose from the device.",
+      "Also make the wait explicit rather than a race: in the upload phase, poll the OTA port (3232) for a few seconds and start the moment the device answers, printing something like 'waiting for device — press a button' while it polls. Then Felipe's press and the upload meet reliably instead of depending on human timing.",
+      "Verify: `sh firmware/scripts/upload_ota.sh --build-only` produces firmware.bin and touches no network beyond the MAC check; `--upload-only` with a deliberately stale or missing binary refuses with a clear message; the MAC guard still refuses when the host resolves to an unexpected address. Document both phases in firmware/README.md, including WHY it is split — the 20 s battery window — because the reason is the whole point. UAT: the planner flashes the device on battery using the split flow with Felipe pressing a button when prompted."
+    ],
+    "passes": false
+  },
+  {
     "category": "optional",
     "description": "OPTIONAL v3: spike `codex app-server` JSON-RPC account/rateLimits/read so the Codex CLI owns token refresh",
     "steps": [
