@@ -6,6 +6,7 @@
 #include "usage/topbar.h"    // topbar::compute (pure layout, host-tested)
 #include "usage/render_plan.h" // usage::FooterLayout, footerCompute (ORDER #56)
 #include "usage/align.h"       // usage::centerTextY / centerTextX (ORDER #59 task 62)
+#include "usage/brightness.h"  // kLevels table for label ticks (ORDER #72 task 72)
 
 #include <M5Unified.h>
 #include <cstdio>
@@ -110,6 +111,43 @@ void drawPlan(const usage::RenderPlan& plan, bool wifiOk,
 
     // Separator line at y = 21.
     M5.Display.drawFastHLine(5, 21, W - 10, 0x4208);
+
+    // ORDER #73 task 73: instructions page — same top bar, but no kind stripe
+    // or card background.  Instead, draw the binding lines with a larger font.
+    if (plan.isHelp) {
+        M5.Display.setTextSize(1);
+        M5.Display.setTextColor(TFT_WHITE);
+
+        // Binding lines: left = "blue click", right = "cycle pages", size 2 font.
+        M5.Display.setTextSize(2);
+        int16_t baseY = 32;
+        int16_t lineH = 20;  // 16px font + 4px gap
+        for (uint8_t i = 0; i < plan.lineCount; i++) {
+            const usage::Line& line = plan.lines[i];
+            int16_t y = baseY + i * lineH;
+
+            // Left: button + gesture (e.g. "blue click").
+            M5.Display.setCursor(5, y);
+            M5.Display.print(line.left);
+
+            // Right: action (e.g. "cycle pages"), right-aligned.
+            int16_t rw = M5.Display.textWidth(line.right);
+            M5.Display.setCursor(W - rw - 4, y);
+            M5.Display.println(line.right);
+        }
+
+        // Footer: version only (no hint on the help page — hint lives on the
+        // last usage page, not here).
+        int16_t footerY = 116;
+        int16_t footerH = 16;
+        int16_t fontH = M5.Display.fontHeight();
+        int16_t footerBaseline = usage::centerTextY(footerY, footerH, fontH);
+        M5.Display.setTextColor(0xFD20);  // amber
+        M5.Display.setCursor(5, footerBaseline);
+        M5.Display.println(plan.buildId);
+
+        return;
+    }
 
     // --- card background ---
     // Kind stripe: 5 px left stripe in the kind accent colour.
@@ -312,6 +350,70 @@ void drawBatteryGauge(int16_t gaugeX, int16_t gaugeY, int16_t labelY,
     M5.Display.setTextColor(color);
     M5.Display.setCursor(gaugeX - labelW - 2, labelY);
     M5.Display.println(label);
+}
+
+// --- brightness gauge overlay (ORDER #72 task 72) ---------------------------
+
+// drawBrightnessGauge paints a full-screen brightness overlay:
+//   - Black background (full screen).
+//   - "brightness N%" at the top, centred.
+//   - A 200px-wide horizontal track (y≈70), grey outline, green fill
+//     proportional to currentRaw/255.
+//   - Level tick labels (5/10/25/50/75/100) under the track at the x-position
+//     of each level's raw value mapping.
+//   - An amber vertical line at the idle dim position (idleRaw mapped to the
+//     track width) to show where idle sits relative to active.
+void drawBrightnessGauge(uint8_t currentRaw, uint8_t currentPercent,
+                         uint8_t idleRaw) {
+    M5.Display.fillScreen(TFT_BLACK);
+    int16_t W = M5.Display.width();
+    int16_t H = M5.Display.height();
+
+    M5.Display.setTextSize(1);
+    M5.Display.setTextColor(TFT_WHITE);
+
+    // Title at the top, centred.
+    char title[24];
+    std::snprintf(title, sizeof(title), "brightness %d%%", (int)currentPercent);
+    int16_t tw = M5.Display.textWidth(title);
+    M5.Display.setCursor((W - tw) / 2, 4);
+    M5.Display.println(title);
+
+    // Track geometry: 200px wide, 12px tall, centred horizontally.
+    int16_t trackW = 200;
+    int16_t trackH = 12;
+    int16_t trackX = (W - trackW) / 2;
+    int16_t trackY = 70;
+
+    // Grey track outline.
+    M5.Display.drawRect(trackX, trackY, trackW, trackH, 0x8410);
+
+    // Green fill proportional to currentRaw / 255.
+    uint8_t fillW = (trackW - 2) * currentRaw / 255;
+    if (fillW < 0) fillW = 0;
+    if (fillW > trackW - 2) fillW = trackW - 2;
+    if (fillW > 0) {
+        M5.Display.fillRect(trackX + 1, trackY + 1, fillW, trackH - 2, 0x07E0);
+    }
+
+    // Amber idle marker: a vertical line at idleRaw position.
+    uint8_t idleX = trackX + 1 + (trackW - 2) * idleRaw / 255;
+    if (idleRaw > 0) {
+        M5.Display.drawFastVLine(idleX, trackY, trackH, 0xFD20);
+    }
+
+    // Level tick labels under the track.
+    // Levels: 5%→13, 10%→26, 25%→64, 50%→128, 75%→191, 100%→255.
+    M5.Display.setTextColor(0x8410);  // dim grey for labels
+    for (int i = 0; i < sticks3::brightness::kLevelCount; i++) {
+        char lbl[8];
+        std::snprintf(lbl, sizeof(lbl), "%d%%", sticks3::brightness::kLevels[i].percent);
+        int16_t lx = trackX + 1 + (trackW - 2) * sticks3::brightness::kLevels[i].raw / 255;
+        // Centre the label under the tick.
+        int16_t lw = M5.Display.textWidth(lbl);
+        M5.Display.setCursor(lx - lw / 2, trackY + trackH + 4);
+        M5.Display.println(lbl);
+    }
 }
 
 } // namespace sticks3

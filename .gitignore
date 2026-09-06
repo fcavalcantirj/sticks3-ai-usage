@@ -6,6 +6,7 @@ build/
 /usaged
 firmware/.pio/
 firmware/build/
+firmware/build_host/
 firmware/include/secrets.h
 *.bin
 *.elf

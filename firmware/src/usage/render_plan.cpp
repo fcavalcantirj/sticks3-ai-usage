@@ -90,6 +90,25 @@ static bool providerIsDim(uint8_t status) {
 
 // --- banner severity scanning (ORDER #36 / task 50) -------------------------
 
+// ORDER #73 task 73: button binding table for the instructions page.
+// Derived from the physical button map so there is a single source of truth.
+// Each entry: which button, which gesture, and what it does.
+// Left field is "gesture button" (≤10 chars): "click blue", "double blue", etc.
+// Right field is the action description (≤11 chars).
+struct Binding {
+    const char* gesture;  // "click", "double", "hold"
+    const char* button;   // "blue" or "side"
+    const char* action;   // human-readable description
+};
+
+static const Binding kBindings[] = {
+    {"click",  "blue",  "cycle pages"},
+    {"double", "blue",  "brightness"},
+    {"click",  "side",  "refresh"},
+    {"hold",   "side",  "flip 180"},
+};
+static constexpr int kBindingCount = 4;
+
 // Returns the worst severity across ALL providers (0 ok, 1 warn, 2 crit, 3 off).
 // The banner decision is global: every page shows the same banner.
 static uint8_t worstSeverity(const Model& m) {
@@ -151,6 +170,8 @@ uint8_t countPages(const Model& model) {
             total += (rows + maxLines - 1) / maxLines;
         }
     }
+    // ORDER #73 task 73: add one instructions page at the end of the cycle.
+    total += 1;
     return total;
 }
 
@@ -184,6 +205,53 @@ static void resolvePage(const Model& model, uint8_t flatPage,
     outStartRow = 0;
 }
 
+// kindPageCount returns the number of kind-grouped pages (excluding the
+// instructions page that ORDER #73 appends).
+static uint8_t kindPageCount(const Model& model) {
+    uint8_t maxLines = 5;
+    uint8_t total = 0;
+    for (int ki = 0; ki < 3; ki++) {
+        uint8_t rows = kindRowCount(model, kKindOrder[ki]);
+        if (rows > 0) {
+            total += (rows + maxLines - 1) / maxLines;
+        }
+    }
+    return total;
+}
+
+// buildInstructionPage fills RenderPlan for the instructions page (ORDER #73).
+static void buildInstructionPage(RenderPlan& out, const char* buildId) {
+    // Title.
+    usage::copyStr(out.title, "HELP", sizeof(out.title));
+    out.kind = KIND_HELP;
+    out.kindColor = 0x8410; // grey accent for the help stripe
+
+    out.asOf[0] = '\0';
+    usage::copyStr(out.buildId, buildId, sizeof(out.buildId));
+
+    // Populate lines from the binding table.
+    // Format: left = "gesture button" (e.g. "click blue"), right = action.
+    out.lineCount = 0;
+    for (int i = 0; i < kBindingCount && out.lineCount < 5; i++) {
+        Line& line = out.lines[out.lineCount];
+        // Left: "click blue" — gesture + space + button, ≤10 chars.
+        std::snprintf(line.left, sizeof(line.left), "%s %s",
+                      kBindings[i].gesture, kBindings[i].button);
+        // Right: action description.
+        usage::copyStr(line.right, kBindings[i].action, sizeof(line.right));
+        line.pct = -1;
+        line.tier = 0;
+        line.dim = 0;
+        line.warn = 0;
+        out.lineCount++;
+    }
+
+    // Footer carries only the version (no crit banner on the help page).
+    usage::copyStr(out.footer, buildId, sizeof(out.footer));
+    out.banner[0] = '\0';
+    out.bannerTier = 0;
+}
+
 void buildPlan(const Model& model, uint8_t page, const char* buildId,
                RenderPlan& out) {
     std::memset(&out, 0, sizeof(out));
@@ -213,6 +281,15 @@ void buildPlan(const Model& model, uint8_t page, const char* buildId,
     // ORDER #65: freshness tier from the server-reported age at fetch time.
     // main.cpp overrides this with the accumulated age after buildPlan returns.
     out.freshnessTier = usage::freshnessTier(model.age, model.nextSec);
+
+    // ORDER #73 task 73: the last page is the instructions/help page.
+    // Build it from the binding table and return early — no kind grouping,
+    // no banner, no lines from the model.
+    if (page >= kindPageCount(model)) {
+        out.isHelp = true;
+        buildInstructionPage(out, verBuf);
+        return;
+    }
 
     if (totalPages == 0) return;
 

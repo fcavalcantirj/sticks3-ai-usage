@@ -113,4 +113,29 @@ void saveRotation(uint8_t r) {
     pref.end();
 }
 
+// --- brightness -------------------------------------------------------------
+
+// Load persisted brightness level index (0-5) from NVS, using the same
+// "usaged" namespace as rotation.  Falls back to the 25% default (index 2)
+// if no saved value exists or the stored value is out of range.
+uint8_t loadBrightness() {
+    Preferences pref;
+    pref.begin("usaged", false);
+    uint8_t idx = (uint8_t)pref.getUChar("bright", 2 /* = 25% default */);
+    pref.end();
+    // Validate: must index into the kLevels table (0-5).
+    if (idx >= 6) {
+        idx = 2;
+    }
+    return idx;
+}
+
+// Persist the brightness level index so it survives reboot, deep sleep, and OTA.
+void saveBrightness(uint8_t idx) {
+    Preferences pref;
+    pref.begin("usaged", false);
+    pref.putUChar("bright", idx);
+    pref.end();
+}
+
 } // namespace sticks3

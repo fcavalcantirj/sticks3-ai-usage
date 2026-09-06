@@ -9,8 +9,9 @@
 //   now = nowMs()
 //   netUpdate(now)           — Wi-Fi state machine + [NET] lines
 //   pollUpdate(now)          — first fetch / periodic poll / backoff
-//   buttonsUpdate(now)       — BtnA(gpio11) page/hold-refresh, BtnB(gpio12) refresh
-//   updateBrightness(now)    — dim after 30 min idle, restore on activity
+//   buttonsUpdate(now)       — BtnA(gpio11) page/double=brightness/hold-refresh,
+//                              BtnB(gpio12) refresh/stepdown/hold=flip
+//   updateBrightness(now)    — dim after 30 min idle, full in brightness mode
 //   heapWatchdog(now)        — [HEAP] line every 60 s
 //   if (view.needsRedraw || (!paintedThisBoot && hasModel)) { redraw }
 //   powerDecide(vbus, now, graceActive ? lastActivity : now) → SleepNow? powerSleep()
@@ -30,6 +31,7 @@
 #include "usage/hold_flip.h"
 #include "usage/battery.h"
 #include "usage/freshness.h"
+#include "usage/brightness.h"
 
 #include <cstdio>
 #include <cstring>
@@ -60,8 +62,6 @@ static const uint32_t kMaxFails = 12;
 
 // --- brightness / watchdog configuration ------------------------------------
 
-static const uint8_t kBrightnessActive = 80;
-static const uint8_t kBrightnessIdle = 20;
 static const uint32_t kBrightnessIdleMs = 1800000;  // 30 minutes
 static const uint32_t kHeapIntervalMs = 60000;      // 60 seconds
 
@@ -88,7 +88,7 @@ static uint32_t g_lastRefreshMs = 0;
 
 static uint32_t g_lastActivity = 0;  // last render/fetch-fail/button/USB→battery transition
 static uint32_t g_lastHeapMs = 0;    // last [HEAP] emit
-static bool g_brightnessDimmed = false;
+static uint8_t g_currentBrightness = 0;
 
 // ORDER #30: grace-window state.  On wake the grace is NOT active until the
 // first render or a fetch failure — pre-render the caller passes `now` as the
@@ -112,6 +112,11 @@ static battery::BatteryView g_batt;
 static battery::BatteryView g_prevBatt;
 static bool g_battEverPolled = false;
 static uint32_t g_lastBatteryPoll = 0;
+
+// ORDER #72 task 72: brightness controller — pure-C++17 level stepper with
+// a timed adjustment mode entered via BtnA double-click.  Persisted to NVS
+// via loadBrightness()/saveBrightness().
+brightness::BrightnessController g_brightCtrl;
 
 // ORDER #65 / #64: data-freshness tracking across fetches and deep sleeps.
 // The device has no RTC, so it cannot compute "how old is this data".
@@ -147,6 +152,23 @@ static uint32_t pollInterval() {
 
 // Full-screen redraw: build plan, draw, emit [RENDER], clear the flag.
 static void redraw() {
+    // ORDER #72 task 72: in brightness adjustment mode, draw the gauge overlay
+    // instead of the usage plan.
+    if (g_brightCtrl.inMode()) {
+        drawBrightnessGauge(g_brightCtrl.rawLevel(),
+                           g_brightCtrl.percent(),
+                           g_brightCtrl.idleRaw());
+        char buf[64];
+        std::snprintf(buf, sizeof(buf),
+                      "[RENDER] brightness %d%%", (int)g_brightCtrl.percent());
+        serialLine(buf);
+
+        g_view.needsRedraw = false;
+        g_lastActivity = nowMs();
+        g_graceActive = true;
+        return;
+    }
+
     usage::RenderPlan plan;
     usage::buildPlan(g_model, g_view.page, buildId(), plan);
 
@@ -351,59 +373,111 @@ static void pollUpdate(uint32_t now) {
 // full screen wipe — just enough feedback that the hold gesture is active.
 static void drawFlipHint();
 
-// Buttons: BtnA (GPIO 11) short-press cycles pages; BtnA long-press refreshes.
-// BtnB (GPIO 12) short-press refreshes; BtnB hold (>= 1500 ms) flips the
-// screen 180°.  ORDER #53 REVISED: one threshold governs click and hold on
-// BtnB — a short click still refreshes exactly as today.
+// Buttons: BtnA (GPIO 11) single-click cycles pages, double-click enters
+// brightness mode, long-press refreshes.  BtnB (GPIO 12) click refreshes
+// (or steps brightness down in mode), hold (>= 1500 ms) flips the screen.
+// ORDER #53 REVISED: one threshold governs click and hold on BtnB.
+// ORDER #72 task 72: brightness mode entered via double-click, exited via
+// 5 s inactivity timeout.  Inside mode, BtnA click = step up, BtnB click = step down.
 // ORDER #49: emit [BTN] gpio=N <action> for physical-button clarity.
+// Step 8 fix: [BTN] line emitted outside netUp() gate so button activity is
+// always logged.
 static void buttonsUpdate(uint32_t now) {
-    // BtnA short press: cycle pages (only when we have a model).
-    if (M5.BtnA.wasClicked() && g_hasModel) {
-        usage::nextPage(g_view, g_model);
-        g_lastActivity = now;
-        char buf[64];
-        usage::fmtBtn(buf, sizeof(buf), 11, "click page");
-        serialLine(buf);
+    bool inBrightMode = g_brightCtrl.inMode();
+
+    // --- BtnA: behavior depends on brightness mode ---
+    if (inBrightMode) {
+        // In brightness mode: wasSingleClicked = stepUp.
+        if (M5.BtnA.wasSingleClicked()) {
+            g_brightCtrl.stepUp(now);
+            g_view.needsRedraw = true;
+            g_lastActivity = now;
+            char buf[64];
+            usage::fmtBtn(buf, sizeof(buf), 11, "step up");
+            serialLine(buf);
+        }
+        // wasHold still refreshes (keep).
+        if (M5.BtnA.wasHold()) {
+            if (netUp()) {
+                doDeviceRefresh(now);
+            }
+            g_lastActivity = now;
+            char buf[64];
+            usage::fmtBtn(buf, sizeof(buf), 11, "hold refresh");
+            serialLine(buf);
+        }
+    } else {
+        // Normal mode: wasSingleClicked = page cycle (disambiguates from
+        // double-click for brightness entry — ~250 ms latency tradeoff).
+        if (M5.BtnA.wasSingleClicked() && g_hasModel) {
+            usage::nextPage(g_view, g_model);
+            g_lastActivity = now;
+            char buf[64];
+            usage::fmtBtn(buf, sizeof(buf), 11, "click page");
+            serialLine(buf);
+        }
+        // Double-click enters brightness mode.
+        if (M5.BtnA.wasDoubleClicked()) {
+            g_brightCtrl.enterMode(now);
+            g_view.needsRedraw = true;
+            g_lastActivity = now;
+            setBrightness(255);  // full brightness for gauge visibility
+            g_currentBrightness = 255;
+            char buf[64];
+            usage::fmtBtn(buf, sizeof(buf), 11, "brightness enter");
+            serialLine(buf);
+        }
+        // wasHold = refresh.
+        if (M5.BtnA.wasHold()) {
+            if (netUp()) {
+                doDeviceRefresh(now);
+            }
+            g_lastActivity = now;
+            char buf[64];
+            usage::fmtBtn(buf, sizeof(buf), 11, "hold refresh");
+            serialLine(buf);
+        }
     }
 
-    // BtnA long press: POST /v1/refresh + retry + conditional GET.
-    if (M5.BtnA.wasHold() && netUp()) {
-        doDeviceRefresh(now);
-        g_lastActivity = now;
-        char buf[64];
-        usage::fmtBtn(buf, sizeof(buf), 11, "hold refresh");
-        serialLine(buf);
-    }
-
-    // BtnB: click = refresh, hold (>= 1500 ms) = flip.  The hold state machine
-    // in usage/hold_flip.h disambiguates click vs hold using a single threshold.
+    // --- BtnB: hold_flip detector disambiguates click vs hold ---
+    // Click = stepDown (in brightness mode) or refresh (normal mode).
+    // Hold (>= 1500 ms) = flip screen (unlocks in both modes).
     bool btnBPressed = M5.BtnB.isPressed();
     sticks3::holdflip::FlipAction action = g_flipDetector.feed(btnBPressed, now);
 
     switch (action) {
         case sticks3::holdflip::FlipAction::click:
-            // BtnB short press: POST /v1/refresh + retry + conditional GET.
-            if (netUp()) {
-                doDeviceRefresh(now);
+            if (inBrightMode) {
+                g_brightCtrl.stepDown(now);
+                g_view.needsRedraw = true;
+                g_lastActivity = now;
+                {
+                    char buf[64];
+                    usage::fmtBtn(buf, sizeof(buf), 12, "step down");
+                    serialLine(buf);
+                }
+            } else {
+                if (netUp()) {
+                    doDeviceRefresh(now);
+                }
+                g_lastActivity = now;
+                {
+                    char buf[64];
+                    usage::fmtBtn(buf, sizeof(buf), 12, "click refresh");
+                    serialLine(buf);
+                }
             }
-            g_lastActivity = now;
-            {
-                char buf[64];
-                usage::fmtBtn(buf, sizeof(buf), 12, "click refresh");
-                serialLine(buf);
-            }
+            // Hint is also dismissed on click.
+            g_holdHintActive = false;
             break;
 
         case sticks3::holdflip::FlipAction::hint:
-            // Hold reached 500 ms — show a brief hint without a full repaint.
             g_holdHintActive = true;
             drawFlipHint();
             break;
 
         case sticks3::holdflip::FlipAction::flip: {
-            // Hold reached 1500 ms — flip 180°, persist, force redraw.
             g_holdHintActive = false;
-            // The screen rotates regardless of whether data has been fetched.
             uint8_t rot = (uint8_t)g_flipDetector.rotation();
             setRotation(rot);
             saveRotation(rot);
@@ -418,15 +492,25 @@ static void buttonsUpdate(uint32_t now) {
         }
 
         default:
-            // If the button is not held and a hint was active, clear it.
+            // Button released with no hold → dismiss hint, clear hint line.
             if (!btnBPressed && g_holdHintActive) {
                 g_holdHintActive = false;
-                // The next redraw() will paint normally.
                 if (g_view.needsRedraw || (!g_paintedThisBoot && g_hasModel)) {
                     redraw();
                 }
             }
             break;
+    }
+
+    // ORDER #72 task 72: brightness mode timeout.
+    if (inBrightMode && g_brightCtrl.shouldExit(now)) {
+        g_brightCtrl.exitMode();
+        sticks3::saveBrightness(g_brightCtrl.levelIdx());
+        g_view.needsRedraw = true;
+        g_lastActivity = now;
+        char buf[64];
+        usage::fmtBtn(buf, sizeof(buf), 11, "brightness exit");
+        serialLine(buf);
     }
 }
 
@@ -441,18 +525,24 @@ static void drawFlipHint() {
     M5.Display.println(hint);
 }
 
-// Brightness policy: 80 normally; 20 after 30 min without rev change or
-// button press.  Any activity restores 80.  Only changes the backlight,
-// never the drawn content — does not violate "redraw only on change".
+// Brightness policy (ORDER #72 task 72):
+//   - In brightness mode: full backlight (255) so the gauge is visible.
+//   - Idle (30 min no activity): idleRaw() = active / 4, clamped >= 1.
+//   - Active: rawLevel() from the persisted level.
+// Only calls setBrightness() on change to avoid unnecessary I2C writes.
 static void updateBrightness(uint32_t now) {
-    if ((int32_t)(now - g_lastActivity) >= (int32_t)kBrightnessIdleMs) {
-        if (!g_brightnessDimmed) {
-            setBrightness(kBrightnessIdle);
-            g_brightnessDimmed = true;
-        }
-    } else if (g_brightnessDimmed) {
-        setBrightness(kBrightnessActive);
-        g_brightnessDimmed = false;
+    bool idle = (int32_t)(now - g_lastActivity) >= (int32_t)kBrightnessIdleMs;
+    uint8_t target;
+    if (g_brightCtrl.inMode()) {
+        target = 255;  // full brightness during adjustment
+    } else if (idle) {
+        target = g_brightCtrl.idleRaw();
+    } else {
+        target = g_brightCtrl.rawLevel();
+    }
+    if (target != g_currentBrightness) {
+        setBrightness(target);
+        g_currentBrightness = target;
     }
 }
 
@@ -494,7 +584,11 @@ void setup() {
     // timer wake that found USB plugged in.
     bool lightScreen = (wakeCause != WakeCause::Timer) || (vbus >= 4000);
     if (lightScreen) {
-        setBrightness(kBrightnessActive);
+        // ORDER #72 task 72: load persisted brightness level into the controller,
+        // then apply the raw value to the backlight.
+        g_brightCtrl.setLevel(sticks3::loadBrightness());
+        setBrightness(g_brightCtrl.rawLevel());
+        g_currentBrightness = g_brightCtrl.rawLevel();
         drawBootScreen(buildId());
     }
 
@@ -628,7 +722,13 @@ void loop() {
 
     // ORDER #31: paint on warm-boot wake (needsRedraw) or the first boot
     // paint of the cached snapshot (paintedThisBoot guard).
-    if (g_view.needsRedraw || (!g_paintedThisBoot && g_hasModel)) {
+    // ORDER #72: in brightness mode, only paint on needsRedraw (the gauge
+    // doesn't need the g_paintedThisBoot boot paint).
+    bool needsPaint = g_view.needsRedraw;
+    if (!g_brightCtrl.inMode()) {
+        needsPaint = needsPaint || (!g_paintedThisBoot && g_hasModel);
+    }
+    if (needsPaint) {
         redraw();
     }
 

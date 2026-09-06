@@ -49,4 +49,12 @@ uint8_t loadRotation();
 // Persist the current rotation to NVS.
 void saveRotation(uint8_t r);
 
+// Load the persisted brightness level index (0-5) from NVS
+// (namespace "usaged", key "bright").  Returns the 25% default index (2)
+// if no saved value exists or the stored value is corrupt.
+uint8_t loadBrightness();
+
+// Persist the brightness level index to NVS.
+void saveBrightness(uint8_t idx);
+
 } // namespace sticks3

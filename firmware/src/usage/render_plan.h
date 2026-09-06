@@ -19,10 +19,11 @@ namespace usage {
 static const uint8_t KIND_PLAN   = 1;  // paid subscription with quota windows
 static const uint8_t KIND_CREDIT = 2;  // prepaid balance that real money drains
 static const uint8_t KIND_FREE   = 3;  // no per-request cost
+static const uint8_t KIND_HELP   = 4;  // ORDER #73 task 73: instructions page
 
 // Line: one rendered row on the 5-line screen.
 struct Line {
-    char left[11];       // row label, ≤10 chars + NUL
+    char left[12];      // row label, ≤11 chars + NUL (ORDER #73: "double blue" needs 11)
     int16_t pct;          // -1 = null (no percentage bar)
     char right[12];       // txt, ≤11 chars + NUL
     uint8_t tier;         // 0 ok, 1 warn, 2 crit, 3 off
@@ -42,6 +43,7 @@ struct RenderPlan {
     uint8_t freshnessTier; // ORDER #65: 0=green, 1=yellow, 2=red from data age
     uint8_t lineCount;
     Line lines[5];        // max 5 lines per page (4 when crit banner active)
+    bool isHelp;          // ORDER #73 task 73: true for the instructions page
     char footer[25];      // ORDER #51+57: when no crit banner, just the version
                           //     "v<sha>" (seq dropped entirely — ORDER #57 task 60).
                           //     When crit, the banner text (full-width alert).

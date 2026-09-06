@@ -33,7 +33,8 @@ TEST(plan_page0_plans_crit) {
 
     // 2 PLAN providers (claude 3 rows + codex 3 rows = 6).  No row stealing
     // (ORDER #48 defect e) → maxLines=5.  ceil(6/5) = 2 PLAN pages.
-    ASSERT_EQ(2u, plan.pageCount);
+    // +1 instructions page (ORDER #73) = 3 total.
+    ASSERT_EQ(3u, plan.pageCount);
     ASSERT_EQ(1u, plan.page); // 1-indexed
     ASSERT_STREQ("PLANS", plan.title);
     ASSERT_STREQ("seq 1", plan.asOf);
@@ -84,7 +85,7 @@ TEST(plan_page1_plans_overflow) {
     RenderPlan plan;
     buildTestPlan(m, 1, plan);
 
-    ASSERT_EQ(2u, plan.pageCount);
+    ASSERT_EQ(3u, plan.pageCount);
     ASSERT_EQ(2u, plan.page);
     ASSERT_STREQ("PLANS", plan.title);
     ASSERT_EQ(usage::KIND_PLAN, plan.kind);
@@ -112,9 +113,10 @@ TEST(plan_full_four_pages) {
     ASSERT_EQ(5, (int)m.providerCount);
 
     // Page 0: PLANS, 5 rows (no row stealing — maxLines=5).
+    // Total: 4 kind pages + 1 instructions page = 5.
     RenderPlan p0;
     buildTestPlan(m, 0, p0);
-    ASSERT_EQ(4u, p0.pageCount);
+    ASSERT_EQ(5u, p0.pageCount);
     ASSERT_EQ(1u, p0.page);
     ASSERT_STREQ("PLANS", p0.title);
     ASSERT_EQ(usage::KIND_PLAN, p0.kind);
@@ -237,7 +239,7 @@ TEST(plan_next_page_wraps) {
     std::memset(&view, 0, sizeof(view));
     view.page = 0;
 
-    // 4 pages total; cycling through all and wrapping.
+    // 5 pages total (4 kind + 1 instructions); cycling through all and wrapping.
     usage::nextPage(view, m);
     ASSERT_EQ(1u, view.page);
     ASSERT_TRUE(view.needsRedraw);
@@ -248,7 +250,10 @@ TEST(plan_next_page_wraps) {
     usage::nextPage(view, m);
     ASSERT_EQ(3u, view.page);
 
-    // Wrap back to page 0.
+    usage::nextPage(view, m);
+    ASSERT_EQ(4u, view.page);
+
+    // Wrap back to page 0 (instructions is page 4, last in cycle).
     usage::nextPage(view, m);
     ASSERT_EQ(0u, view.page);
 }
@@ -345,10 +350,11 @@ TEST(plan_warn_label_no_banner) {
     ASSERT_EQ(2, (int)plan.lineCount);
 
     // Warn provider rows get "!" appended (truncated to fit 10-char label).
-    ASSERT_STREQ("ORmain ba!", plan.lines[0].left);
+    // With left[12] the full label + '!' fits: "ORmain bal!".
+    ASSERT_STREQ("ORmain bal!", plan.lines[0].left);
     ASSERT_EQ(1, (int)plan.lines[0].warn);
 
-    ASSERT_STREQ("ORmain da!", plan.lines[1].left);
+    ASSERT_STREQ("ORmain day!", plan.lines[1].left);
     ASSERT_EQ(1, (int)plan.lines[1].warn);
 }
 
@@ -382,4 +388,57 @@ TEST(plan_all_ok_no_banner) {
     ASSERT_EQ(0, (int)plan.lines[0].warn);
     ASSERT_STREQ("CLAUDE 7d", plan.lines[1].left);
     ASSERT_EQ(0, (int)plan.lines[1].warn);
+}
+
+// --- ORDER #73 task 73: instructions page ------------------------------------
+
+TEST(plan_instructions_page_last) {
+    Model m;
+    char err[256];
+    bool ok = usage::parseSnapshot(kSnapshotExample, strlen(kSnapshotExample),
+                                   m, err, sizeof(err));
+    ASSERT_TRUE(ok);
+
+    // kSnapshotExample: 2 PLAN pages + 1 instructions = 3 total.
+    RenderPlan plan;
+    buildTestPlan(m, 2, plan); // page 2 = instructions
+    ASSERT_EQ(3u, plan.pageCount);
+    ASSERT_EQ(3u, plan.page); // 1-indexed
+    ASSERT_EQ(usage::KIND_HELP, plan.kind);
+    ASSERT_STREQ("HELP", plan.title);
+    ASSERT_TRUE(plan.isHelp);
+
+    // 4 binding lines from the table.
+    // Format: left = "gesture button", right = action (≤10 / ≤11 chars).
+    ASSERT_EQ(4, (int)plan.lineCount);
+    ASSERT_STREQ("click blue", plan.lines[0].left);
+    ASSERT_STREQ("cycle pages", plan.lines[0].right);
+    ASSERT_STREQ("double blue", plan.lines[1].left);
+    ASSERT_STREQ("brightness", plan.lines[1].right);
+    ASSERT_STREQ("click side", plan.lines[2].left);
+    ASSERT_STREQ("refresh", plan.lines[2].right);
+    ASSERT_STREQ("hold side", plan.lines[3].left);
+    ASSERT_STREQ("flip 180", plan.lines[3].right);
+
+    // No crit banner on the help page.
+    ASSERT_EQ(0u, plan.bannerTier);
+    ASSERT_STREQ("", plan.banner);
+}
+
+TEST(plan_instructions_page_is_help) {
+    Model m;
+    char err[256];
+    bool ok = usage::parseSnapshot(kSnapshotExample, strlen(kSnapshotExample),
+                                   m, err, sizeof(err));
+    ASSERT_TRUE(ok);
+
+    // Normal pages are not help.
+    RenderPlan p0;
+    buildTestPlan(m, 0, p0);
+    ASSERT_FALSE(p0.isHelp);
+
+    // Last page is help.
+    RenderPlan p2;
+    buildTestPlan(m, 2, p2);
+    ASSERT_TRUE(p2.isHelp);
 }
