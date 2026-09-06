@@ -865,7 +865,7 @@
       "ALSO RESOLVE, since it is adjacent and cheap: Felipe reports the blue button hold 'does nothing', but main.cpp:310 binds BtnA hold to doDeviceRefresh gated on netUp(). Diagnose it over SERIAL using the [BTN] lines rather than guessing — the likely candidates are the netUp() gate, the 10-second refreshThrottleOk window silently swallowing the press, or drawRefreshStatus() being too brief to notice. If it turns out to be only a feedback problem, say so; that is a much smaller fix than it looks.",
       "Verify: host tests for the level stepper (clamps at both ends, steps in order) and the mode state machine (entry, exit on timeout, BtnB hold still flips, BtnA does not cycle pages while in the mode) — same shape as test_hold_flip.cpp. `make fw-test` Failed 0, `make fw-build` SUCCESS. Then hardware UAT with Felipe: double-click blue brings the gauge, blue brightens, side dims, it exits on its own, the level survives a reboot and a deep-sleep wake, and page cycling still feels responsive. Finally confirm on serial that a lower level measurably slows the discharge, using the same [BATT] voltage-trend method that proved the charging fix."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "firmware",
@@ -878,7 +878,7 @@
       "PAGING BEHAVIOUR: it is the LAST page, reached by cycling past the data pages, and the page indicator must count it (so 1/4 becomes 1/5). It must not become the boot page, must not be the page a wake lands on, and must not be what Felipe stares at when he glances over — the device exists to show quota. Consider whether it should be skipped when a crit banner is active; state your decision either way.",
       "Verify: host tests that the page is last in the cycle, that the page count includes it, that the rendered lines are derived from the binding table rather than duplicated literals, and that every line fits at 240 px with the chosen font. `make fw-test` Failed 0, `make fw-build` SUCCESS. UAT with Felipe: he cycles to the last page and can READ IT AT A GLANCE from normal desk distance without leaning in — that is the whole point of the request, so ask him about legibility specifically rather than correctness."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "firmware",
