@@ -59,9 +59,11 @@ bool fetchUsage(const char* lastRev, FetchResult& out) {
 
     // User-Agent so the server classifies this HTTP client as the StickS3
     // device (ORDER #63 task 64), not a browser or loopback curl.
+    // NOTE: HTTPClient::addHeader silently skips "User-Agent" (managed
+    // internally — HTTPClient.cpp:1040-1046).  Must use setUserAgent().
     char ua[64];
     std::snprintf(ua, sizeof(ua), "sticks3-usage/%s", buildId());
-    http.addHeader("User-Agent", ua);
+    http.setUserAgent(ua);
 
     // Tell HTTPClient to capture the ETag response header.
     const char* keys[] = {"ETag"};
@@ -156,10 +158,10 @@ bool refreshUpstream(FetchResult& out) {
     http.begin(client, url);
 
     // User-Agent so the server classifies this HTTP client as the StickS3
-    // device (ORDER #63 task 64).
+    // device (ORDER #63 task 64).  Must use setUserAgent, not addHeader.
     char ua[64];
     std::snprintf(ua, sizeof(ua), "sticks3-usage/%s", buildId());
-    http.addHeader("User-Agent", ua);
+    http.setUserAgent(ua);
 
     // Device-token header (always sent to the usaged server).
     http.addHeader("X-Device-Token", USAGED_DEVICE_TOKEN);

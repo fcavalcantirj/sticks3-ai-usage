@@ -19,7 +19,8 @@ type clientEntry struct {
 	count200   int
 	count304   int
 	addr       string // client IP address (without port)
-	isDevice   bool   // true if this client is the StickS3 (User-Agent prefix sticks3-usage/)
+	userAgent  string // last User-Agent seen from this client
+	isDevice   bool   // re-evaluated from userAgent on every request (ORDER #65)
 }
 
 // clientTracker records per-client /v1/usage request metadata so the system
@@ -76,9 +77,11 @@ func (t *clientTracker) record(clientKey, userAgent string, now time.Time, statu
 	entry.lastSeen = now
 	entry.lastStatus = status
 	entry.addr = clientKey
-	if isDeviceUserAgent(userAgent) {
-		entry.isDevice = true
-	}
+	entry.userAgent = userAgent
+	// Re-evaluate isDevice from the CURRENT User-Agent on every request —
+	// do NOT latch it.  A prior device-UA request must not keep the flag if a
+	// later request from the same IP uses a different UA (ORDER #65).
+	entry.isDevice = isDeviceUserAgent(userAgent)
 	if status == http.StatusOK {
 		entry.count200++
 	} else if status == http.StatusNotModified {
@@ -222,13 +225,17 @@ func isLoopbackHost(host string) bool {
 }
 
 // logAccess logs a /v1/usage access entry to slog. It logs timestamp (via
-// slog's built-in time field), peer IP, method, status, and the If-None-Match
-// header value — but NEVER the device token or any header carrying it.
+// slog's built-in time field), peer IP, method, User-Agent, status, and the
+// If-None-Match header value — but NEVER the device token or any header
+// carrying it.  The User-Agent is logged so isDevice classification can be
+// debugged on the wire (ORDER #65: addHeader("User-Agent") is silently
+// dropped by the Arduino HTTPClient core, so the log is the only proof).
 func (s *Server) logAccess(r *http.Request, status int) {
 	s.logger.Info("access",
 		"path", "/v1/usage",
 		"method", r.Method,
 		"peer", peerIP(r),
+		"user_agent", r.Header.Get("User-Agent"),
 		"status", status,
 		"if_none_match", r.Header.Get("If-None-Match"),
 	)

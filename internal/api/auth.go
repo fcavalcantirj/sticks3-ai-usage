@@ -41,12 +41,29 @@ func newAuth(cfg config.Config, logger *slog.Logger) *Auth {
 
 // middleware wraps next with device-token enforcement. Public paths are never
 // challenged. For GET /v1/*, loopback senders bypass the token check. For
-// mutating /v1/* (POST/PUT/DELETE), the token is always required — even from
-// loopback — and the Content-Type must be application/json (for routes with a
-// body). The token is validated before the body is parsed.
+// mutating /v1/* (POST/PUT/DELETE), the token is required even on loopback —
+// EXCEPT POST /v1/refresh, which only triggers an early poll and gains an
+// attacker nothing (ORDER #65 task 66). The Content-Type must still be
+// application/json for routes with a body. The token is validated before the
+// body is parsed.
 func (a *Auth) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !requiresToken(r.URL.Path) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// POST /v1/refresh on loopback: exempt from the token requirement.
+		// It only asks the agent to poll early; a cross-site attacker gains
+		// nothing but a premature refresh.  The JSON content-type is still
+		// enforced below so a form-encoded cross-site POST bounces.
+		if r.Method == http.MethodPost && r.URL.Path == "/v1/refresh" && isLoopbackAddr(r.RemoteAddr) {
+			if r.ContentLength > 0 && !isJSONContentType(r.Header.Get("Content-Type")) {
+				writeJSON(w, http.StatusUnsupportedMediaType, map[string]string{
+					"ok": "false", "error": "Content-Type must be application/json",
+				})
+				return
+			}
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -62,7 +79,8 @@ func (a *Auth) middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Require a valid token for non-loopback GETs and ALL mutating requests.
+		// Require a valid token for non-loopback GETs and ALL mutating requests
+		// except POST /v1/refresh on loopback (handled above).
 		token := r.Header.Get("X-Device-Token")
 		if token == "" {
 			token = r.URL.Query().Get("token")

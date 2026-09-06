@@ -769,7 +769,7 @@
       "ALSO FIX THE ERROR TEXT, which is wrong in a way that would mislead anyone: '401 Unauthorized — enter your device token to VIEW USAGE DATA' appeared while the usage data was already on screen. The failure was a refresh, not a read. Report what actually failed ('could not trigger a refresh') and keep the token prompt for the routes that genuinely need one. A banner that misdescribes the failure sends the reader looking in the wrong place.",
       "Verify: `go test ./internal/api -v` — POST /v1/refresh from loopback with NO token succeeds; POST /v1/keys, DELETE /v1/keys and PUT /v1/config from loopback with no token still return 401; refresh with a non-JSON Content-Type is still rejected. `make verify` and `make smoke` exit 0. THEN REBUILD AND KICKSTART and confirm by clicking the real button in the browser — not by curl alone, since the point is the page."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "optional",

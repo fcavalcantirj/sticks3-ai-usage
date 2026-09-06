@@ -1288,7 +1288,17 @@ function doRefresh() {
   headers["Content-Type"] = "application/json";
   fetch("/v1/refresh", { method: "POST", headers: headers })
     .then(function(r) {
-      if (r.status === 401) { showTokenInput(); return null; }
+      if (r.status === 401) {
+        // The refresh failed — NOT the data view.  The usage data on screen
+        // is still valid; only the early-poll was rejected.
+        var msg = document.getElementById("auth-error");
+        msg.style.display = "block";
+        msg.textContent = "401 Unauthorized — refresh failed: enter your device token.";
+        document.getElementById("token-input").style.display = "flex";
+        btn.classList.remove("refreshing");
+        btn.textContent = "Refresh";
+        return null;
+      }
       if (!r.ok) return null;
       return r.json();
     })

@@ -724,9 +724,12 @@ func TestPutConfigNoTokenLoopback401(t *testing.T) {
 	}
 }
 
-// TestPostRefreshNoTokenLoopback401 verifies POST /v1/refresh requires a token
-// from loopback.
-func TestPostRefreshNoTokenLoopback401(t *testing.T) {
+// TestPostRefreshLoopbackExempt verifies ORDER #65 task 66: POST /v1/refresh
+// from loopback is EXEMPT from the device-token requirement.  A cross-site
+// attacker gains nothing but a premature poll, and requiring the token here
+// broke Felipe's browser "Refresh now" button.  The request must reach the
+// handler and return 200 or 202 — never 401.
+func TestPostRefreshLoopbackExempt(t *testing.T) {
 	dir := setupFixtures(t)
 	handler, _, _ := newFixtureHandler(t, dir)
 
@@ -735,8 +738,47 @@ func TestPostRefreshNoTokenLoopback401(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
+	if rec.Code != http.StatusOK && rec.Code != http.StatusAccepted {
+		t.Errorf("POST /v1/refresh loopback no token: status = %d, want 200 or 202", rec.Code)
+	}
+}
+
+// TestPostRefreshNonLoopbackTokenRequired verifies that POST /v1/refresh
+// from a non-loopback address still requires the device token (401).
+func TestPostRefreshNonLoopbackTokenRequired(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "0.0.0.0:8765", Interval: 900 * time.Second,
+		TZ: testLoc, DeviceToken: "x",
+	}
+	handler, _, _ := newFixtureHandlerCfg(t, dir, cfg)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/refresh", nil)
+	req.RemoteAddr = "192.168.0.77:5000"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
 	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("POST /v1/refresh no token: status = %d, want 401", rec.Code)
+		t.Errorf("POST /v1/refresh non-loopback no token: status = %d, want 401", rec.Code)
+	}
+}
+
+// TestPostRefreshLoopbackWrongContentType415 verifies that the loopback
+// exemption for POST /v1/refresh still enforces Content-Type: application/json
+// so a form-encoded cross-site POST bounces with 415.
+func TestPostRefreshLoopbackWrongContentType415(t *testing.T) {
+	dir := setupFixtures(t)
+	handler, _, _ := newFixtureHandler(t, dir)
+
+	// Non-empty body with a form-encoded content-type.
+	req := httptest.NewRequest(http.MethodPost, "/v1/refresh", strings.NewReader("refresh=1"))
+	req.RemoteAddr = "127.0.0.1:12345"
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnsupportedMediaType {
+		t.Errorf("POST /v1/refresh loopback form-encoded: status = %d, want 415", rec.Code)
 	}
 }
 

@@ -199,39 +199,41 @@ func TestUsageDeviceState200(t *testing.T) {
 // The browser request is the LAST request, so if the tracker were keyed by the
 // requester it would report the browser's trivially-"connected" state.  The
 // real StickS3 request (with the device UA) must be the one surfaced.
+//
+// ORDER #65: isDevice is re-evaluated from the current User-Agent on every
+// request (not latched).  Therefore the device and browser must come from
+// DIFFERENT IPs — the device on its LAN address, the browser on loopback — so
+// the browser's curl UA cannot overwrite the device's flag on a shared entry.
 func TestUsageDeviceStateFromDeviceNotBrowser(t *testing.T) {
 	dir := setupFixtures(t)
-	ts, _ := newFixtureServerWithCapture(t, dir)
-	defer ts.Close()
+	handler, _, _ := newFixtureHandler(t, dir)
 
-	// Step 1: the StickS3 polls with its device User-Agent.
-	reqDev, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
+	// Step 1: the StickS3 polls from its LAN IP with its device User-Agent.
+	// It carries its token because it is not on loopback.
+	reqDev := httptest.NewRequest(http.MethodGet, "/v1/usage", nil)
+	reqDev.RemoteAddr = "192.168.0.136:1234"
 	reqDev.Header.Set("User-Agent", "sticks3-usage/test1234")
-	resp1, err := http.DefaultClient.Do(reqDev)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp1.Body.Close()
-	if resp1.StatusCode != http.StatusOK {
-		t.Fatalf("device request status = %d, want 200", resp1.StatusCode)
+	reqDev.Header.Set("X-Device-Token", "x")
+	rec1 := httptest.NewRecorder()
+	handler.ServeHTTP(rec1, reqDev)
+	if rec1.Code != http.StatusOK {
+		t.Fatalf("device request status = %d, want 200", rec1.Code)
 	}
 
-	// Step 2: the browser opens the dashboard — it may carry the token (loopback
-	// bypasses the auth check) but it does NOT send the device User-Agent, so it
-	// must not be classified as the StickS3.
-	reqBrowser, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
+	// Step 2: the browser opens the dashboard from loopback — it may carry the
+	// token (loopback bypasses the auth check) but it does NOT send the device
+	// User-Agent, so it must not be classified as the StickS3.
+	reqBrowser := httptest.NewRequest(http.MethodGet, "/v1/usage", nil)
+	reqBrowser.RemoteAddr = "127.0.0.1:12345"
 	reqBrowser.Header.Set("X-Device-Token", "x")
-	resp2, err := http.DefaultClient.Do(reqBrowser)
-	if err != nil {
-		t.Fatal(err)
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, reqBrowser)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("browser request status = %d, want 200", rec2.Code)
 	}
-	if resp2.StatusCode != http.StatusOK {
-		t.Fatalf("browser request status = %d, want 200", resp2.StatusCode)
-	}
-	defer resp2.Body.Close()
 
 	var raw map[string]json.RawMessage
-	if err := json.NewDecoder(resp2.Body).Decode(&raw); err != nil {
+	if err := json.Unmarshal(rec2.Body.Bytes(), &raw); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	dsRaw, ok := raw["device_state"]
@@ -242,10 +244,10 @@ func TestUsageDeviceStateFromDeviceNotBrowser(t *testing.T) {
 	if err := json.Unmarshal(dsRaw, &ds); err != nil {
 		t.Fatalf("unmarshal device_state: %v", err)
 	}
-	// The device_state must reflect the StickS3's two requests (both 200),
-	// NOT the browser's single request.
-	if ds.Count200 != 2 {
-		t.Errorf("device_state count_200 = %d, want 2 (device made both; browser should not be counted as device)", ds.Count200)
+	// The device_state must reflect the StickS3's single request (200),
+	// NOT the browser's request — they are distinct clients by IP+UA.
+	if ds.Count200 != 1 {
+		t.Errorf("device_state count_200 = %d, want 1 (device made one; browser not counted as device)", ds.Count200)
 	}
 	if ds.LastStatus != http.StatusOK {
 		t.Errorf("last_status = %d, want 200", ds.LastStatus)
@@ -501,6 +503,29 @@ func TestAccessLogNoToken(t *testing.T) {
 	}
 }
 
+// TestAccessLogUserAgent verifies ORDER #65: the User-Agent header value is
+// included in the slog access-log line so isDevice classification can be
+// debugged on the wire (the Arduino HTTPClient core silently drops
+// addHeader("User-Agent"), so the log is the only proof the firmware sent it).
+func TestAccessLogUserAgent(t *testing.T) {
+	dir := setupFixtures(t)
+	ts, logBuf := newFixtureServerWithCapture(t, dir)
+	defer ts.Close()
+
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
+	req.Header.Set("User-Agent", "sticks3-usage/abc1234")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	logOutput := logBuf.String()
+	if !strings.Contains(logOutput, "sticks3-usage/abc1234") {
+		t.Errorf("user_agent not found in access log:\n%s", logOutput)
+	}
+}
+
 // TestAccessLogDifferentClients verifies that requests from different client
 // IPs are tracked independently.
 func TestAccessLogDifferentClients(t *testing.T) {
@@ -576,6 +601,34 @@ func TestClientTrackerDeviceStateNilWithoutDevice(t *testing.T) {
 
 	if dev := tr.deviceState(); dev != nil {
 		t.Errorf("deviceState = %+v, want nil (no device client seen)", dev)
+	}
+}
+
+// TestClientTrackerIsDeviceNotLatched verifies ORDER #65: isDevice is
+// re-evaluated from the CURRENT User-Agent on every request, not latched
+// from a prior request.  A client that was once the device (UA
+// "sticks3-usage/...") but later sends a curl UA must NOT remain classified
+// as the device — this prevents a stale entry from poisoning deviceState().
+func TestClientTrackerIsDeviceNotLatched(t *testing.T) {
+	base := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
+	tr := &clientTracker{
+		clients: make(map[string]*clientEntry),
+		now:     func() time.Time { return base },
+	}
+
+	// First request: the StickS3 identifies itself.
+	tr.record("10.0.0.50", "sticks3-usage/abcd1234", base, http.StatusOK)
+	if tr.deviceState() == nil {
+		t.Fatal("expected deviceState to return the StickS3 after first request")
+	}
+
+	// Later request from the SAME IP with a different UA (e.g. a debug curl).
+	tr.record("10.0.0.50", "curl/8.0", base.Add(300*time.Second), http.StatusOK)
+
+	// The IP is the same, but the UA is no longer the device's — deviceState
+	// must be nil because isDevice is re-evaluated, not latched.
+	if dev := tr.deviceState(); dev != nil {
+		t.Errorf("deviceState = %+v, want nil (isDevice must not latch)", dev)
 	}
 }
 
