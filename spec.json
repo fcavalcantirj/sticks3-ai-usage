@@ -785,7 +785,7 @@
       "(c) 'KEY SET IN KEYCHAIN' IS WRONG FOR CLAUDE AND CHATGPT and would send Felipe looking in the wrong place. keyState (server.go:369-376) falls back to the provider's fetch status for OAuth providers and returns 'set'; the UI then prints 'in Keychain'. But Claude's credential is CLAUDE CODE's own Keychain item, and ChatGPT's is the FILE ~/.codex/auth.json — neither is usaged's key store and neither can be set or removed from this page. Label each credential by its real source: 'via Claude Code', 'via ~/.codex/auth.json', 'via env OPENROUTER_API_KEY', 'in Keychain' only when it genuinely is usaged's keychain entry. Where we cannot manage it, say so instead of implying we can.",
       "Verify: `go test ./internal/api ./internal/web -v` grows by at least 4 — GET /v1/device returns the state and carries NO ETag; /v1/usage no longer contains device_state and a conditional GET still returns 304 empty; keyState reports a distinct source per provider kind. `make verify` and `make smoke` exit 0. THEN REBUILD AND KICKSTART, and confirm in a real browser that the device card shows 192.168.0.136 connected WITHOUT a forced refresh, and that no tab scrolls the page. Paste what the card actually rendered in your DONE line."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "optional",

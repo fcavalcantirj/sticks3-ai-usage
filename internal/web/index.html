@@ -160,13 +160,26 @@
       border-radius: 10px; padding: 12px 14px;
     }
     .provider-card-header {
-      display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+      display: flex; align-items: center; gap: 10px; cursor: pointer;
+      user-select: text;
     }
+    .provider-card-header:hover { background: rgba(255,255,255,0.03); }
     .provider-card-header .provider-label {
       flex: 1; padding: 6px 10px; border-radius: 6px;
       border: 1px solid var(--border); background: var(--card);
       color: var(--text); font-size: 13px;
     }
+    .key-state {
+      font-size: 12px; color: var(--muted); white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; max-width: 120px;
+    }
+    .card-chevron {
+      font-size: 11px; color: var(--muted);
+      transition: transform 0.2s; margin-left: 4px;
+    }
+    .provider-card.expanded .card-chevron { transform: rotate(90deg); }
+    .provider-card-body { display: none; }
+    .provider-card.expanded .provider-card-body { display: block; }
     .toggle-label {
       display: inline-flex; align-items: center; gap: 6px;
       font-size: 12px; color: var(--text); cursor: pointer; user-select: none;
@@ -473,13 +486,15 @@ function stripTokenFromUrl() {
 
 // ---- State ----
 
-var lastRev = null;       // full Etchng header value, e.g. '"abcd1234"'
+var lastRev = null;       // full ETag header value, e.g. '"abcd1234"'
 var lastProviderJson = {}; // id \u2192 JSON string of last-rendered provider
 var lastStatsJson = null;   // JSON string of last-rendered stats report
 var statsRendered = false; // true after the first successful stats paint
 var currentInterval = 300; // seconds, from /v1/config
 var cfg_listen_cache = "";   // listen address from last GET /v1/config
 var cfg_tz_cache = "";       // tz from last GET /v1/config
+var currentDeviceState = null;  // from GET /v1/device (no ETag, polled separately)
+var currentSnap = null;         // latest /v1/usage snapshot (for attention re-render)
 
 // ---- Fetch ----
 
@@ -489,6 +504,19 @@ function loadUsage() {
   return fetch("/v1/usage", { headers: headers }).then(function(resp) {
     if (resp.status === 401) { showTokenInput(); return null; }
     if (resp.status === 304)  { loadHealthz(); return null; }
+    return resp.json();
+  });
+}
+
+// loadDevice fetches the StickS3 device state from GET /v1/device — a dedicated
+// endpoint with NO ETag, polled on its own timer (ORDER #66 task 67). Device
+// state changes every second (seconds_since) and must never live inside the
+// ETag-cached /v1/usage payload, which is only present on 200 responses.
+function loadDevice() {
+  var headers = authHeaders();
+  return fetch("/v1/device", { headers: headers }).then(function(resp) {
+    if (resp.status === 401) { showTokenInput(); return null; }
+    if (!resp.ok) return null;
     return resp.json();
   });
 }
@@ -608,6 +636,7 @@ function createProviderCard(p) {
   card.className = "provider-card";
   card.setAttribute("data-pid", p.id);
 
+  // Header — always visible, acts as the collapse toggle.
   var header = document.createElement("div");
   header.className = "provider-card-header";
 
@@ -618,6 +647,8 @@ function createProviderCard(p) {
     '<span class="toggle"><input type="checkbox" data-field="enabled" ' +
     (p.enabled ? "checked" : "") + '><span class="toggle-slider"></span></span>' +
     '<span style="font-size:12px;">Enabled</span>';
+  // Header click toggles the card (not the checkbox).
+  toggleWrap.onclick = function(e) { e.stopPropagation(); };
   header.appendChild(toggleWrap);
 
   // Label input
@@ -628,49 +659,49 @@ function createProviderCard(p) {
   labelInput.value = p.label || p.id;
   header.appendChild(labelInput);
 
+  // Key state summary (uses key_source for the real source label, ORDER #66 task 67c)
+  var keySummary = document.createElement("span");
+  keySummary.className = "key-state";
+  keySummary.innerHTML = keyStateLabel(p);
+  header.appendChild(keySummary);
+
+  // Collapse chevron
+  var chevron = document.createElement("span");
+  chevron.className = "card-chevron";
+  chevron.textContent = "\u25b6";  // ▶
+  header.appendChild(chevron);
+
+  header.onclick = function() { toggleProviderCard(card); };
   card.appendChild(header);
 
-  // Key state row
-  var keyRow = document.createElement("div");
-  keyRow.className = "key-state-row";
-  var keyState = document.createElement("span");
-  keyState.className = "key-state";
-  var keyText = "";
+  // Collapsible body — starts hidden (ORDER #66 task 67b: no page scroll).
+  var body = document.createElement("div");
+  body.className = "provider-card-body";
+
+  // Key state row with Set/Remove buttons (only for providers with key_env)
   var keyEnv = p.key_env || "";
-  if (p.key_state === "set") {
-    if (keyEnv) {
-      keyText = '<span class="key-state-set">Key set</span> via env <span class="env-name">' + esc(keyEnv) + '</span>';
-    } else {
-      keyText = '<span class="key-state-set">Key set</span> in Keychain';
-    }
-  } else {
-    if (keyEnv) {
-      keyText = 'Key in env <span class="env-name">' + esc(keyEnv) + '</span> (not set)';
-    } else {
-      keyText = '<span style="color:var(--warn);">No key set</span>';
-    }
-  }
-  keyState.innerHTML = keyText;
-  keyRow.appendChild(keyState);
+  if (p.key_state === "set" || keyEnv) {
+    var keyRow = document.createElement("div");
+    keyRow.className = "key-state-row";
 
-  // Set/Remove key buttons (only for providers with key_env)
-  if (keyEnv) {
-    var setBtn = document.createElement("button");
-    setBtn.className = "btn-small";
-    setBtn.textContent = "Set key";
-    setBtn.setAttribute("data-pid", p.id);
-    setBtn.setAttribute("data-action", "set-key");
-    setBtn.onclick = function(e) { e.stopPropagation(); setKeyPrompt(p.id); };
-    keyRow.appendChild(setBtn);
+    if (keyEnv) {
+      var setBtn = document.createElement("button");
+      setBtn.className = "btn-small";
+      setBtn.textContent = "Set key";
+      setBtn.setAttribute("data-pid", p.id);
+      setBtn.setAttribute("data-action", "set-key");
+      setBtn.onclick = function(e) { e.stopPropagation(); setKeyPrompt(p.id); };
+      keyRow.appendChild(setBtn);
 
-    var rmBtn = document.createElement("button");
-    rmBtn.className = "btn-small";
-    rmBtn.textContent = "Remove key";
-    rmBtn.setAttribute("data-action", "remove-key");
-    rmBtn.onclick = function(e) { e.stopPropagation(); removeKey(p.id); };
-    keyRow.appendChild(rmBtn);
+      var rmBtn = document.createElement("button");
+      rmBtn.className = "btn-small";
+      rmBtn.textContent = "Remove key";
+      rmBtn.setAttribute("data-action", "remove-key");
+      rmBtn.onclick = function(e) { e.stopPropagation(); removeKey(p.id); };
+      keyRow.appendChild(rmBtn);
+    }
+    body.appendChild(keyRow);
   }
-  card.appendChild(keyRow);
 
   // Probe toggle: gated on provider capability (can_probe), not parse-time flag.
   if (p.can_probe) {
@@ -682,8 +713,9 @@ function createProviderCard(p) {
       '<span class="toggle"><input type="checkbox" data-field="probe" ' +
       (p.probe ? "checked" : "") + '><span class="toggle-slider"></span></span>' +
       '<span style="font-size:12px;">Groq probe</span>';
+    probeLabel.onclick = function(e) { e.stopPropagation(); };
     probeRow.appendChild(probeLabel);
-    card.appendChild(probeRow);
+    body.appendChild(probeRow);
   }
 
   // Plan block for claude/codex
@@ -703,10 +735,59 @@ function createProviderCard(p) {
     planBlock.appendChild(makePlanRow("label", "Label", "text", p.plan.label || "", "80px"));
     planBlock.appendChild(makePlanRow("cost_usd", "USD equiv", "number", p.plan.cost_usd || "", "90px"));
 
-    card.appendChild(planBlock);
+    body.appendChild(planBlock);
   }
 
+  card.appendChild(body);
   return card;
+}
+
+// keyStateLabel renders the key state using the REAL source (ORDER #66 task 67c).
+// env-var providers show "via env VAR", OAuth providers show their actual
+// credential location (Claude Code keyring, ~/.codex/auth.json), and only
+// usaged's own Keychain entry says "in Keychain".
+function keyStateLabel(p) {
+  var ks = p.key_state || "not_set";
+  var src = p.key_source || "none";
+  var keyEnv = p.key_env || "";
+
+  if (ks === "set") {
+    if (src && src.indexOf("env:") === 0) {
+      return '<span class="key-state-set">Key set</span> via env <span class="env-name">' + esc(src.substring(4)) + '</span>';
+    }
+    if (src === "claude-code") {
+      return '<span class="key-state-set">Key set</span> via Claude Code';
+    }
+    if (src === "codex") {
+      return '<span class="key-state-set">Key set</span> via ~/.codex/auth.json';
+    }
+    if (src === "keychain") {
+      return '<span class="key-state-set">Key set</span> in Keychain';
+    }
+    // Fallback for any other "set" source
+    return '<span class="key-state-set">Key set</span>';
+  }
+
+  // key_state === "not_set"
+  if (keyEnv) {
+    return 'Key in env <span class="env-name">' + esc(keyEnv) + '</span> (not set)';
+  }
+  if (src === "claude-code" || src === "codex") {
+    return '<span style="color:var(--warn);">No key set</span>';
+  }
+  return '<span style="color:var(--warn);">No key set</span>';
+}
+
+// toggleProviderCard expands/collapses a provider card body. Only one card
+// is open at a time (ORDER #66 task 67b).
+function toggleProviderCard(card) {
+  var isOpen = card.classList.contains("expanded");
+  // Close all cards.
+  var cards = document.querySelectorAll(".provider-card");
+  cards.forEach(function(c) { c.classList.remove("expanded"); });
+  if (!isOpen) {
+    card.classList.add("expanded");
+  }
 }
 
 function makePlanRow(field, labelText, type, val, labelW) {
@@ -1178,11 +1259,15 @@ function heatmapHtml(src, srcName) {
 // deviceCard renders the device-status card at the top of the Attention tab.
 // It shows last seen, seconds since, observed poll interval, and the 200/304
 // split — enough to prove whether deep sleep is occurring (ORDER #58 task 61).
-// Called only on /v1/usage 200 responses; absent on 304 (no body).
+// Device state comes from GET /v1/device (ORDER #66 task 67), polled on its
+// own timer, NOT from the /v1/usage body (which is only present on 200, never
+// on 304). When no device has checked in, the card shows a neutral "no data"
+// state rather than an error — "waiting" is a valid state, not a failure.
 function deviceCard(ds) {
   if (!ds) {
     return '<div class="device-accent">' +
-      attentionItem("Device", "No data", "chip-stale", "waiting for first check-in from StickS3") +
+      attentionItem("Device", "No data", "chip-stale",
+        "Waiting for first check-in from StickS3") +
       '</div>';
   }
 
@@ -1198,11 +1283,14 @@ function deviceCard(ds) {
     chipClass = "chip-critical";
     chipText = "Absent";
   } else if (ds.state === "connected") {
-    chipClass = "chip-stale";
+    chipClass = "chip-ok";
     chipText = "Awake";
-  } else {
+  } else if (ds.state === "unknown") {
     chipClass = "chip-stale";
     chipText = "Unknown";
+  } else {
+    chipClass = "chip-stale";
+    chipText = "Offline";
   }
 
   var parts = [];
@@ -1221,12 +1309,12 @@ function renderAttention(snap, statsReport) {
   var container = document.getElementById("attention");
   container.innerHTML = "";
 
-  // Device status card (ORDER #58 task 61).
-  if (snap && snap.device_state) {
-    container.insertAdjacentHTML("beforeend", deviceCard(snap.device_state));
-  } else if (!snap) {
-    container.insertAdjacentHTML("beforeend", deviceCard(null));
-  }
+  // Device status card (ORDER #66 task 67): from GET /v1/device, polled on its
+  // own timer (see pollDevice). Device state changes every second and must
+  // never sit inside the ETag-cached /v1/usage body (only present on 200,
+  // absent on 304). currentDeviceState is null until the first /v1/device
+  // fetch completes.
+  container.insertAdjacentHTML("beforeend", deviceCard(currentDeviceState));
 
   if (!snap) return;
 
@@ -1304,6 +1392,7 @@ function doRefresh() {
     })
     .then(function(snap) {
       if (!snap) return;
+      currentSnap = snap;
       renderSnapshot(snap);
       lastRev = '"' + snap.rev + '"';
     })
@@ -1336,8 +1425,9 @@ function init() {
   stripTokenFromUrl();
   setupTabs();
   loadConfig();
-  loadUsage().then(function(snap) { if (snap) renderSnapshot(snap); });
+  loadUsage().then(function(snap) { if (snap) { currentSnap = snap; renderSnapshot(snap); } });
   loadStats().then(function(rep) { if (rep) renderStats(rep); });
+  loadDevice().then(function(ds) { if (ds) { currentDeviceState = ds; renderAttention(currentSnap, null); } });
   renderAttention(null, null);
   document.getElementById("refresh-btn").addEventListener("click", doRefresh);
   document.getElementById("token-save").addEventListener("click", saveToken);
@@ -1347,11 +1437,12 @@ function init() {
   // interval selector applies without a page reload.
   reloadIntervals();
 }
-var pollUsageTO = 0, pollStatsTO = 0, tickResetsTO = 0;
+var pollUsageTO = 0, pollStatsTO = 0, pollDeviceTO = 0, tickResetsTO = 0;
 function reloadIntervals() {
-  clearTimeout(pollUsageTO); clearTimeout(pollStatsTO); clearInterval(tickResetsTO);
+  clearTimeout(pollUsageTO); clearTimeout(pollStatsTO); clearTimeout(pollDeviceTO); clearInterval(tickResetsTO);
   pollUsageTO = setTimeout(pollLoop, currentInterval * 1000);
   pollStatsTO = setTimeout(pollStats, Math.max(currentInterval * 1000, 300000));
+  pollDeviceTO = setTimeout(pollDevice, 5000);  // device state changes every second
   tickResetsTO = setInterval(tickResets, 30000);
 }
 function pollLoop() {
@@ -1362,10 +1453,22 @@ function pollLoop() {
 function pollUsage() {
   loadUsage().then(function(snap) {
     if (snap) {
+      currentSnap = snap;
       renderSnapshot(snap);
-      renderAttention(snap);
+      renderAttention(snap, null);
     }
   });
+}
+
+// pollDevice fetches /v1/device on its own 5s timer (ORDER #66 task 67).
+// Re-renders the attention tab so the device card's seconds_since ticks
+// live without waiting for the next usage poll.
+function pollDevice() {
+  loadDevice().then(function(ds) {
+    if (ds) currentDeviceState = ds;
+    renderAttention(currentSnap, null);
+  });
+  pollDeviceTO = setTimeout(pollDevice, 5000);
 }
 
 function pollStats() {

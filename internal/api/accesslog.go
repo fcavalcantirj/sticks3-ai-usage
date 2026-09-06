@@ -179,23 +179,20 @@ func computeDeviceState(intervalSec, secondsSince int64) string {
 	return "connected"
 }
 
-// usageResponse wraps the snapshot with the StickS3 device's state
-// (ORDER #61 task 64).  DeviceState is NOT part of the ETag/rev hash and
-// does not affect the firmware's 304 behaviour — on 304 there is no body.
-// The device_state field describes the physical device (the client whose
-// User-Agent is "sticks3-usage/"), not whichever browser happened to ask.
-// The firmware's JSON parser ignores the extra field.
+// usageResponse wraps the Snapshot with the data-freshness Age field.
+// Device state is NO LONGER included here — it has its own endpoint
+// (GET /v1/device, ORDER #66 task 67) so it is never trapped inside an
+// ETag-cached payload that is only present on 200 responses.
 //
-// ORDER #65 task 65: Age is the server-computed data freshness in seconds
-// (now - checked_at), added so the firmware — which has no clock — can
-// track staleness as age + elapsed millis since the last fetch.  It is
-// outside the Snapshot struct and therefore outside the rev hash: it
-// changes every second, but rev stays stable and a 304 still returns no
-// body.  The firmware's JSON parser reads it via model.parseSnapshot.
+// Age is the server-computed data freshness in seconds (now - checked_at),
+// added so the firmware — which has no clock — can track staleness as
+// age + elapsed millis since the last fetch.  It is outside the Snapshot
+// struct and therefore outside the rev hash: it changes every second, but
+// rev stays stable and a 304 still returns no body.  The firmware's JSON
+// parser reads it via model.parseSnapshot.
 type usageResponse struct {
 	snapshot.Snapshot
-	DeviceState *deviceState `json:"device_state,omitempty"`
-	Age         uint32       `json:"age,omitempty"`
+	Age uint32 `json:"age,omitempty"`
 }
 
 // peerIP extracts the client IP from r.RemoteAddr, stripping the port.

@@ -87,6 +87,7 @@ func New(s *sched.Scheduler, cfg config.Config, configPath string, logger *slog.
 	mux.HandleFunc("GET /healthz", srv.handleHealthz)
 	mux.HandleFunc("GET /v1/usage", srv.handleUsage)
 	mux.HandleFunc("GET /v1/usage.txt", srv.handleUsageTxt)
+	mux.HandleFunc("GET /v1/device", srv.handleDevice)
 	mux.HandleFunc("GET /v1/stats", srv.handleStats)
 	mux.HandleFunc("POST /v1/refresh", srv.handleRefresh)
 	mux.HandleFunc("GET /v1/config", srv.handleGetConfig)
@@ -171,10 +172,10 @@ func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 //
 // ORDER #58 task 61: every /v1/usage request is access-logged (timestamp,
 // peer IP, method, 200-vs-304, If-None-Match) to slog, and the per-client
-// device state is recorded. On 200 responses the device_state field is added
-// to the JSON body — it does NOT participate in the ETag/rev hash, so a 304
-// stays a 304 and the firmware's redraw behaviour is unchanged. The device
-// token and any header carrying it are NEVER logged.
+// device state is recorded. The device state is NOT included in the /v1/usage
+// body — it lives at GET /v1/device (ORDER #66 task 67) so it is never trapped
+// inside an ETag-cached payload that is only present on 200. The device token
+// and any header carrying it are NEVER logged.
 func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
 	snap := s.withNextSec(s.sched.Current())
 	rev := snap.Rev
@@ -207,15 +208,14 @@ func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 200 response: include the DEVICE's state (ORDER #63 task 64), not the
-	// requester's.  Only the client whose User-Agent is "sticks3-usage/" is
-	// the StickS3; a browser or token-bearing curl is never the device.
-	// DeviceState is outside the Snapshot hash so rev is unaffected and a
-	// 304 stays a 304.  ORDER #65: Age is the server-computed data freshness
+	// 200 response: device state is served separately at GET /v1/device
+	// (ORDER #66 task 67) so it never perturbs the ETag/rev hash or the 304
+	// path.  Age is the server-computed data freshness in seconds (now -
+	// checked_at), outside the Snapshot struct and therefore outside the rev
+	// hash: it changes every second, but rev stays stable.
 	resp := usageResponse{
-		Snapshot:    snap,
-		DeviceState: s.tracker.deviceState(),
-		Age:         uint32(now.Unix() - snap.CheckedAt),
+		Snapshot: snap,
+		Age:      uint32(now.Unix() - snap.CheckedAt),
 	}
 	body, err := json.Marshal(resp)
 	if err != nil {
@@ -246,6 +246,25 @@ func (s *Server) handleUsageTxt(w http.ResponseWriter, _ *http.Request) {
 	snap := s.withNextSec(s.sched.Current())
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	format.RenderTable(snap, w, s.cfg.TZ)
+}
+
+// handleDevice returns the StickS3 device's state as JSON.  This endpoint
+// carries NO ETag and is NOT cached — device state changes every second
+// (seconds_since) and must never live inside the ETag-cached /v1/usage
+// payload, which is only present on 200 responses (ORDER #66 task 67).
+//
+// When no device has ever checked in, the response is {"state":"unknown"}
+// rather than an error — "waiting for first check-in" is a valid state, not
+// a failure.
+func (s *Server) handleDevice(w http.ResponseWriter, _ *http.Request) {
+	ds := s.tracker.deviceState()
+	if ds == nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"state": "unknown",
+		})
+		return
+	}
+	writeJSON(w, http.StatusOK, ds)
 }
 
 // planParamsMap builds the plan params map from the config's provider configs,
@@ -316,10 +335,11 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, _ *http.Request) {
 	providers := make([]map[string]any, 0, len(config.DefaultProviderOrder))
 	for _, p := range s.cfg.EffectiveProviders() {
 		entry := map[string]any{
-			"id":        p.ID,
-			"enabled":   p.Enabled,
-			"label":     p.Label,
-			"key_state": s.keyState(p.ID, p.KeyEnv),
+			"id":         p.ID,
+			"enabled":    p.Enabled,
+			"label":      p.Label,
+			"key_state":  s.keyState(p.ID, p.KeyEnv),
+			"key_source": s.keySource(p.ID, p.KeyEnv),
 		}
 		if p.KeyEnv != "" {
 			entry["key_env"] = p.KeyEnv
@@ -380,6 +400,53 @@ func (s *Server) keyState(id, keyEnv string) string {
 		}
 	}
 	return "not_set"
+}
+
+// keySource reports WHERE a provider's credential actually lives, so the
+// settings page can label it correctly (ORDER #66 task 67c). Resolution:
+// env var first, then the provider's own external source (Claude Code's
+// Keychain entry, Codex's auth.json file), then usaged's own Keychain as
+// last resort. Returns "none" when no credential is available.
+func (s *Server) keySource(id, keyEnv string) string {
+	// Env var takes precedence (ORDER #47 task 52).
+	if keyEnv != "" && s.getenv(keyEnv) != "" {
+		return "env:" + keyEnv
+	}
+	// OAuth/self-hosted providers: credentials live outside usaged.
+	if keyEnv == "" {
+		switch id {
+		case config.ProviderClaude:
+			// Credential source: Claude Code's own Keychain entry.
+			if s.hasOAuthCreds(id) {
+				return "claude-code"
+			}
+			return "none"
+		case config.ProviderCodex:
+			// Credential source: ~/.codex/auth.json (a file, not Keychain).
+			if s.hasOAuthCreds(id) {
+				return "codex"
+			}
+			return "none"
+		}
+	}
+	// Usaged's own Keychain (for env-var providers whose env var is unset
+	// but which have a key stored via the SETTINGS page).
+	if k, ok, _ := s.keystore.Get(context.Background(), id); ok && k != "" {
+		return "keychain"
+	}
+	return "none"
+}
+
+// hasOAuthCreds reports whether an OAuth/self-hosted provider (claude, codex)
+// currently has credentials, based on the last-known fetch status. This is
+// the same check keyState uses for these providers.
+func (s *Server) hasOAuthCreds(id string) bool {
+	for _, p := range s.sched.Current().Providers {
+		if p.ID == id {
+			return p.Status == "ok" || p.Status == "stale"
+		}
+	}
+	return false
 }
 
 // handleSetConfig accepts a PUT with the full editable config and writes it

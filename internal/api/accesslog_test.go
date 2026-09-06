@@ -150,14 +150,18 @@ func TestClientTrackerUnknownClient(t *testing.T) {
 
 // --- HTTP integration tests ---
 
-// TestUsageDeviceState200 verifies that a 200 /v1/usage response includes
-// device_state with the correct status and counts. The request is made WITH
-// the device User-Agent so it is tracked as the StickS3 device (ORDER #63).
-func TestUsageDeviceState200(t *testing.T) {
+// TestDeviceEndpoint200 verifies that GET /v1/device returns the StickS3's
+// device state with the correct status and counts. The /v1/usage request
+// that seeds the tracker is made WITH the device User-Agent so it is tracked
+// as the StickS3 device (ORDER #63). device_state is now served at its own
+// endpoint (ORDER #66 task 67a) so it is never trapped inside an
+// ETag-cached payload that is only present on 200 responses.
+func TestDeviceEndpoint200(t *testing.T) {
 	dir := setupFixtures(t)
 	ts, _ := newFixtureServerWithCapture(t, dir)
 	defer ts.Close()
 
+	// Seed the tracker with a device request.
 	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
 	req.Header.Set("User-Agent", "sticks3-usage/test1234")
 	resp, err := http.DefaultClient.Do(req)
@@ -167,19 +171,21 @@ func TestUsageDeviceState200(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
-	defer resp.Body.Close()
+	resp.Body.Close()
 
-	var raw map[string]json.RawMessage
-	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-		t.Fatalf("decode: %v", err)
+	// /v1/device must return the device state.
+	devResp, err := http.Get(ts.URL + "/v1/device")
+	if err != nil {
+		t.Fatal(err)
 	}
-	dsRaw, ok := raw["device_state"]
-	if !ok {
-		t.Fatal("device_state field missing from 200 response")
+	defer devResp.Body.Close()
+	if devResp.StatusCode != http.StatusOK {
+		t.Fatalf("/v1/device status = %d, want 200", devResp.StatusCode)
 	}
+
 	var ds deviceState
-	if err := json.Unmarshal(dsRaw, &ds); err != nil {
-		t.Fatalf("unmarshal device_state: %v", err)
+	if err := json.NewDecoder(devResp.Body).Decode(&ds); err != nil {
+		t.Fatalf("decode /v1/device: %v", err)
 	}
 	if ds.Count200 != 1 {
 		t.Errorf("count_200 = %d, want 1", ds.Count200)
@@ -190,26 +196,156 @@ func TestUsageDeviceState200(t *testing.T) {
 	if ds.LastStatus != http.StatusOK {
 		t.Errorf("last_status = %d, want 200", ds.LastStatus)
 	}
+	if ds.State != "connected" {
+		t.Errorf("state = %q, want connected", ds.State)
+	}
 }
 
-// TestUsageDeviceStateFromDeviceNotBrowser verifies the ORDER #63 fix: when a
+// TestDeviceEndpointNoETag verifies that GET /v1/device carries no ETag and
+// no Cache-Control, so the browser always gets fresh device state (which
+// changes every second: seconds_since). It must never be ETag-cached.
+func TestDeviceEndpointNoETag(t *testing.T) {
+	dir := setupFixtures(t)
+	ts, _ := newFixtureServerWithCapture(t, dir)
+	defer ts.Close()
+
+	// Seed the tracker with a device request.
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
+	req.Header.Set("User-Agent", "sticks3-usage/test1234")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	devResp, err := http.Get(ts.URL + "/v1/device")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer devResp.Body.Close()
+
+	if etag := devResp.Header.Get("ETag"); etag != "" {
+		t.Errorf("/v1/device ETag = %q, want absent (not cached)", etag)
+	}
+	if cc := devResp.Header.Get("Cache-Control"); cc != "" {
+		t.Errorf("/v1/device Cache-Control = %q, want absent (not cached)", cc)
+	}
+}
+
+// TestDeviceEndpointUnknownWhenNoDevice verifies that GET /v1/device returns
+// {"state":"unknown"} (not an error) when no StickS3 client has ever checked
+// in — "waiting" is a valid state, not a failure.
+func TestDeviceEndpointUnknownWhenNoDevice(t *testing.T) {
+	dir := setupFixtures(t)
+	ts, _ := newFixtureServerWithCapture(t, dir)
+	defer ts.Close()
+
+	// Only a browser request — no device User-Agent.
+	resp, err := http.Get(ts.URL + "/v1/device")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("/v1/device status = %d, want 200", resp.StatusCode)
+	}
+
+	var ds struct {
+		State string `json:"state"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&ds); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if ds.State != "unknown" {
+		t.Errorf("state = %q, want unknown (no device has checked in)", ds.State)
+	}
+}
+
+// TestDeviceEndpoint304Split verifies that the /v1/device endpoint reflects
+// the correct 200/304 split on /v1/usage: a 200, a 304, then another 200
+// should yield Count200=2, Count304=1 at /v1/device. The device UA is sent
+// so the tracker sees the StickS3 (ORDER #63).
+func TestDeviceEndpoint304Split(t *testing.T) {
+	dir := setupFixtures(t)
+	ts, _ := newFixtureServerWithCapture(t, dir)
+	defer ts.Close()
+
+	ua := "sticks3-usage/test1234"
+	// First request → 200, device.
+	req1, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
+	req1.Header.Set("User-Agent", ua)
+	resp1, err := http.DefaultClient.Do(req1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	etag := resp1.Header.Get("ETag")
+	resp1.Body.Close()
+
+	// Second request with matching If-None-Match → 304, device.
+	req2, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
+	req2.Header.Set("User-Agent", ua)
+	req2.Header.Set("If-None-Match", etag)
+	resp2, err := http.DefaultClient.Do(req2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp2.StatusCode != http.StatusNotModified {
+		t.Fatalf("status = %d, want 304", resp2.StatusCode)
+	}
+	resp2.Body.Close()
+
+	// Third request with mismatched If-None-Match → 200, device.
+	req3, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
+	req3.Header.Set("User-Agent", ua)
+	req3.Header.Set("If-None-Match", `"deadbeef"`)
+	resp3, err := http.DefaultClient.Do(req3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp3.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp3.StatusCode)
+	}
+	resp3.Body.Close()
+
+	// /v1/device should now show 200=2, 304=1.
+	devResp, err := http.Get(ts.URL + "/v1/device")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer devResp.Body.Close()
+
+	var ds deviceState
+	if err := json.NewDecoder(devResp.Body).Decode(&ds); err != nil {
+		t.Fatalf("decode /v1/device: %v", err)
+	}
+	if ds.Count200 != 2 {
+		t.Errorf("count_200 = %d, want 2", ds.Count200)
+	}
+	if ds.Count304 != 1 {
+		t.Errorf("count_304 = %d, want 1", ds.Count304)
+	}
+	if ds.LastStatus != http.StatusOK {
+		t.Errorf("last_status = %d, want 200", ds.LastStatus)
+	}
+}
+
+// TestDeviceEndpointFromDeviceNotBrowser verifies the ORDER #63 fix: when a
 // browser with a device token but no device User-Agent requests /v1/usage
 // (e.g. a loopback curl carrying the token), it must NOT be classified as the
 // device.  Only the User-Agent "sticks3-usage/" marks a client as the device.
-// The browser request is the LAST request, so if the tracker were keyed by the
-// requester it would report the browser's trivially-"connected" state.  The
-// real StickS3 request (with the device UA) must be the one surfaced.
+// The device and browser must come from DIFFERENT IPs — the device on its LAN
+// address, the browser on loopback — so the browser's curl UA cannot overwrite
+// the device's flag on a shared entry.
 //
-// ORDER #65: isDevice is re-evaluated from the current User-Agent on every
-// request (not latched).  Therefore the device and browser must come from
-// DIFFERENT IPs — the device on its LAN address, the browser on loopback — so
-// the browser's curl UA cannot overwrite the device's flag on a shared entry.
-func TestUsageDeviceStateFromDeviceNotBrowser(t *testing.T) {
+// device_state now lives at GET /v1/device (ORDER #66 task 67a), so we verify
+// that endpoint reports the StickS3's state, NOT the browser's (which is the
+// last request on /v1/usage but must never appear at /v1/device).
+func TestDeviceEndpointFromDeviceNotBrowser(t *testing.T) {
 	dir := setupFixtures(t)
 	handler, _, _ := newFixtureHandler(t, dir)
 
 	// Step 1: the StickS3 polls from its LAN IP with its device User-Agent.
-	// It carries its token because it is not on loopback.
 	reqDev := httptest.NewRequest(http.MethodGet, "/v1/usage", nil)
 	reqDev.RemoteAddr = "192.168.0.136:1234"
 	reqDev.Header.Set("User-Agent", "sticks3-usage/test1234")
@@ -220,9 +356,7 @@ func TestUsageDeviceStateFromDeviceNotBrowser(t *testing.T) {
 		t.Fatalf("device request status = %d, want 200", rec1.Code)
 	}
 
-	// Step 2: the browser opens the dashboard from loopback — it may carry the
-	// token (loopback bypasses the auth check) but it does NOT send the device
-	// User-Agent, so it must not be classified as the StickS3.
+	// Step 2: the browser opens the dashboard from loopback — no device UA.
 	reqBrowser := httptest.NewRequest(http.MethodGet, "/v1/usage", nil)
 	reqBrowser.RemoteAddr = "127.0.0.1:12345"
 	reqBrowser.Header.Set("X-Device-Token", "x")
@@ -232,29 +366,128 @@ func TestUsageDeviceStateFromDeviceNotBrowser(t *testing.T) {
 		t.Fatalf("browser request status = %d, want 200", rec2.Code)
 	}
 
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(rec2.Body.Bytes(), &raw); err != nil {
-		t.Fatalf("decode: %v", err)
+	// GET /v1/device must report the StickS3's state, not the browser's.
+	devReq := httptest.NewRequest(http.MethodGet, "/v1/device", nil)
+	devReq.RemoteAddr = "127.0.0.1:12345"
+	devRec := httptest.NewRecorder()
+	handler.ServeHTTP(devRec, devReq)
+	if devRec.Code != http.StatusOK {
+		t.Fatalf("/v1/device status = %d, want 200", devRec.Code)
 	}
-	dsRaw, ok := raw["device_state"]
-	if !ok {
-		t.Fatal("device_state field missing from browser-facing 200 response")
-	}
+
 	var ds deviceState
-	if err := json.Unmarshal(dsRaw, &ds); err != nil {
-		t.Fatalf("unmarshal device_state: %v", err)
+	if err := json.Unmarshal(devRec.Body.Bytes(), &ds); err != nil {
+		t.Fatalf("decode /v1/device: %v", err)
 	}
 	// The device_state must reflect the StickS3's single request (200),
-	// NOT the browser's request — they are distinct clients by IP+UA.
+	// NOT the browser's — they are distinct clients by IP+UA.
 	if ds.Count200 != 1 {
-		t.Errorf("device_state count_200 = %d, want 1 (device made one; browser not counted as device)", ds.Count200)
+		t.Errorf("count_200 = %d, want 1 (device made one; browser not counted as device)", ds.Count200)
 	}
-	if ds.LastStatus != http.StatusOK {
-		t.Errorf("last_status = %d, want 200", ds.LastStatus)
-	}
-	// The state must be "connected" — the device's own cadence, not the browser's.
 	if ds.State != "connected" {
 		t.Errorf("state = %q, want %q (device reported, not browser)", ds.State, "connected")
+	}
+}
+
+// TestConfigKeySourceEnv verifies that GET /v1/config returns key_source="env:VAR"
+// when a provider's key is available via env var (ORDER #66 task 67c).
+func TestConfigKeySourceEnv(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "127.0.0.1:0", Interval: 900 * time.Second,
+		TZ: testLoc, DeviceToken: "x",
+	}
+	ks := creds.NewFakeKeyStore(nil)
+	handler := newHandlerWithKeyStore(t, dir, cfg, "", ks, WithGetenv(func(k string) string {
+		if k == "OPENROUTER_API_KEY" {
+			return "env-key"
+		}
+		return ""
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/config", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	var resp map[string]any
+	json.NewDecoder(rec.Body).Decode(&resp)
+	provs := resp["providers"].([]any)
+	orMain := provs[2].(map[string]any) // openrouter:main
+	if orMain["key_source"] != "env:OPENROUTER_API_KEY" {
+		t.Errorf("key_source = %v, want env:OPENROUTER_API_KEY", orMain["key_source"])
+	}
+}
+
+// TestConfigKeySourceKeychain verifies that GET /v1/config returns
+// key_source="keychain" when the key is in usaged's Keychain (not env, not OAuth).
+func TestConfigKeySourceKeychain(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "127.0.0.1:0", Interval: 900 * time.Second,
+		TZ: testLoc, DeviceToken: "x",
+	}
+	ks := creds.NewFakeKeyStore(map[string]string{"openrouter:main": "keychain-key"})
+	handler := newHandlerWithKeyStore(t, dir, cfg, "", ks, WithGetenv(func(k string) string {
+		return "" // no env var set
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/config", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	var resp map[string]any
+	json.NewDecoder(rec.Body).Decode(&resp)
+	provs := resp["providers"].([]any)
+	orMain := provs[2].(map[string]any)
+	if orMain["key_source"] != "keychain" {
+		t.Errorf("key_source = %v, want keychain", orMain["key_source"])
+	}
+	if orMain["key_state"] != "set" {
+		t.Errorf("key_state = %v, want set", orMain["key_state"])
+	}
+}
+
+// TestConfigKeySourceOAuth verifies that GET /v1/config returns the correct
+// key_source for OAuth/self-hosted providers: "claude-code" for Claude and
+// "codex" for Codex (ORDER #66 task 67c). These credentials live outside
+// usaged's Keychain.
+func TestConfigKeySourceOAuth(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "127.0.0.1:0", Interval: 900 * time.Second,
+		TZ: testLoc, DeviceToken: "x",
+	}
+	ks := creds.NewFakeKeyStore(nil)
+	handler := newHandlerWithKeyStore(t, dir, cfg, "", ks)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/config", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	var resp map[string]any
+	json.NewDecoder(rec.Body).Decode(&resp)
+	provs := resp["providers"].([]any)
+	claude := provs[0].(map[string]any) // claude
+	codex := provs[1].(map[string]any)  // codex
+
+	// Claude's fixture returns a valid response, so the credential is present
+	// via Claude Code's own Keychain entry — key_source must be "claude-code".
+	if claude["key_source"] != "claude-code" {
+		t.Errorf("claude key_source = %v, want claude-code", claude["key_source"])
+	}
+	if claude["key_state"] != "set" {
+		t.Errorf("claude key_state = %v, want set", claude["key_state"])
+	}
+
+	// Codex's fixture is valid, so key_source must be "codex" (auth.json file).
+	if codex["key_source"] != "codex" {
+		t.Errorf("codex key_source = %v, want codex", codex["key_source"])
+	}
+	if codex["key_state"] != "set" {
+		t.Errorf("codex key_state = %v, want set", codex["key_state"])
 	}
 }
 
@@ -314,76 +547,9 @@ func TestUsageDeviceStateCurlNotDevice(t *testing.T) {
 	}
 }
 
-// TestUsageDeviceState304Split verifies that a 304 request is counted in the
-// split, and that the next 200 response reflects the updated counts. All
-// requests carry the device User-Agent so the tracker sees the StickS3
-// (ORDER #63).
-func TestUsageDeviceState304Split(t *testing.T) {
-	dir := setupFixtures(t)
-	ts, _ := newFixtureServerWithCapture(t, dir)
-	defer ts.Close()
-
-	// First request → 200, as the device.
-	req1, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
-	req1.Header.Set("User-Agent", "sticks3-usage/test1234")
-	resp1, err := http.DefaultClient.Do(req1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	etag := resp1.Header.Get("ETag")
-	if etag == "" {
-		t.Fatal("no ETag")
-	}
-	resp1.Body.Close()
-
-	// Second request with matching If-None-Match → 304.
-	req2, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
-	req2.Header.Set("If-None-Match", etag)
-	req2.Header.Set("User-Agent", "sticks3-usage/test1234")
-	resp2, err := http.DefaultClient.Do(req2)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resp2.StatusCode != http.StatusNotModified {
-		t.Fatalf("status = %d, want 304", resp2.StatusCode)
-	}
-	resp2.Body.Close()
-
-	// Third request with mismatched If-None-Match → 200, device_state
-	// should now show Count200=2, Count304=1.
-	req3, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
-	req3.Header.Set("If-None-Match", `"deadbeef"`)
-	req3.Header.Set("User-Agent", "sticks3-usage/test1234")
-	resp3, err := http.DefaultClient.Do(req3)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resp3.StatusCode != http.StatusOK {
-		t.Fatalf("status = %d, want 200", resp3.StatusCode)
-	}
-	defer resp3.Body.Close()
-
-	var raw map[string]json.RawMessage
-	if err := json.NewDecoder(resp3.Body).Decode(&raw); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	var ds deviceState
-	if err := json.Unmarshal(raw["device_state"], &ds); err != nil {
-		t.Fatalf("unmarshal device_state: %v", err)
-	}
-	if ds.Count200 != 2 {
-		t.Errorf("count_200 = %d, want 2", ds.Count200)
-	}
-	if ds.Count304 != 1 {
-		t.Errorf("count_304 = %d, want 1", ds.Count304)
-	}
-	if ds.LastStatus != http.StatusOK {
-		t.Errorf("last_status = %d, want 200", ds.LastStatus)
-	}
-}
-
-// TestUsageRevUnaffectedByDeviceState verifies that adding device_state to
-// the 200 response does not change the ETag/rev, so 304 semantics are intact.
+// TestUsageRevUnaffectedByDeviceState verifies that device_state being moved
+// to /v1/device does not change the ETag/rev on /v1/usage, so 304 semantics
+// are intact.
 func TestUsageRevUnaffectedByDeviceState(t *testing.T) {
 	dir := setupFixtures(t)
 	ts, _ := newFixtureServerWithCapture(t, dir)
