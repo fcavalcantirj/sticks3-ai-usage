@@ -833,6 +833,18 @@
     "passes": true
   },
   {
+    "category": "firmware",
+    "description": "Battery discharges while plugged into USB: charging is never enabled or configured, and the [BATT] line cannot tell charging from draining",
+    "steps": [
+      "Firmware context: M5StickS3 unit #2, hostname sticks3-usage. PlatformIO espressif32@6.12.0 / Arduino core 2.0.17 / ESP-IDF 4.4.7, M5Unified 0.2.19 + M5GFX 0.2.28. Purity rule: gesture LOGIC goes in the pure core (firmware/src/usage/, no M5 or Arduino headers, host-tested by 'make fw-test'); only firmware/src/hal/sticks3/* and main.cpp may touch M5. Flash this over OTA ('make fw-ota'), no cable. Any upload needs Felipe's explicit authorization in the Solvr room.",
+      "Measured by the planner over serial on 2026-09-06 while the device sat on USB with VBUS at 5280 mV and usb=1 reported on every line:\n    14:13  [BATT] pct=97 v=4094 usb=1\n    14:15  [BATT] pct=93 v=4050 usb=1\n    14:30  [BATT] pct=88 v=4008 usb=1\n    14:31  [BATT] pct=86 v=3992 usb=1\nRoughly one percent per minute of DISCHARGE while plugged in. Power is unquestionably present — VBUS reads 5280 mV and the USB branch of powerDecide keeps the device awake — so the cell is simply not being charged faster than the device draws. This is why the battery keeps arriving flat for hardware sessions: 'plugged in' has not meant 'charging'.",
+      "THE FIRMWARE NEVER CONFIGURES CHARGING. M5Unified exposes setBatteryCharge(bool), setChargeCurrent(uint16_t) and isCharging() (Power_Class.hpp:153, :158, :167) and our code calls NONE of them — charging is left to whatever the M5PM1 does by default. Enable it explicitly at boot and set a charge current appropriate for the 250 mAh cell (a conventional 0.5C to 1C gives roughly 125-250 mA; choose deliberately and write down why). Verify the API is actually implemented for the M5PM1 in this M5Unified version rather than assuming — a grep of Power_Class.cpp for m5pm1 alongside charge found nothing, so it is possible these calls are no-ops on this PMIC. IF THEY ARE NO-OPS, say so plainly and write the PMIC registers directly, the way the teardown already writes ES8311 and BMI270 registers. Do not report success on an API that silently does nothing — that is the same shape as the addHeader(User-Agent) bug.",
+      "MAKE IT OBSERVABLE, since 'usb=1' currently tells us power is present and nothing about whether it is helping: add the charge state to the [BATT] serial line and to the battery telemetry — isCharging() where available, otherwise the sign of the voltage trend over a few samples. A line that says usb=1 while the cell drains is actively misleading, and it is what let this go unnoticed through several sessions.",
+      "Verify on hardware, which is the only thing that counts: with the device plugged in and awake, the serial [BATT] line must show pct and voltage RISING over ten minutes, not falling, and must report a charging state. Then confirm the device still sleeps correctly on battery afterwards — charge configuration must not interfere with the teardown or the wake sources. Report the before and after voltages in your DONE line."
+    ],
+    "passes": false
+  },
+  {
     "category": "optional",
     "description": "OPTIONAL v3: spike `codex app-server` JSON-RPC account/rateLimits/read so the Codex CLI owns token refresh",
     "steps": [
