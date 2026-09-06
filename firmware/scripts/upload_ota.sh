@@ -35,6 +35,7 @@ ota_host=${OTA_HOST:-sticks3-usage.local}
 secrets_file="$firmware_dir/include/secrets.h"
 expected_mac="14:c1:9f:d4:d5:34"
 ota_port=3232
+mode="${mode:-both}"   # set by argument parsing below; referenced by do_build
 
 # --- MAC guard ---------------------------------------------------------------
 # Resolves the host, reads the ARP table, and confirms the MAC matches.
@@ -135,7 +136,14 @@ check_stale() {
 
 do_build() {
     echo "OTA env=$pio_env host=$ota_host mac=$expected_mac"
-    verify_target > /dev/null  # pre-build MAC check: fail fast if wrong device
+    # The MAC check is a guard on the UPLOAD, and do_upload always runs it.
+    # In --build-only we deliberately skip it: the whole point of the split is
+    # to compile while the device is ASLEEP (a 12 h backstop means it is
+    # unreachable until someone presses a button), so requiring the device here
+    # made the build phase impossible exactly when it is most needed.
+    if [ "$mode" != "build" ]; then
+        verify_target > /dev/null  # fail fast on a cable session
+    fi
 
     cd "$firmware_dir"
 
