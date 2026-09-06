@@ -88,3 +88,61 @@ TEST(freshness_reset_age_304_still_green_after_30s) {
     ASSERT_EQ(30u, (unsigned)effAge);
     ASSERT_EQ(0u, (unsigned)usage::freshnessTier(effAge, 900)); // green
 }
+
+// --- ORDER #64: 12-hour sleep gap must yield RED, not green ----------------
+
+// The ORDER #64 correction: the warm-boot path stores the effective age
+// before sleeping (g_effectiveAgeAtSleep = accumulateAge at sleep time) and
+// restores it on wake.  After a 12-hour sleep the effective age has grown by
+// ~43,200 s, which is well past 4×900=3600 → RED.  A freshness indicator that
+// shows green on 12-hour-old data is worse than none.
+
+TEST(freshness_12h_sleep_gap_is_red) {
+    // Server reported age at last fetch: 10s.  Sleep duration: 12h = 43,200,000 ms.
+    // Effective age on wake = 10 + 43200 = 43210 s.
+    uint32_t effAge = usage::accumulateAge(10, 43200000);
+    ASSERT_EQ(43210u, (unsigned)effAge);
+    ASSERT_EQ(2u, (unsigned)usage::freshnessTier(effAge, 900)); // red (> 4*900=3600)
+}
+
+TEST(freshness_12h_gap_accumulate_no_wrap_no_saturate) {
+    // accumulateAge must not wrap or saturate at a 12-hour gap.
+    // 12h = 43,200,000 ms; server age 0 → effective = 43,200 s.
+    uint32_t effAge = usage::accumulateAge(0, 43200000);
+    ASSERT_EQ(43200u, (unsigned)effAge);
+    ASSERT_EQ(2u, (unsigned)usage::freshnessTier(effAge, 900)); // red
+}
+
+TEST(freshness_6h_sleep_is_red) {
+    // 6h = 21,600,000 ms > 4*900=3600 → red.
+    uint32_t effAge = usage::accumulateAge(0, 21600000);
+    ASSERT_EQ(21600u, (unsigned)effAge);
+    ASSERT_EQ(2u, (unsigned)usage::freshnessTier(effAge, 900)); // red
+}
+
+TEST(freshness_successful_fetch_resets_to_green) {
+    // After a 12h sleep (effective age ~43210s, red), a successful 200 GET
+    // provides a fresh server age (e.g. 15s).  The firmware resets
+    // g_dataAgeAtFetch = model.age (15) and g_lastFetchMs = nowMs().
+    // A 304 5s later: effectiveAge = accumulateAge(15, 5000) = 20 → green.
+    uint32_t staleAge = usage::accumulateAge(10, 43200000);
+    ASSERT_EQ(2u, (unsigned)usage::freshnessTier(staleAge, 900)); // was red
+
+    uint32_t freshAge = usage::accumulateAge(15, 5000); // 200 response age=15, 5s later
+    ASSERT_EQ(20u, (unsigned)freshAge);
+    ASSERT_EQ(0u, (unsigned)usage::freshnessTier(freshAge, 900)); // green after fetch
+}
+
+TEST(freshness_failed_fetch_keeps_red) {
+    // After a 12h sleep (effective age ~43210s, red), a FAILED fetch does NOT
+    // reset the age — the stale value persists.  The device does not paper over
+    // staleness by forcing green.
+    uint32_t staleAge = usage::accumulateAge(10, 43200000);
+    ASSERT_EQ(43210u, (unsigned)staleAge);
+    ASSERT_EQ(2u, (unsigned)usage::freshnessTier(staleAge, 900)); // red, stays red
+
+    // 5s pass while retrying: age grows.
+    uint32_t aged = usage::accumulateAge(staleAge, 5000);
+    ASSERT_EQ(43215u, (unsigned)aged);
+    ASSERT_EQ(2u, (unsigned)usage::freshnessTier(aged, 900)); // still red
+}

@@ -113,15 +113,22 @@ static battery::BatteryView g_prevBatt;
 static bool g_battEverPolled = false;
 static uint32_t g_lastBatteryPoll = 0;
 
-// ORDER #65: data-freshness tracking across fetches and deep sleeps.
+// ORDER #65 / #64: data-freshness tracking across fetches and deep sleeps.
 // The device has no RTC, so it cannot compute "how old is this data".
 // The server sends `age` (seconds since checked_at) on each 200 response.
 // The device stores that age at fetch time and adds elapsed millis to get
 // the effective age: effectiveAge = serverAgeAtFetch + (nowMs - lastFetchMs)/1000.
-// On a warm boot (deep-sleep wake), millis() resets — we re-seed from the
-// RTC-restored model.age and reset lastFetchMs to nowMs().
+//
+// ORDER #64 correction: the sleep duration must NOT be discarded on warm boot.
+// g_lastFetchMs is a plain static — millis() resets on ESP32 deep-sleep wake —
+// so before sleeping we compute and store the full effective age in RTC memory.
+// On wake we restore that age (which already includes the sleep duration)
+// and reset g_lastFetchMs to nowMs(), so the post-wake effective age starts
+// from the correct stale value and grows from there.  A successful fetch
+// after wake resets everything to the server's fresh age.
 static uint32_t g_dataAgeAtFetch = 0;   // server-reported age at last 200 fetch
 static uint32_t g_lastFetchMs = 0;      // millis() at last 200 fetch
+RTC_DATA_ATTR uint32_t g_effectiveAgeAtSleep = 0; // full effective age at last powerSleep()
 
 // --- helpers ----------------------------------------------------------------
 
@@ -498,11 +505,15 @@ void setup() {
             g_lastRev[i] = g_model.rev[i];
         g_lastRev[8] = '\0';
 
-        // ORDER #65: millis() resets on deep-sleep wake.  Re-seed the freshness
-        // accumulator from the RTC-restored model.age so the tier reflects the
-        // true data age (server age + sleep duration) without a fresh fetch.
-        g_dataAgeAtFetch = g_model.age;
-        g_lastFetchMs = nowMs();;
+        // ORDER #65 / #64: on warm boot, restore the effective age that was
+        // computed and stored BEFORE the sleep (in the powerSleep path below).
+        // This preserves the sleep duration in the freshness calculation — the
+        // old code restored g_model.age and reset lastFetchMs, discarding the
+        // gap and showing GREEN on 12-hour-old data.  After wake the lamp reads
+        // yellow/red on the cached snapshot (correct — it IS old) and turns
+        // green only when the fetch lands.
+        g_dataAgeAtFetch = g_effectiveAgeAtSleep;
+        g_lastFetchMs = nowMs();
 
         // ORDER #60 (task 63d): ORDER #31 forces one paint on warm boot, BUT
         // only when the screen is lit.  A timer wake on battery skips the
@@ -573,6 +584,11 @@ void loop() {
     uint32_t anchor = g_graceActive ? g_lastActivity : now;
     if (usage::powerDecide(vbusNow, now, anchor)
             == usage::PowerAction::SleepNow) {
+        // ORDER #64: record the full effective data age (server-reported +
+        // elapsed since last fetch) so it survives the deep-sleep wake where
+        // millis() resets and we cannot recompute the gap.
+        g_effectiveAgeAtSleep = usage::accumulateAge(g_dataAgeAtFetch,
+                                                     now - g_lastFetchMs);
         powerSleep();  // emits [SLEEP], teardown, arm wakes, never returns
     }
 
