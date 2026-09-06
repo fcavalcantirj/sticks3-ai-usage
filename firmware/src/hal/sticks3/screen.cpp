@@ -118,22 +118,36 @@ void drawPlan(const usage::RenderPlan& plan, bool wifiOk,
         M5.Display.setTextSize(1);
         M5.Display.setTextColor(TFT_WHITE);
 
-        // Binding lines: left = "blue click", right = "cycle pages", size 2 font.
+        // Binding lines: left = "blue click", right = "pages", size 2 font.
+        // ORDER #74 task 74: measure-and-fit guard — left is drawn at x=5,
+        // right is right-aligned; if they would overlap, fitRight shortens
+        // the action text so a binding edit cannot reintroduce the overlap.
         M5.Display.setTextSize(2);
+        M5.Display.setTextColor(TFT_WHITE);
         int16_t baseY = 32;
         int16_t lineH = 20;  // 16px font + 4px gap
+        int16_t minGap = 4;  // minimum gap between left and right
+        int16_t rightPad = 4;
         for (uint8_t i = 0; i < plan.lineCount; i++) {
             const usage::Line& line = plan.lines[i];
             int16_t y = baseY + i * lineH;
 
             // Left: button + gesture (e.g. "blue click").
+            int16_t lw = M5.Display.textWidth(line.left);
             M5.Display.setCursor(5, y);
             M5.Display.print(line.left);
 
-            // Right: action (e.g. "cycle pages"), right-aligned.
-            int16_t rw = M5.Display.textWidth(line.right);
-            M5.Display.setCursor(W - rw - 4, y);
-            M5.Display.println(line.right);
+            // Right: action, right-aligned with fit guard.
+            int16_t availRight = W - 5 - lw - minGap - rightPad;
+            if (availRight < 0) availRight = 0;
+            char rightFitted[32];
+            usage::fitRight(line.right, rightFitted, sizeof(rightFitted),
+                            availRight, measureText);
+            int16_t rw = measureText(rightFitted);
+            if (rw > 0) {
+                M5.Display.setCursor(W - rw - rightPad, y);
+                M5.Display.println(rightFitted);
+            }
         }
 
         // Footer: version only (no hint on the help page — hint lives on the
@@ -357,14 +371,16 @@ void drawBatteryGauge(int16_t gaugeX, int16_t gaugeY, int16_t labelY,
 // drawBrightnessGauge paints a full-screen brightness overlay:
 //   - Black background (full screen).
 //   - "brightness N%" at the top, centred.
-//   - A 200px-wide horizontal track (y≈70), grey outline, green fill
-//     proportional to currentRaw/255.
-//   - Level tick labels (5/10/25/50/75/100) under the track at the x-position
-//     of each level's raw value mapping.
-//   - An amber vertical line at the idle dim position (idleRaw mapped to the
-//     track width) to show where idle sits relative to active.
+//   - A 200px-wide track (y≈70), grey outline, segmented green fill.
+//   - Six evenly-spaced tick labels (5/10/25/50/75/100) under the track.
+//   - A filled pip at the current level's tick.
+//   - An amber pip at the idle dim position (nearest level).
+//
+// ORDER #74 task 74: ticks are spaced evenly by INDEX, not by raw PWM value
+// (the raw ladder 13, 26, 64, 128, 191, 255 is non-linear and piles up labels
+// on the left).  Fill is segmented by index to match.
 void drawBrightnessGauge(uint8_t currentRaw, uint8_t currentPercent,
-                         uint8_t idleRaw) {
+                         uint8_t idleRaw, uint8_t levelIdx) {
     M5.Display.fillScreen(TFT_BLACK);
     int16_t W = M5.Display.width();
     int16_t H = M5.Display.height();
@@ -384,36 +400,51 @@ void drawBrightnessGauge(uint8_t currentRaw, uint8_t currentPercent,
     int16_t trackH = 12;
     int16_t trackX = (W - trackW) / 2;
     int16_t trackY = 70;
+    int16_t trackInnerW = trackW - 2;  // inner width (between border pixels)
 
     // Grey track outline.
     M5.Display.drawRect(trackX, trackY, trackW, trackH, 0x8410);
 
-    // Green fill proportional to currentRaw / 255.
-    uint8_t fillW = (trackW - 2) * currentRaw / 255;
-    if (fillW < 0) fillW = 0;
-    if (fillW > trackW - 2) fillW = trackW - 2;
+    // Current level index for fill and pip.
+    uint8_t curIdx = levelIdx;
+    if (curIdx >= sticks3::brightness::kLevelCount) curIdx = 0;
+
+    // Segmented fill: segments 0..curIdx-1 are filled (green).
+    int fillW = sticks3::brightness::BrightnessController::gaugeFillWidth(
+        curIdx, trackInnerW);
     if (fillW > 0) {
         M5.Display.fillRect(trackX + 1, trackY + 1, fillW, trackH - 2, 0x07E0);
     }
 
-    // Amber idle marker: a vertical line at idleRaw position.
-    uint8_t idleX = trackX + 1 + (trackW - 2) * idleRaw / 255;
+    // Idle marker: amber pip at the nearest level tick.
+    uint8_t idleIdx = sticks3::brightness::BrightnessController::gaugeIdleTick(idleRaw);
+    int idleTickX = trackX + 1 + sticks3::brightness::BrightnessController::gaugeTickX(
+        idleIdx, trackInnerW);
     if (idleRaw > 0) {
-        M5.Display.drawFastVLine(idleX, trackY, trackH, 0xFD20);
+        // Pip: 3px dot centred on the tick.
+        M5.Display.fillRect(idleTickX - 1, trackY + (trackH - 3) / 2, 3, 3, 0xFD20);
     }
 
-    // Level tick labels under the track.
-    // Levels: 5%→13, 10%→26, 25%→64, 50%→128, 75%→191, 100%→255.
+    // Level tick labels under the track, evenly spaced by index.
+    // Use gaugeTickX (not segW * i) for exact integer-division consistency
+    // with the pips above — segW*i truncates early and drifts from gaugeTickX.
     M5.Display.setTextColor(0x8410);  // dim grey for labels
     for (int i = 0; i < sticks3::brightness::kLevelCount; i++) {
         char lbl[8];
-        std::snprintf(lbl, sizeof(lbl), "%d%%", sticks3::brightness::kLevels[i].percent);
-        int16_t lx = trackX + 1 + (trackW - 2) * sticks3::brightness::kLevels[i].raw / 255;
-        // Centre the label under the tick.
+        std::snprintf(lbl, sizeof(lbl), "%d%%",
+                      sticks3::brightness::kLevels[i].percent);
+        int tickX = trackX + 1 +
+            sticks3::brightness::BrightnessController::gaugeTickX(i, trackInnerW);
         int16_t lw = M5.Display.textWidth(lbl);
-        M5.Display.setCursor(lx - lw / 2, trackY + trackH + 4);
+        M5.Display.setCursor(tickX - lw / 2, trackY + trackH + 4);
         M5.Display.println(lbl);
     }
+
+    // Current level pip: white dot at the current tick, drawn last so it's
+    // visible on top of the fill.
+    int curTickX = trackX + 1 +
+        sticks3::brightness::BrightnessController::gaugeTickX(curIdx, trackInnerW);
+    M5.Display.fillRect(curTickX - 1, trackY + (trackH - 3) / 2, 3, 3, TFT_WHITE);
 }
 
 } // namespace sticks3

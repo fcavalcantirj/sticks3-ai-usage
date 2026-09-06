@@ -4,6 +4,7 @@
 // This file does NOT define TEST_FRAMEWORK_MAIN — test_smoke.cpp owns the entry.
 #include "framework.h"
 #include "usage/brightness.h"
+#include <cstring>
 
 using sticks3::brightness::BrightnessController;
 using sticks3::brightness::kLevels;
@@ -171,4 +172,96 @@ TEST(brightness_mode_step_at_bounds_resets) {
     // stepDown at min — no change to level, but timer resets.
     ctrl.stepDown(5500);
     ASSERT_FALSE(ctrl.shouldExit(6000));
+}
+
+// --- ORDER #74 task 74: gauge layout (evenly spaced by index) -----------------
+
+// The raw PWM ladder is deliberately non-linear: 13, 26, 64, 128, 191, 255.
+// Spacing ticks by raw value clusters 5/10/25% on the left (11, 21, 50 px on
+// a 198 px track), causing label pile-up.  The fix spaces by INDEX.
+TEST(brightness_levels_raw_are_non_linear) {
+    // Explicit: gaps are 13, 38, 64, 63, 64 — not uniform.
+    ASSERT_EQ(13, kLevels[1].raw - kLevels[0].raw);
+    ASSERT_EQ(38, kLevels[2].raw - kLevels[1].raw);
+    ASSERT_EQ(64, kLevels[3].raw - kLevels[2].raw);
+    ASSERT_EQ(63, kLevels[4].raw - kLevels[3].raw);
+    ASSERT_EQ(64, kLevels[5].raw - kLevels[4].raw);
+}
+
+// gaugeSegmentW divides innerW into (kLevelCount-1) equal segments.
+TEST(brightness_gauge_segment_width) {
+    int innerW = 198; // trackW - 2 = 200 - 2
+    int segW = BrightnessController::gaugeSegmentW(innerW);
+    ASSERT_EQ(innerW / (kLevelCount - 1), segW); // 198 / 5 = 39
+}
+
+// Tick positions are evenly spaced by index, using gaugeTickX directly
+// (segW * i would truncate early and drift from gaugeTickX for non-divisible
+// innerW).  Gaps are 39 or 40 px (at most 1 px deviation from ideal 39.6).
+TEST(brightness_gauge_ticks_evenly_spaced) {
+    int innerW = 198;
+    int denom = kLevelCount - 1; // 5
+    for (int i = 0; i < kLevelCount; i++) {
+        int t = BrightnessController::gaugeTickX(i, innerW);
+        // Tick i is at (innerW * i) / denom, with max 1 px deviation from
+        // the ideal evenly-spaced position i * innerW / denom.
+        int ideal = i * innerW / denom;
+        ASSERT_TRUE(t == ideal || t == ideal + 1);
+    }
+    // First tick at offset 0, last tick lands at innerW (no overhang).
+    ASSERT_EQ(0, BrightnessController::gaugeTickX(0, innerW));
+    ASSERT_EQ(innerW, BrightnessController::gaugeTickX(kLevelCount - 1, innerW));
+    // Monotonic and strictly increasing.
+    for (int i = 1; i < kLevelCount; i++) {
+        ASSERT_TRUE(BrightnessController::gaugeTickX(i, innerW) >
+                  BrightnessController::gaugeTickX(i - 1, innerW));
+    }
+}
+
+// Tick labels (5/10/25/50/75/100) do not overlap at size 1 (6 px/char).
+// The gauge renders labels at Font0 size 1, not size 2.
+// With gaugeTickX spacing (39 or 40 px gaps), the widest label pair "75%+100%"
+// (18+24 px, half-sum 21) fits well within a 40 px gap.
+TEST(brightness_gauge_labels_non_overlapping) {
+    int innerW = 198;
+    int glyphW = 6; // Font0 size 1: 6 px (screen.cpp uses setTextSize(1) for labels)
+
+    for (int i = 1; i < kLevelCount; i++) {
+        char cur[8], prev[8];
+        std::snprintf(cur, sizeof(cur), "%d%%", (int)kLevels[i].percent);
+        std::snprintf(prev, sizeof(prev), "%d%%", (int)kLevels[i-1].percent);
+        int curW = (int)std::strlen(cur) * glyphW;
+        int prevW = (int)std::strlen(prev) * glyphW;
+        // Adjacent labels must not overlap: gap between tick centers must
+        // exceed the sum of their half-widths.
+        int tickGap = BrightnessController::gaugeTickX(i, innerW)
+                    - BrightnessController::gaugeTickX(i - 1, innerW);
+        ASSERT_TRUE(tickGap >= (prevW + curW) / 2);
+    }
+}
+
+// Fill width matches the level index: 0 at level 0, innerW at the top.
+TEST(brightness_gauge_fill_clamped) {
+    int innerW = 198;
+    ASSERT_EQ(0, BrightnessController::gaugeFillWidth(0, innerW));
+    ASSERT_EQ(innerW, BrightnessController::gaugeFillWidth(
+        kLevelCount - 1, innerW));
+    // Every level's fill is a valid sub-range of [0, innerW].
+    for (int i = 0; i < kLevelCount; i++) {
+        int w = BrightnessController::gaugeFillWidth(i, innerW);
+        ASSERT_TRUE(w >= 0);
+        ASSERT_TRUE(w <= innerW);
+    }
+}
+
+// gaugeIdleTick maps an idleRaw to the nearest level index.
+TEST(brightness_gauge_idle_tick) {
+    ASSERT_EQ(0u, BrightnessController::gaugeIdleTick(0));      // below 13 → 5%
+    ASSERT_EQ(0u, BrightnessController::gaugeIdleTick(13));    // exact 5%
+    ASSERT_EQ(1u, BrightnessController::gaugeIdleTick(20));    // 6 from 26, 7 from 13
+    ASSERT_EQ(1u, BrightnessController::gaugeIdleTick(26));    // exact 10%
+    ASSERT_EQ(2u, BrightnessController::gaugeIdleTick(64));    // exact 25%
+    ASSERT_EQ(3u, BrightnessController::gaugeIdleTick(128));   // exact 50%
+    ASSERT_EQ(4u, BrightnessController::gaugeIdleTick(191));   // exact 75%
+    ASSERT_EQ(5u, BrightnessController::gaugeIdleTick(255));   // exact 100%
 }

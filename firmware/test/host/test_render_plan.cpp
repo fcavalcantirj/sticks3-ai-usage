@@ -5,6 +5,8 @@
 #include "usage/model.h"
 
 #include <cstring>
+#include <cstdio>
+#include <cstdint>
 
 #include "fixtures/fixtures.h"
 
@@ -412,9 +414,9 @@ TEST(plan_instructions_page_last) {
     // Format: left = "gesture button", right = action (≤10 / ≤11 chars).
     ASSERT_EQ(4, (int)plan.lineCount);
     ASSERT_STREQ("click blue", plan.lines[0].left);
-    ASSERT_STREQ("cycle pages", plan.lines[0].right);
+    ASSERT_STREQ("pages", plan.lines[0].right);
     ASSERT_STREQ("double blue", plan.lines[1].left);
-    ASSERT_STREQ("brightness", plan.lines[1].right);
+    ASSERT_STREQ("bright", plan.lines[1].right);
     ASSERT_STREQ("click side", plan.lines[2].left);
     ASSERT_STREQ("refresh", plan.lines[2].right);
     ASSERT_STREQ("hold side", plan.lines[3].left);
@@ -441,4 +443,48 @@ TEST(plan_instructions_page_is_help) {
     RenderPlan p2;
     buildTestPlan(m, 2, p2);
     ASSERT_TRUE(p2.isHelp);
+}
+
+// --- ORDER #74 task 74: binding lines must fit on a 240 px screen ----------
+
+// Font0 at textSize 2: each character is 12 px wide (6 px * 2).
+static int measureFont0Sz2(const char* s) {
+    return s ? (int)(std::strlen(s) * 12) : 0;
+}
+
+// Every kBindings entry must fit on the 240 px screen at size 2 with a
+// minimum 4 px gap between left and right text.  If any entry does not fit,
+// the render_plan guard (fitRight in screen.cpp) will shorten the right field
+// — but the test pins the layout so a binding edit that grows the words
+// beyond the budget fails here rather than on hardware.
+TEST(plan_instructions_page_bindings_fit_240px) {
+    // Empty model → only the instructions page exists (page 0).
+    Model m{};  // zero-init: Model is pure POD, no constructor
+    RenderPlan plan;
+    buildTestPlan(m, 0, plan);
+    ASSERT_TRUE(plan.isHelp);
+    ASSERT_EQ(4, (int)plan.lineCount);
+
+    const int W = 240;
+    const int leftPad = 5;
+    const int rightPad = 4;
+    const int minGap = 4;
+    const int budget = W - leftPad - rightPad - minGap; // 231 px
+
+    for (int i = 0; i < (int)plan.lineCount; i++) {
+        const Line& line = plan.lines[i];
+        int leftW = measureFont0Sz2(line.left);
+        int rightW = measureFont0Sz2(line.right);
+        // Even with the longest possible right text it must fit.
+        ASSERT_TRUE(leftW + minGap + rightW <= budget);
+    }
+}
+
+// The shortened binding words must be the SHORT forms, not the originals.
+TEST(plan_instructions_page_words_shortened) {
+    Model m{};  // zero-init: Model is pure POD, no constructor
+    RenderPlan plan;
+    buildTestPlan(m, 0, plan);
+    ASSERT_STREQ("pages", plan.lines[0].right);   // was "cycle pages"
+    ASSERT_STREQ("bright", plan.lines[1].right);  // was "brightness"
 }

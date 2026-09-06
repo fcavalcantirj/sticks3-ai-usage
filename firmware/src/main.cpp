@@ -157,7 +157,8 @@ static void redraw() {
     if (g_brightCtrl.inMode()) {
         drawBrightnessGauge(g_brightCtrl.rawLevel(),
                            g_brightCtrl.percent(),
-                           g_brightCtrl.idleRaw());
+                           g_brightCtrl.idleRaw(),
+                           g_brightCtrl.levelIdx());
         char buf[64];
         std::snprintf(buf, sizeof(buf),
                       "[RENDER] brightness %d%%", (int)g_brightCtrl.percent());

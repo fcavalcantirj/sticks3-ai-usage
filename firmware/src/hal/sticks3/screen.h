@@ -37,10 +37,12 @@ void drawBatteryGauge(int16_t gaugeX, int16_t gaugeY, int16_t labelY,
                       int pct, bool onUsb, bool known);
 
 // Full-screen brightness-overlay gauge (ORDER #72 task 72).
-// Paints a black background, a horizontal track with green fill proportional
-// to currentRaw (0–255), an amber line marking the idle dim level, percentage
-// labels (5/10/25/50/75/100%) under the track, and "brightness N%" at the top.
+// Paints a black background, a horizontal track with segmented green fill
+// (evenly spaced by level index, not by raw PWM), a pip marking the current
+// level, an amber pip at the idle dim position, percentage labels (5/10/25/50/
+// 75/100%) under the track, and "brightness N%" at the top.
+// ORDER #74 task 74: tick positions are evenly spaced by index, not by raw.
 void drawBrightnessGauge(uint8_t currentRaw, uint8_t currentPercent,
-                         uint8_t idleRaw);
+                         uint8_t idleRaw, uint8_t levelIdx);
 
 } // namespace sticks3

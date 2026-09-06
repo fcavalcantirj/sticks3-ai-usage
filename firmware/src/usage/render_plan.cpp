@@ -102,8 +102,8 @@ struct Binding {
 };
 
 static const Binding kBindings[] = {
-    {"click",  "blue",  "cycle pages"},
-    {"double", "blue",  "brightness"},
+    {"click",  "blue",  "pages"},       // was "cycle pages" — too wide on 240px
+    {"double", "blue",  "bright"},      // was "brightness" — too wide
     {"click",  "side",  "refresh"},
     {"hold",   "side",  "flip 180"},
 };

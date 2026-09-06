@@ -84,5 +84,23 @@ uint8_t BrightnessController::levelIdx() const {
     return levelIdx_;
 }
 
+// gaugeIdleTick finds the level whose raw value is closest to idleRaw.
+// Used to position the idle marker at an evenly-spaced tick rather than a
+// non-linear raw position (ORDER #74 task 74).
+uint8_t BrightnessController::gaugeIdleTick(uint8_t idleRaw_) {
+    uint8_t bestIdx = 0;
+    uint8_t bestDiff = 255;
+    for (int i = 0; i < kLevelCount; i++) {
+        uint8_t diff = (idleRaw_ >= kLevels[i].raw)
+                           ? (idleRaw_ - kLevels[i].raw)
+                           : (kLevels[i].raw - idleRaw_);
+        if (diff < bestDiff) {
+            bestDiff = diff;
+            bestIdx = (uint8_t)i;
+        }
+    }
+    return bestIdx;
+}
+
 } // namespace brightness
 } // namespace sticks3
