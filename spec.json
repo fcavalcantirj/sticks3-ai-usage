@@ -486,7 +486,7 @@
       "Add a --scenario stats-demo fixture (testdata/scenarios/stats-demo/stats.json, a full synthetic Report with 182 days for both sources) so the page can be developed and screenshotted offline; serve --fixtures --scenario stats-demo serves it at /v1/stats. Tests: internal/web/web_test.go asserts the embedded HTML references /v1/stats and contains the ids stat-pills, heatmap-claude_code, heatmap-codex, models-table, attention; an api test serves /v1/stats from the fixture with an ETag and 304.",
       "Verify: `make verify` exits 0; `make smoke` exits 0 with a stats-demo step that greps heatmap-codex from /; UAT for Felipe: he opens http://127.0.0.1:18770/ from a serve with --fixtures --scenario stats-demo on a desktop window at least 1200 px wide and on a phone-width window, compares with the AIUsage screenshot and answers approve or adjust in the Solvr room. Do not flip passes until his approval is in the room."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "host",
