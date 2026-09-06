@@ -19,7 +19,8 @@ void boardInit() {
     M5.begin(cfg);
 
     M5.Display.setRotation(1);
-    M5.Display.setBrightness(80);
+    // ORDER #60 (task 63): brightness is set in setup() AFTER reading the wake
+    // cause.  A timer wake must not raise the backlight.
 
     M5.BtnA.setHoldThresh(600);
     M5.BtnB.setHoldThresh(1500);  // ORDER #53 REVISED: hold-to-flip

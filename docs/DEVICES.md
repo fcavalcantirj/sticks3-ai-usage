@@ -46,9 +46,38 @@ with the PM1 I2C SDA pin. After deep-sleep wake, the first `getVBUSVoltage()`
 freezing the device. The firmware never writes PM1 GPIO1 IRQ registers in
 the sleep path.
 
-**Current wake design:** ext1 buttons (GPIO11/12, pullup+pulldown pair) and a
-60-second timer backstop. On USB the device never sleeps (`vbusPresent()` via
-`VbusDebouncer`). Cable insertion is noticed within one minute via the timer.
+**Current wake design (ORDER #60, reversal of ORDER #29):** ext1 buttons
+(GPIO11/12, pullup+pulldown pair) are the **primary** wake. A 12-hour timer
+backstop acts as a safety net only. On USB the device never sleeps
+(`vbusPresent()` via `VbusDebouncer`). **USB insertion does NOT wake a sleeping
+device for up to 12 hours** — one button press after plugging in restores
+normal always-on behaviour. This is deliberate (the same trade ptt.ino makes)
+but a sleeping device will look dead to anyone who does not know, so it is
+written here where they would look.
+
+**REVERSAL rationale (ORDER #60):** a 12-minute reachability watch measured ten
+clean cycles of ~20 s awake on an 81 s period — a 25% duty cycle with the radio
+on, roughly 27 mA average against the 250 mAh cell, giving about 9 hours of
+battery. The 60 s backstop from ORDER #29 was 720x more wakeful than necessary;
+the button is always there to wake the device, so a 12 h timer restores the
+weeks-of-standby the ptt firmware measured (19 h of real use at ~50% battery).
+
+**Instant-wake guard (monitor-only):** `g_powerGuard.ext0InstantWakeCount`
+in `main.cpp` counts consecutive ext0 wakes with vbus < 4000. Ext0 is not
+armed, so the counter stays 0 in normal operation — it is retained for the
+follow-up experiment that re-enables ext0 via PM1 I2C IRQ register reads.
+
+**BMI270 suspend:** the teardown writes 0x7D←0x00 and 0x7C←0x03 to the BMI270 at
+I2C 0x68 (`suspendImu` in power.cpp), matching ptt.ino:205-207. `internal_imu`
+is false so the sensor is never initialised, but it powers on in normal mode by
+default (~1 mA). At a 12 h backstop that leak is the difference between weeks
+and days of standby.
+
+**Follow-up experiment (not yet implemented):** test whether the PM1
+already asserts its IRQ line on 5VIN insertion with its default configuration.
+If so, `esp_sleep_enable_ext0_wakeup(GPIO_NUM_13, 0)` with the standard
+pullup/pulldown pair may work without writing any PM1 IRQ registers. This
+must be validated on hardware before any code change.
 
 **Instant-wake guard (monitor-only):** `g_powerGuard.ext0InstantWakeCount`
 in `main.cpp` counts consecutive ext0 wakes with vbus < 4000. Ext0 is not

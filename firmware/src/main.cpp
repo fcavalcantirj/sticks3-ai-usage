@@ -420,7 +420,23 @@ void setup() {
                    buildId(), kFwVersion);
     serialLine(buf);
 
-    drawBootScreen(buildId());
+    // --- power: wake cause + VBUS (read BEFORE any screen draw) ----------------
+    // ORDER #60 (task 63d): a timer wake on battery must NOT raise the
+    // backlight or paint.  Only ext1 (button — someone is there) or VBUS
+    // present should light the screen, because drawBootScreen and the warm-
+    // boot paint below would otherwise flash the panel in a dark room for
+    // an audience of nobody.
+    WakeCause wakeCause = readWakeCause();
+    uint16_t vbus = vbusMv();
+    emitWake(wakeCause, vbus);
+
+    // True when the screen should be lit + painted: any non-timer wake, or a
+    // timer wake that found USB plugged in.
+    bool lightScreen = (wakeCause != WakeCause::Timer) || (vbus >= 4000);
+    if (lightScreen) {
+        setBrightness(kBrightnessActive);
+        drawBootScreen(buildId());
+    }
 
     // --- rotation (ORDER #53 REVISED, task 58) -------------------------------
     // Load persisted rotation BEFORE the first paint so a flipped device
@@ -428,11 +444,6 @@ void setup() {
     uint8_t rot = loadRotation();
     setRotation(rot);
     // No IMU init — the BMI270 is not polled.  Wake is via ext1 buttons + timer.
-
-    // --- power: wake cause + RTC snapshot restore ---
-    WakeCause wakeCause = readWakeCause();
-    uint16_t vbus = vbusMv();
-    emitWake(wakeCause, vbus);
 
     // ORDER #27/#29: monitor for ext0 instant-wakes.  ext0 is no longer armed
     // (ORDER #29: PM1 GPIO1 conflicts with SDA), so this counter is dormant
@@ -458,15 +469,20 @@ void setup() {
             g_lastRev[i] = g_model.rev[i];
         g_lastRev[8] = '\0';
 
-        // ORDER #31: force one cached-snapshot paint on every warm boot,
-        // regardless of wake cause (timer, ext1, or power-on after RTC magic).
-        g_view.needsRedraw = true;
+        // ORDER #60 (task 63d): ORDER #31 forces one paint on warm boot, BUT
+        // only when the screen is lit.  A timer wake on battery skips the
+        // paint — the device fetches, refreshes the cached snapshot, and
+        // returns to sleep dark.  ext1 (button) and VBUS both light the screen.
+        g_view.needsRedraw = lightScreen;
     }
 
-    // ORDER #30/#31: timer wake on battery no longer sleeps immediately.
-    // The device paints the cached snapshot (needsRedraw was set above),
-    // then the 60 s timer backstop re-arms after the grace window expires.
-    // This ensures the screen is fresh on every wake cycle.
+    // On a timer wake that does not light the screen (lightScreen == false),
+    // the device fetches via pollUpdate in loop() and returns to sleep dark.
+    // The 12 h timer backstop (ORDER #60) re-arms after the grace window.
+
+    // ORDER #30/#31: timer wake on battery no longer sleeps immediately — it
+    // fetches, refreshes the cached snapshot if stale, then re-sleeps after the
+    // 20 s grace window. The 12 h backstop (ORDER #60) re-arms after grace.
 
     netBegin();
 

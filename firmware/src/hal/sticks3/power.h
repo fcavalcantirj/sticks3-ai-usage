@@ -13,7 +13,7 @@ enum class WakeCause : uint8_t {
     PowerOn,  // cold boot (no valid magic in RTC memory)
     Ext0,     // USB insert (PM1 IRQ on GPIO13) — ORDER #29: not armed, kept for monitoring
     Ext1,     // Button (BtnA GPIO11 / BtnB GPIO12, ext1)
-    Timer,    // 60 s backstop timer (ORDER #29)
+    Timer,    // 12 h backstop timer (ORDER #60, reverses ORDER #29's 60 s)
     Unknown,  // unrecognised ESP-IDF wake cause
 };
 
@@ -39,7 +39,7 @@ int32_t batteryVoltageMv();
 void screenOff();
 
 // Full teardown (screen, radio, codec, IMU, PA rail) + arm the wake sources
-// (buttons ext1, 60 s timer) + esp_deep_sleep_start().  Never returns.
+// (buttons ext1, 12 h timer backstop ORDER #60) + esp_deep_sleep_start().  Never returns.
 // Call when powerDecide() returns SleepNow.
 //
 // ORDER #29: ext0 (USB-insert IRQ via PM1 GPIO1) is NOT armed — driving

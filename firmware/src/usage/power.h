@@ -15,6 +15,16 @@ enum class PowerAction : uint8_t {
     SleepNow,    // enter deep sleep
 };
 
+// ORDER #60: 12-hour timer backstop (reverses ORDER #29's 60 s).
+// On battery, the timer is a true safety net — the button is the primary
+// wake.  Expressed in microseconds for esp_sleep_enable_timer_wakeup().
+static constexpr uint64_t kTimerBackstopUs = 43200000000ULL; // 12 hours
+
+// ORDER #60: ext1 wake mask — BtnA (GPIO11) + BtnB (GPIO12), any-low →
+// per-pin OR (ESP_EXT1_WAKEUP_ANY_LOW == 0).  Extracted here so host tests
+// can verify both buttons are armed.
+static constexpr uint64_t kExt1WakeMask = (1ULL << 11) | (1ULL << 12);
+
 // Pure state machine: decide whether to stay awake or sleep.
 //
 //   - ON USB (vbusPresent = true):  always StayAwake — screen on, 300 s poll,
@@ -37,10 +47,10 @@ PowerAction powerDecide(bool vbusPresent, uint32_t nowMs,
 
 // VbusDebouncer filters single-sample VBUS glitches so a one-off I2C read
 // failure (returns 0 mV) or noise spike can never make the device deep-sleep
-// while it is actually on USB.  A reading of exactly 0 mV is always suspect
-// and is ignored (the last settled state is returned).  After N consecutive
-// "battery" readings (vbus <= 4000, > 0) the settled state flips to false.
-// Any "USB" reading (vbus > 4000) resets the counter and flips to true.
+// while it is actually on USB.  After N consecutive "battery" readings
+// (vbus <= 4000, INCLUDING 0 mV which is the normal off-USB reading — BUG 40c)
+// the settled state flips to false.  Any "USB" reading (vbus > 4000) resets
+// the counter and flips to true.
 //
 // The debouncer is pure C++17 (no M5/Arduino headers) so the "one spurious
 // sample does not cause SleepNow" invariant is host-tested.

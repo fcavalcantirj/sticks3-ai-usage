@@ -6,14 +6,12 @@
 // ORDER #29: USB-insert (ext0) wake via the PM1 IRQ line (GPIO1→GPIO13) is
 // DISABLED — driving PM1 GPIO1 push-pull conflicts with the SDA line and
 // hangs PMIC I2C reads after wake.  The device wakes only on ext1 (buttons)
-// or the 60 s timer; on USB it never sleeps (VbusDebouncer).  See notes in
+// or the 12 h timer; on USB it never sleeps (VbusDebouncer).  See notes in
 // docs/DEVICES.md under "Unit #2 power/wake errata".
 //
 // Deep-sleep teardown follows the ptt.ino lineage (ptt.ino:191-211) verbatim —
-// every register write is a measured leak fix: ES8311 codec, PM1 PA + LCD rails.
-// Do NOT thin this teardown.  The BMI270 IMU is not initialized (internal_imu
-// = false) so it needs no suspend write; it draws negligible current when
-// unpowered via M5.begin() defaults.
+// every register write is a measured leak fix: ES8311 codec, PM1 PA + LCD rails,
+// and now the BMI270 suspend (ptt.ino:205-207) at the 12 h backstop.
 #include "hal/sticks3/power.h"
 
 #include "hal/sticks3/board.h"   // serialLine
@@ -109,14 +107,26 @@ static void radioOff() {
 // ORDER #29: PM1 GPIO1 IRQ output is NOT configured — it conflicts with SDA
 // and causes PMIC I2C hangs after wake (see docs/DEVICES.md).  Wake sources:
 //   - ext1 buttons (BtnA GPIO11, BtnB GPIO12)
-//   - 60 s timer backstop (not 3600 s — notice a USB cable insert within a min.
+//   - 12 h timer backstop (ORDER #60 — reverses ORDER #29's 60 s)
+
+static void suspendImu() {
+    // BMI270 suspend: write PWR_CFG (0x7D) = 0x00 and PMU_CMD (0x7C) = 0x03
+    // at I2C address 0x68.  See ptt.ino:205-207.  internal_imu is false so
+    // the sensor is never initialised, but it powers on in normal mode by
+    // default (~1 mA).  At a 12 h backstop that leak is the difference
+    // between weeks and days of standby — write the suspend registers
+    // defensively rather than trusting the power-on default.
+    M5.In_I2C.writeRegister8(0x68, 0x7D, 0x00, 400000);
+    M5.In_I2C.writeRegister8(0x68, 0x7C, 0x03, 400000);
+}
 
 static void armWakeSources() {
     // No PM1 GPIO1 / IRQ register writes (ORDER #29: SDA conflict).
 
     // (a) Buttons: BtnA (GPIO11) + BtnB (GPIO12), any-low → per-pin OR.
     //     ESP_EXT1_WAKEUP_ANY_LOW == 0 is the per-pin OR mode.
-    esp_sleep_enable_ext1_wakeup((1ULL << 11) | (1ULL << 12),
+    //     kExt1WakeMask is defined in usage/power.h for host testability.
+    esp_sleep_enable_ext1_wakeup(usage::kExt1WakeMask,
                                  ESP_EXT1_WAKEUP_ANY_LOW);
     // ORDER #27: pair pullup_en...pulldown_dis on every ext wake pin.
     // Without pulldown_dis, the RTC domain's internal pulldown keeps the
@@ -126,11 +136,11 @@ static void armWakeSources() {
     rtc_gpio_pullup_en(GPIO_NUM_12);
     rtc_gpio_pulldown_dis(GPIO_NUM_12);
 
-    // (b) 60-second timer backstop (ORDER #29): on battery, wake every
-    // minute so a USB cable insert is noticed within a minute.  A missed
-    // button wake can never strand the device.  On USB the device never
-    // sleeps, so this timer never fires while cabled.
-    esp_sleep_enable_timer_wakeup(60ULL * 1000000ULL);
+    // (b) 12-hour timer backstop (ORDER #60): the button is the primary
+    // wake; the timer is a true safety net so the device is not stranded
+    // if a button wake is missed.  kTimerBackstopUs is defined in
+    // usage/power.h for host testability.
+    esp_sleep_enable_timer_wakeup(usage::kTimerBackstopUs);
 }
 
 // --- sleep -----------------------------------------------------------------
@@ -147,6 +157,7 @@ void powerSleep() {
 
     screenOff();
     radioOff();
+    suspendImu();  // ORDER #60: BMI270 suspend at 12h backstop — ~1 mA leak
     teardownCodecs();
     teardownPowerRails();
     armWakeSources();

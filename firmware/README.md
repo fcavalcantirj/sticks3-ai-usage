@@ -163,3 +163,24 @@ The device emits `[BTN] gpio=11 click page`, `[BTN] gpio=11 hold refresh`, or
 `[BTN] gpio=12 click refresh` on every button event. The `gpio=` field is the
 physical GPIO number so Felipe can correlate a press with the hardware pin
 without consulting the source.
+
+### Deep sleep & wake (ORDER #60, task 63)
+
+**12-hour timer backstop.** The button (ext1 GPIO11/12) is the primary wake;
+the timer is a safety net only. The 12-hour constant lives in
+`usage/power.h` as `kTimerBackstopUs` (43200000000 µs) and is host-tested. On
+USB the device never sleeps (`vbusPresent()` via `VbusDebouncer`).
+
+**Timer wake does not light the screen.** `setup()` reads the wake cause via
+`esp_sleep_get_wakeup_cause()`: an EXT1 wake (button — someone is there) or
+VBUS present lights the backlight and paints; a TIMER wake fetches and
+re-sleeps dark. `[WAKE] cause=… vbus=…` is emitted either way so the wake is
+visible in serial.
+
+**BMI270 suspend.** `suspendImu()` in `power.cpp` writes `0x7D←0x00` and
+`0x7C←0x03` to the BMI270 at I2C 0x68 (ptt.ino:205-207). The sensor is never
+initialised (`internal_imu = false`) but powers on in normal mode by default
+(~1 mA); at a 12 h backstop that is the difference between weeks and days.
+
+**USB insert will NOT wake a sleeping device** for up to 12 hours. One button
+press after plugging in restores always-on behaviour. See `docs/DEVICES.md`.

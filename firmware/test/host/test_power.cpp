@@ -150,3 +150,22 @@ TEST(power_vbus_single_spurious_sample_no_sleep) {
     ASSERT_TRUE(debouncer.sample(0) == false);
     ASSERT_TRUE(debouncer.vbusPresent() == false);
 }
+
+// --- ORDER #60: 12-hour backstop + ext1 wake mask -----------------------------
+
+// The timer backstop must be exactly 12 hours (43200000000 µs) so the device
+// stays down for weeks on battery instead of surfacing every minute.
+TEST(power_timer_backstop_is_12h) {
+    static_assert(usage::kTimerBackstopUs == 43200000000ULL,
+                  "ORDER #60: backstop must be 12 hours in microseconds");
+    ASSERT_TRUE(usage::kTimerBackstopUs == 43200000000ULL);
+}
+
+// ext1 must arm both buttons: GPIO11 (BtnA) and GPIO12 (BtnB).
+TEST(power_ext1_wake_mask) {
+    static_assert(usage::kExt1WakeMask == ((1ULL << 11) | (1ULL << 12)),
+                  "ext1 wake mask must include GPIO11 and GPIO12");
+    ASSERT_TRUE(usage::kExt1WakeMask == ((1ULL << 11) | (1ULL << 12)));
+    // No stray bits.
+    ASSERT_TRUE((usage::kExt1WakeMask & ~((1ULL << 11) | (1ULL << 12))) == 0);
+}
