@@ -863,6 +863,19 @@
     "passes": false
   },
   {
+    "category": "firmware",
+    "description": "Instructions page: a final page in the cycle showing what the buttons do, in large type, generated from the real bindings so it cannot drift",
+    "steps": [
+      "Firmware context: M5StickS3 unit #2, hostname sticks3-usage. PlatformIO espressif32@6.12.0 / Arduino core 2.0.17 / ESP-IDF 4.4.7, M5Unified 0.2.19 + M5GFX 0.2.28. Purity rule: gesture LOGIC goes in the pure core (firmware/src/usage/, no M5 or Arduino headers, host-tested by 'make fw-test'); only firmware/src/hal/sticks3/* and main.cpp may touch M5. Flash this over OTA ('make fw-ota'), no cable. Any upload needs Felipe's explicit authorization in the Solvr room.",
+      "Felipe: 'last screen - instructions, big letters'. Add one more page at the END of the page cycle whose whole job is telling you what the buttons do. The footer hint is 29 glyphs of 6-pixel font squeezed beside the version — it can never carry this, which is why the hold-to-flip gesture was undiscoverable until he was told about it. Queue this with task 72 (brightness); they change the same button map and should ship on one flash.",
+      "BIG LETTERS IS THE REQUIREMENT, not a suggestion. The screen is 240x135 and the rest of the UI uses Font0 at 6 px because it packs data; this page carries about five short lines, so use a substantially larger font and let it fill the space. If a line does not fit, shorten the WORDS rather than the font — 'FLIP' beats a smaller 'ROTATE SCREEN'. Reuse the existing measure-then-fit helpers (textfit, and centerTextX/centerTextY from align.h) rather than hand-placing pixels.",
+      "CONTENT is the current binding set, in plain language: blue click cycles pages, side click refreshes, side hold flips the screen 180 degrees. Once task 72 lands, blue double-click enters brightness. Do NOT hand-write this list as a string literal — DERIVE IT FROM THE SAME TABLE the button handler uses, or add such a table if none exists, so a future binding change cannot leave the help page lying. A help screen that disagrees with the hardware is worse than none, and this project has already shipped one stale hint ('side: refresh' after the side button also gained flip).",
+      "PAGING BEHAVIOUR: it is the LAST page, reached by cycling past the data pages, and the page indicator must count it (so 1/4 becomes 1/5). It must not become the boot page, must not be the page a wake lands on, and must not be what Felipe stares at when he glances over — the device exists to show quota. Consider whether it should be skipped when a crit banner is active; state your decision either way.",
+      "Verify: host tests that the page is last in the cycle, that the page count includes it, that the rendered lines are derived from the binding table rather than duplicated literals, and that every line fits at 240 px with the chosen font. `make fw-test` Failed 0, `make fw-build` SUCCESS. UAT with Felipe: he cycles to the last page and can READ IT AT A GLANCE from normal desk distance without leaning in — that is the whole point of the request, so ask him about legibility specifically rather than correctness."
+    ],
+    "passes": false
+  },
+  {
     "category": "optional",
     "description": "OPTIONAL v3: spike `codex app-server` JSON-RPC account/rateLimits/read so the Codex CLI owns token refresh",
     "steps": [
