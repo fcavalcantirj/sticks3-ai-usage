@@ -1,15 +1,40 @@
 # usaged — AI usage monitor (M5StickS3 + Mac agent)
 
-**Status: closed 2026-09-06 at 78 of 83 ledger tasks passing.** Everything the
-device does today is built and confirmed on hardware. The open tasks are
-DEFERRED BY DECISION, not unfinished work: tasks 75-78 are the fully specced
-Wi-Fi provisioning group (see `BACKLOG.md` item 3 — it is also the reason this
-firmware must not be published), and the last is the optional task hub. Do not
-pick any of them up unasked.
+**Status: ACTIVE. Start at `spec.json` task 75 — the provisioning spike.**
 
-A Go agent (`usaged`) polls Claude, ChatGPT/Codex, OpenRouter and Groq every
-15 minutes, serves a dashboard on `127.0.0.1:8765`, and pushes a snapshot to an
-M5StickS3 that **redraws only when the data actually changes**.
+84 tasks, 78 passing. Everything the device does today is built and confirmed on
+hardware. The open work is one group: Wi-Fi provisioning (tasks 75-79), so a
+stranger can set up a StickS3 without a cable, a build step, or an edited file —
+and so the firmware stops carrying credentials (see "Do not publish a firmware
+build" below). Task 83 (task-hub rows) is deferred by decision; leave it.
+
+### You are both planner and builder
+
+Earlier sessions split these: a planner steered a separate builder agent through
+a Solvr room, with Felipe pasting messages between them. **That is over.** There
+is no room to read and no relay. You spike, you implement, you verify, you
+report to Felipe directly.
+
+Two habits from that arrangement are worth keeping, because they caught real
+defects:
+
+- **Verify against the running system, never the report.** Rebuild AND
+  `launchctl kickstart` before believing a host change is live; check the wire
+  before believing a firmware change works. Every serious bug on 2026-09-06 was
+  found this way and none were found by tests.
+- **A task whose verify step names Felipe does not flip to `passes: true` until
+  he says so.** Not when the tests pass, not when it looks right on your screen.
+
+### Do task 75 before writing any of 76-79
+
+Tasks 76-79 are fully specced but rest on five assumptions that are documented
+rather than measured — can the portal stack fit, can it scan while the AP is up,
+does the captive sheet actually pop, does M5Burner already inject credentials we
+could read, is a reboot needed to leave AP mode. **Four separate defects on
+2026-09-06 had exactly that shape** (see the facts below): documented behaviour
+that was wrong on the hardware. Task 75 measures all five and then amends 76-79
+to match. Q4 is the one that could delete work rather than add it — answer it
+early.
 
 ## Read these first, in this order
 
@@ -71,7 +96,24 @@ build takes ~25 s, so the phases must be split. Uploads take ~31 s and that is
 fine: once a transfer starts, `main.cpp` skips the sleep decision while
 `otaInProgress()`, so only the invitation must land inside the window.
 
-**Every device upload needs Felipe's explicit authorization.**
+**Every device upload needs Felipe's explicit authorization.** He gives standing
+permission sometimes ("flash whenever you want"); that covers the upload, never
+powering the device on. On battery it sleeps behind a 12 h backstop, so ask him
+to press the blue button and the script will catch the wake.
+
+## Where things stand physically
+
+- **Device:** flashed with `cd50477`, on battery, charging correctly (task 71 —
+  it never charged before that fix). Sleeps until a button press.
+- **Agent:** running under launchd, healthy, serving the dashboard on
+  `127.0.0.1:8765` and the status line.
+- **Build lane:** `git worktree` a clean checkout if the working tree has
+  in-progress edits — a stale copy once caused a silent build of the WRONG
+  commit, caught only because `OTA_BUILD_ID` is printed. Always check it.
+- **Evidence:** `sh scripts/device-report.sh` prints the device's claimed data
+  age beside the server's authoritative `server_age_s` and their `drift_s`. Use
+  it instead of reconstructing a baseline by hand — doing that by hand produced
+  two false defects in one afternoon.
 
 ## Do not publish a firmware build
 
