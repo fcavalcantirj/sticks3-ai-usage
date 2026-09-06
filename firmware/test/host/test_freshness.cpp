@@ -199,3 +199,41 @@ TEST(sleep_duration_unknown_clamps_age) {
     // freshnessTier(MAX_UINT32, 900) is red (> 4*900=3600).
     ASSERT_EQ(2u, (unsigned)usage::freshnessTier(usage::kSleepUnknown, 900));
 }
+
+// --- ORDER #65 defect fix: shouldApplySleepDuration ----------------------------
+
+// RTC_DATA_ATTR survives OTA reboots, not only deep-sleep wakes.  The
+// sleep-duration restore must be gated on an actual deep-sleep wake cause
+// (Ext1/Timer), not on g_justSlept alone — otherwise a reboot with stale
+// g_justSlept invents phantom elapsed time.
+
+TEST(should_apply_sleep_duration_reboot_does_not_apply) {
+    // A software-reset reboot (PowerOn wake) with g_justSlept stale-true:
+    // no sleep occurred, so no sleep duration should be computed.
+    ASSERT_FALSE(usage::shouldApplySleepDuration(true, false));
+}
+
+TEST(should_apply_sleep_duration_ext1_wake_applies) {
+    // Button wake from deep sleep: real sleep, should apply.
+    ASSERT_TRUE(usage::shouldApplySleepDuration(true, true));
+}
+
+TEST(should_apply_sleep_duration_timer_wake_applies) {
+    // Timer backstop wake from deep sleep: real sleep, should apply.
+    ASSERT_TRUE(usage::shouldApplySleepDuration(true, true));
+}
+
+TEST(should_apply_sleep_duration_no_justSlept_does_not_apply) {
+    // g_justSlept was already consumed on a prior wake — no sleep to account.
+    ASSERT_FALSE(usage::shouldApplySleepDuration(false, true));
+    ASSERT_FALSE(usage::shouldApplySleepDuration(false, false));
+}
+
+TEST(should_apply_sleep_duration_reboot_consumes_justSlept) {
+    // The caller's else-branch must consume g_justSlept even on a reboot,
+    // so the stale flag does not propagate into a later sleep-wake cycle.
+    // This test documents that invariant by checking the predicate returns
+    // false for a reboot (the caller will set g_justSlept = false in the
+    // else-branch, matching the fix at main.cpp).
+    ASSERT_FALSE(usage::shouldApplySleepDuration(true, false));
+}

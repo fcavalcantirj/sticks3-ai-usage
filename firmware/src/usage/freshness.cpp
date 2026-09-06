@@ -48,4 +48,13 @@ uint32_t sleepDuration(uint32_t wakeEpochSec, uint32_t sleepEpochSec) {
     return delta;
 }
 
+// ORDER #65 defect fix: gate sleep-duration computation on an actual
+// deep-sleep wake.  RTC_DATA_ATTR survives OTA reboots, so g_justSlept may
+// be stale from a previous sleep and the wake cause tells us whether a real
+// deep-sleep occurred: Ext1 (button) or Timer (backstop) wake → yes; PowerOn
+// (cold boot / OTA reboot) → no.
+bool shouldApplySleepDuration(bool justSlept, bool fromDeepSleepWake) {
+    return justSlept && fromDeepSleepWake;
+}
+
 } // namespace usage

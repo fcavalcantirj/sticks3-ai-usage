@@ -537,11 +537,18 @@ void setup() {
         // duration we are about to incur — into g_effectiveAgeAtSleep.  On wake
         // we read the RTC clock again and ADD the real sleep duration (computed
         // by sleepDuration() in the pure core, which clamps wraps and absurd
-        // deltas to UNKNOWN) to the effective age.  No special-casing of the
-        // wake cause: a timer wake and a button wake both restore the same
-        // accumulated age.  g_lastFetchMs is reset to nowMs() so post-wake
-        // elapsed time accumulates from the wake instant onward.
-        if (g_justSlept) {
+        // deltas to UNKNOWN) to the effective age.
+        //
+        // ORDER #65 defect fix: RTC_DATA_ATTR survives an OTA software-reset
+        // reboot, not only a deep-sleep wake.  If g_justSlept was set before a
+        // reboot, g_rtcSleepStartSec is stale and computing a sleep duration
+        // would invent phantom elapsed time (the observed ~400s offset).
+        // Gate on the actual wake cause: only Ext1 (button) and Timer (backstop)
+        // are real deep-sleep wakes; PowerOn (cold boot / OTA reboot) is not.
+        // shouldApplySleepDuration() is pure-C++17 and host-tested.
+        bool fromDeepSleepWake = (wakeCause == WakeCause::Ext1
+                                  || wakeCause == WakeCause::Timer);
+        if (usage::shouldApplySleepDuration(g_justSlept, fromDeepSleepWake)) {
             uint32_t rtcEndSec = rtcNowSec();
             uint32_t sleepSec = usage::sleepDuration(rtcEndSec, g_rtcSleepStartSec);
             if (sleepSec == usage::kSleepUnknown) {
@@ -553,7 +560,12 @@ void setup() {
             }
             g_justSlept = false;  // consume so a cold boot doesn't use stale data
         } else {
+            // Cold boot, software reset (OTA), or ext0: RTC_DATA_ATTR survives
+            // these, so g_justSlept may be stale from a previous sleep.  Use the
+            // effective age from the last sleep without adding a phantom duration,
+            // and consume g_justSlept so stale state does not persist.
             g_dataAgeAtFetch = g_effectiveAgeAtSleep;
+            g_justSlept = false;
         }
         g_lastFetchMs = nowMs();
 

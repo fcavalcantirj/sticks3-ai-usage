@@ -52,4 +52,14 @@ static constexpr uint32_t kSleepUnknown = 0xFFFFFFFFu;
 // clamped, positive delta is returned.
 uint32_t sleepDuration(uint32_t wakeEpochSec, uint32_t sleepEpochSec);
 
+// ORDER #65 defect fix: RTC_DATA_ATTR survives an OTA software-reset reboot,
+// not only a deep-sleep wake.  If g_justSlept was set before a reboot, the
+// g_rtcSleepStartSec value is stale and computing a sleep duration would
+// invent phantom elapsed time (the observed ~400s offset).  This predicate
+// returns true ONLY when the device actually woke from deep sleep — i.e.
+// g_justSlept is set AND the wake cause is a real deep-sleep wake (Ext1
+// button or Timer backstop), NOT a PowerOn (cold boot / OTA reboot).
+// The caller (main.cpp) maps WakeCause → fromDeepSleepWake before calling.
+bool shouldApplySleepDuration(bool justSlept, bool fromDeepSleepWake);
+
 } // namespace usage
