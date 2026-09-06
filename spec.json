@@ -653,7 +653,7 @@
       "HAPTICS, asked in the same breath — the board HAS NO VIBRATION MOTOR, verified, so do not build one and do not leave the question open. Power_Class.cpp:2132-2168 makes setVibration() a no-op on every board except board_M5StopWatch and board_M5StackCore2. Record that fact in docs/DEVICES.md so it is not re-attempted. The only feedback channels this board has are the ES8311 speaker (internal_spk=false today) and the screen; the hold hint above IS the feedback. DO NOT enable the speaker — that is Felipe's call.",
       "Verify: new host tests for the hold state machine (a release before 1500 ms is a refresh and NOT a flip; a hold past 1500 ms is a flip and NOT a refresh; two holds return to the original rotation; the hint appears only after the hold begins). `make fw-test` Failed 0 with test_gesture.cpp gone, `make fw-build` SUCCESS, and confirm the binary shrank. The real gate is Felipe on the physical device: he holds the side button, the screen flips 180, serial shows [GESTURE] flip rot=3, a short press still refreshes, holding again returns to rot=1, and the orientation survives a reboot. Do not flip this task on host tests alone — green host tests are exactly what hid the double-tap bug."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "api",
@@ -679,7 +679,7 @@
       "Verify: extend test_topbar.cpp and add footer-layout tests, at least 6 new — the page indicator is centred in the free span for a 240 px bar with a short title; it still drops before the title when the bar is narrow; it never overlaps the battery label; the footer version survives when seq is 3 digits; the hint is shortened rather than the version when they collide; and the footer never draws past the screen edge. `make fw-test` Failed 0 and `make fw-build` SUCCESS. Then the flash is Felipe's call, over OTA via firmware/scripts/upload_ota.sh — you do not run it, and the task does not flip until he confirms he can read the version and that the top bar looks balanced.",
       "DEFECT found reviewing 5922b21 — the fitting logic and the centring are BOTH CORRECT and the tests are honest, but the hint text became unreadable: screen.cpp:192 now reads 'blue: page   side: r/h'. 'r/h' communicates nothing to a human, and the whole reason this line exists is discoverability — an abbreviation nobody can decode is worse than the stale text it replaced. The arithmetic also shows it does not even fit: at Font0 the left string 'seq 5 \\xc2\\xb7 v3c639cd' is 96 px, avail is 240-5-4 = 231, so the hint budget is 231-96-4 = 131 px = 21 glyphs, while 'blue: page   side: r/h' is 22 glyphs = 132 px — so fitRight is truncating it on top of the abbreviation. FIX, in this order: (1) DROP 'seq N' from the footer entirely. Felipe asked for the VERSION, never the seq; seq is developer noise and it is already on the serial line and in the snapshot. That frees 8 glyphs and lifts the hint budget to 231-48-4 = 179 px = 29 glyphs. (2) Write the hint in WHOLE WORDS within that budget — no single-letter codes, no 'r/h', nothing a reader has to decode. Two of the three actions in plain words beats three in cipher; the hold gesture also announces itself with the amber hint once a hold starts, so it is not solely dependent on this line. (3) Keep the fitting rules exactly as built — hint shortens first, version never shortens — and keep footerCompute's seq-dropping branch for the case where a future left string grows. Add a test asserting the rendered hint contains no single-character token between separators, so this cannot regress into cipher again."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "api",
@@ -705,7 +705,7 @@
       "While you are in this function, apply the same discipline to the whole footer: every string drawn there should derive its y from one shared baseline constant computed from the footer rect and the font height, not from three separate literals (118, 120, 120 today). One number, one place.",
       "Verify: extract the vertical centring into a pure host-testable helper (given rect y, rect height and font height, return the cursor y) and test it — a 16 px rect with an 8 px font yields 120 for a rect at y=116; an odd leftover rounds consistently; a font taller than the rect clamps to the rect top rather than going negative. Same for horizontal centring within a rect. `make fw-test` Failed 0, `make fw-build` SUCCESS. Then it rides along on the next OTA — do NOT flash, the planner holds that lane and Felipe authorizes each upload. UAT is Felipe confirming the banner text sits centred in the red bar."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "firmware",
@@ -738,7 +738,7 @@
       "FIX: replace both http.addHeader(\"User-Agent\", ua) calls with http.setUserAgent(ua) in fetchUsage and refreshUpstream. Then PROVE IT ON THE WIRE, because a second silent drop is exactly the failure mode here: add the User-Agent to the access log line (it is not logged today, which is why this took a source dive to find) and confirm after the next flash that the logged UA for 192.168.0.136 reads sticks3-usage/<build> and that device_state reports 192.168.0.136.",
       "ALSO FIX THE STICKY CLASSIFICATION found alongside it: once an IP has been marked isDevice it stays marked, so a later plain request from that same IP keeps the flag and can win the most-recent-device selection. The planner's own fake-UA curl from 127.0.0.1 poisoned the tracker this way and made a loopback client the reported device until the agent was restarted. Re-evaluate isDevice on EVERY request from the current request's User-Agent rather than latching it, so a client that stops looking like the device stops being treated as one."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "firmware",
