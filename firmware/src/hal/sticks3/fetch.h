@@ -16,9 +16,11 @@ struct FetchResult {
 };
 
 // Fetch /v1/usage with If-None-Match conditional request.
+// If ageS is non-zero, appends ?age_s=<n> to the URL so the server can verify
+// the device's RTC-computed effective data age on the wire (ORDER #65).
 // Emits a [FETCH] line via serial_proto.  Returns true on 200/304,
 // false on transport error or non-200/304 HTTP codes.
-bool fetchUsage(const char* lastRev, FetchResult& out);
+bool fetchUsage(const char* lastRev, FetchResult& out, uint32_t ageS = 0);
 
 // POST /v1/refresh to trigger an immediate server-side poll.  Emits a [REFRESH]
 // line via serial_proto.  Returns the FetchResult with code 200 (fresh data

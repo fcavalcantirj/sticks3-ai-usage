@@ -41,7 +41,7 @@ void extractRev(char* out, size_t n, const char* etag) {
 
 } // namespace
 
-bool fetchUsage(const char* lastRev, FetchResult& out) {
+bool fetchUsage(const char* lastRev, FetchResult& out, uint32_t ageS) {
     out.code = 0;
     out.rev[0] = '\0';
     out.ms = 0;
@@ -53,8 +53,13 @@ bool fetchUsage(const char* lastRev, FetchResult& out) {
     http.setReuse(false);
 
     char url[128];
-    std::snprintf(url, sizeof(url), "http://%s:%d/v1/usage",
-                  USAGED_HOST, (int)USAGED_PORT);
+    if (ageS > 0) {
+        std::snprintf(url, sizeof(url), "http://%s:%d/v1/usage?age_s=%u",
+                      USAGED_HOST, (int)USAGED_PORT, ageS);
+    } else {
+        std::snprintf(url, sizeof(url), "http://%s:%d/v1/usage",
+                      USAGED_HOST, (int)USAGED_PORT);
+    }
     http.begin(client, url);
 
     // User-Agent so the server classifies this HTTP client as the StickS3

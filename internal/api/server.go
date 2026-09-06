@@ -201,7 +201,19 @@ func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
 
 	// Record the request and log access (never logs the device token).
 	s.tracker.record(peer, ua, now, status)
-	s.logAccess(r, status)
+
+	// ORDER #65: the firmware sends its locally-computed effective age (seconds
+	// since last successful fetch, including deep-sleep duration) as ?age_s=<n>
+	// on its /v1/usage GET.  This lets the server verify the RTC sleep-duration
+	// fix on the wire: a timer-wake request should carry an age ~60s larger than
+	// the one before it.  It does NOT perturb the ETag/304 path — it is only
+	// read and logged, never stored in the snapshot or rev hash.
+	ageS := r.URL.Query().Get("age_s")
+	if ageS != "" {
+		s.logAccessWithAge(r, status, ageS)
+	} else {
+		s.logAccess(r, status)
+	}
 
 	if matched {
 		writeNotModified(w, etag)

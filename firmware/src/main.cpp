@@ -209,8 +209,13 @@ static void pollBattery(uint32_t now) {
 
 // Fetch /v1/usage and apply the result.  Resets failCount on 200.
 static void doFetch() {
+    // ORDER #65: compute the effective data age at this moment and send it as
+    // ?age_s=<n> so the server can verify the RTC sleep-duration fix on the
+    // wire.  age_s = serverAgeAtLastFetch + elapsed_ms_since_last_fetch / 1000.
+    uint32_t ageS = usage::accumulateAge(g_dataAgeAtFetch, nowMs() - g_lastFetchMs);
+
     FetchResult result;
-    if (fetchUsage(g_lastRev, result)) {
+    if (fetchUsage(g_lastRev, result, ageS)) {
         if (result.code == 200) {
             usage::Model model;
             char err[256];

@@ -237,3 +237,20 @@ func (s *Server) logAccess(r *http.Request, status int) {
 		"if_none_match", r.Header.Get("If-None-Match"),
 	)
 }
+
+// logAccessWithAge is like logAccess but also logs the firmware-reported
+// effective age (ORDER #65: the device sends ?age_s=<n> = seconds of data
+// staleness it computed locally, including deep-sleep duration).  This makes
+// the RTC sleep-duration fix observable on the wire without affecting the
+// ETag/304 contract.
+func (s *Server) logAccessWithAge(r *http.Request, status int, ageS string) {
+	s.logger.Info("access",
+		"path", "/v1/usage",
+		"method", r.Method,
+		"peer", peerIP(r),
+		"user_agent", r.Header.Get("User-Agent"),
+		"status", status,
+		"if_none_match", r.Header.Get("If-None-Match"),
+		"age_s", ageS,
+	)
+}

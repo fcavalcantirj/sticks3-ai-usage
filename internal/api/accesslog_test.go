@@ -849,3 +849,81 @@ func TestComputeDeviceStateJustSeen(t *testing.T) {
 		t.Errorf("computeDeviceState(300, 0) = %q, want %q", got, "connected")
 	}
 }
+
+// TestAccessLogAgeS verifies that age_s query parameter is logged when
+// present, and that its presence/absence does not affect the ETag/304 path.
+// ORDER #65: the firmware sends its RTC-computed effective age as ?age_s=<n>
+// on /v1/usage so the server can prove deep sleep occurred by the gap in the
+// numbers.
+func TestAccessLogAgeS(t *testing.T) {
+	dir := setupFixtures(t)
+	ts, logBuf := newFixtureServerWithCapture(t, dir)
+	defer ts.Close()
+
+	ua := "sticks3-usage/test1234"
+
+	// Request with age_s=42.
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage?age_s=42", nil)
+	req.Header.Set("User-Agent", ua)
+	req.Header.Set("X-Device-Token", "x")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	etag := resp.Header.Get("ETag")
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+
+	// Verify age_s appears in the access log.
+	logLine := logBuf.String()
+	if !strings.Contains(logLine, `"age_s":"42"`) {
+		t.Errorf("access log missing age_s=42; got: %s", logLine)
+	}
+	if !strings.Contains(logLine, `"user_agent":"`+ua+`"`) {
+		t.Errorf("access log missing user_agent; got: %s", logLine)
+	}
+
+	// Now send a 304 with age_s — must still log age_s and stay 304.
+	req2, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage?age_s=132", nil)
+	req2.Header.Set("User-Agent", ua)
+	req2.Header.Set("If-None-Match", etag)
+	req2.Header.Set("X-Device-Token", "x")
+	resp2, err := http.DefaultClient.Do(req2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp2.Body.Close()
+	if resp2.StatusCode != http.StatusNotModified {
+		t.Fatalf("304 request status = %d, want 304", resp2.StatusCode)
+	}
+
+	// Verify the 304 access log also has age_s=132.
+	logLine2 := logBuf.String()
+	if !strings.Contains(logLine2, `"age_s":"132"`) {
+		t.Errorf("access log missing age_s=132 on 304; got: %s", logLine2)
+	}
+}
+
+// TestAccessLogNoAgeS verifies that when age_s is absent the access log does
+// not contain the age_s field (it is only logged when present).
+func TestAccessLogNoAgeS(t *testing.T) {
+	dir := setupFixtures(t)
+	ts, logBuf := newFixtureServerWithCapture(t, dir)
+	defer ts.Close()
+
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
+	req.Header.Set("User-Agent", "curl/8.7.1")
+	req.Header.Set("X-Device-Token", "x")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	logLine := logBuf.String()
+	if strings.Contains(logLine, `"age_s"`) {
+		t.Errorf("access log should not contain age_s when absent; got: %s", logLine)
+	}
+}
