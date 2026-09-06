@@ -184,3 +184,48 @@ initialised (`internal_imu = false`) but powers on in normal mode by default
 
 **USB insert will NOT wake a sleeping device** for up to 12 hours. One button
 press after plugging in restores always-on behaviour. See `docs/DEVICES.md`.
+
+## OTA process (task 69: split build and upload phases)
+
+`firmware/scripts/upload_ota.sh` supports three modes so a battery flash fits
+the ~20 s awake window:
+
+```sh
+# Build phase — runs while USB-powered, no device needed:
+bash firmware/scripts/upload_ota.sh --build-only
+# → prints build=<id>, firmware=<path>  (also sets OTA_BUILD_ID, OTA_FIRMWARE)
+
+# Upload phase — runs on Felipe's button press (device awake on battery):
+bash firmware/scripts/upload_ota.sh --upload-only <firmware.bin> [build_id]
+
+# Combined — build then upload in one step (cable sessions only):
+bash firmware/scripts/upload_ota.sh
+```
+
+**Why it is split:** the build takes ~25 s but the device is only awake for
+~20 s after a button press (12-hour backstop).  Splitting lets the build run
+while the device is on USB power, then the ~5 s upload starts on the next
+button press.
+
+**From the Makefile:**
+```make
+make fw-build-ota                      # build phase
+make fw-upload-ota BIN=<path>          # upload phase
+make fw-ota                            # combined (cable sessions)
+```
+
+**Staleness guard:** the upload phase refuses if the binary is missing or if
+any source file in `src/` or `include/` is newer than the binary — a stale
+binary can never be flashed silently.
+
+**MAC guard:** both phases verify that `sticks3-usage.local` resolves to MAC
+`14:c1:9f:d4:d5:34` (unit #2).  The build phase checks before compiling; the
+upload phase checks again right before flashing, because DHCP may have
+reassigned the address during the build.
+
+**Port poll:** the upload phase polls OTA port 3232 and prints
+"waiting for device — press a button" until the device answers, so Felipe's
+press and the upload meet reliably instead of racing on timing.
+
+**UAT:** Felipe authorizes each flash.  On battery: run `--build-only`, then
+press the side button when prompted during `--upload-only`.
