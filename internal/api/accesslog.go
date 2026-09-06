@@ -3,6 +3,7 @@ package api
 import (
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -240,11 +241,19 @@ func (s *Server) logAccess(r *http.Request, status int) {
 
 // logAccessWithAge is like logAccess but also logs the firmware-reported
 // effective age (ORDER #65: the device sends ?age_s=<n> = seconds of data
-// staleness it computed locally, including deep-sleep duration).  This makes
-// the RTC sleep-duration fix observable on the wire without affecting the
-// ETag/304 contract.
-func (s *Server) logAccessWithAge(r *http.Request, status int, ageS string) {
-	s.logger.Info("access",
+// staleness it computed locally, including deep-sleep duration), ALONGSIDE the
+// server's own authoritative age for the same instant.
+//
+// Logging both is the point. The device's age_s is only meaningful against the
+// server's now-minus-checked_at, and reconstructing that baseline by hand is
+// error-prone: it produced two false "offset" defects during the 2026-09-06
+// hardware sessions, because the age a device reports immediately after a
+// reboot is its own pre-fetch estimate, not evidence about the server. With
+// both numbers and their difference on one line, that misreading is not
+// available — drift_s near zero means the freshness pipeline is correct, and a
+// large drift is a real defect rather than an artefact of the reader.
+func (s *Server) logAccessWithAge(r *http.Request, status int, ageS string, serverAgeSec int64) {
+	attrs := []any{
 		"path", "/v1/usage",
 		"method", r.Method,
 		"peer", peerIP(r),
@@ -252,5 +261,13 @@ func (s *Server) logAccessWithAge(r *http.Request, status int, ageS string) {
 		"status", status,
 		"if_none_match", r.Header.Get("If-None-Match"),
 		"age_s", ageS,
-	)
+		"server_age_s", serverAgeSec,
+	}
+	// drift_s = what the device believes minus what the server knows. Only
+	// computable when the device sent a parseable number; a malformed value is
+	// logged verbatim above and simply carries no drift.
+	if n, err := strconv.ParseInt(ageS, 10, 64); err == nil {
+		attrs = append(attrs, "drift_s", n-serverAgeSec)
+	}
+	s.logger.Info("access", attrs...)
 }

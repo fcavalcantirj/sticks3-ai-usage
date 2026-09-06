@@ -216,7 +216,11 @@ func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
 	// read and logged, never stored in the snapshot or rev hash.
 	ageS := r.URL.Query().Get("age_s")
 	if ageS != "" {
-		s.logAccessWithAge(r, status, ageS)
+		// Log the server's own authoritative age for this same instant so the
+		// device's claim is directly comparable. Computed identically to the
+		// Age field on the 200 path below, and available on a 304 too — where
+		// there is no body, so the log is the ONLY place the comparison exists.
+		s.logAccessWithAge(r, status, ageS, now.Unix()-snap.CheckedAt)
 	} else {
 		s.logAccess(r, status)
 	}

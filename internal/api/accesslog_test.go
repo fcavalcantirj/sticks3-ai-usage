@@ -927,3 +927,58 @@ func TestAccessLogNoAgeS(t *testing.T) {
 		t.Errorf("access log should not contain age_s when absent; got: %s", logLine)
 	}
 }
+
+// TestLogAccessWithAgeRecordsServerAgeAndDrift locks the contract that made the
+// freshness pipeline verifiable: the access line must carry BOTH the device's
+// claimed age and the server's authoritative age for the same instant, plus
+// their difference. Two false "offset" defects were filed on 2026-09-06 because
+// the baseline had to be reconstructed by hand; drift_s removes that step.
+func TestLogAccessWithAgeRecordsServerAgeAndDrift(t *testing.T) {
+	var buf bytes.Buffer
+	srv := &Server{logger: slog.New(slog.NewJSONHandler(&buf, nil))}
+	req := httptest.NewRequest(http.MethodGet, "/v1/usage?age_s=608", nil)
+	req.RemoteAddr = "192.168.0.136:50000"
+	req.Header.Set("User-Agent", "sticks3-usage/abc1234")
+
+	srv.logAccessWithAge(req, http.StatusNotModified, "608", 600)
+
+	var got map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatalf("log line is not JSON: %v", err)
+	}
+	if got["age_s"] != "608" {
+		t.Errorf("age_s = %v, want \"608\"", got["age_s"])
+	}
+	if got["server_age_s"] != float64(600) {
+		t.Errorf("server_age_s = %v, want 600", got["server_age_s"])
+	}
+	if got["drift_s"] != float64(8) {
+		t.Errorf("drift_s = %v, want 8 (608-600)", got["drift_s"])
+	}
+	// The token must never reach a log line, on any path.
+	if bytes.Contains(buf.Bytes(), []byte("X-Device-Token")) {
+		t.Error("access log must never carry the device token")
+	}
+}
+
+// A device that sends a malformed age must still be logged, without a bogus
+// drift — silently dropping the line would hide a misbehaving device.
+func TestLogAccessWithAgeMalformedAgeHasNoDrift(t *testing.T) {
+	var buf bytes.Buffer
+	srv := &Server{logger: slog.New(slog.NewJSONHandler(&buf, nil))}
+	req := httptest.NewRequest(http.MethodGet, "/v1/usage?age_s=nonsense", nil)
+	req.RemoteAddr = "192.168.0.136:50000"
+
+	srv.logAccessWithAge(req, http.StatusOK, "nonsense", 42)
+
+	var got map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatalf("log line is not JSON: %v", err)
+	}
+	if got["age_s"] != "nonsense" {
+		t.Errorf("age_s = %v, want the raw value preserved", got["age_s"])
+	}
+	if _, ok := got["drift_s"]; ok {
+		t.Error("drift_s must be absent when the device age does not parse")
+	}
+}
