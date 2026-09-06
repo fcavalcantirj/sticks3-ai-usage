@@ -1,10 +1,10 @@
 #!/bin/bash
-# ai-usage statusline — model · project · ctx gauge · Claude 5h/7d · GPT 5h/7d (+credits)
+# ai-usage statusline — model · project · ctx gauge · Claude 5h/7d · GPT 5h/7d
 #
 # Sources (no network, no API calls per render):
 #   - Claude 5h/7d: Claude Code's own statusline stdin `rate_limits` (official; present on Pro/Max).
 #     Fallback: usaged state file (claude provider rows).
-#   - ChatGPT/Codex 5h/7d + credits: usaged state file written by the LaunchAgent
+#   - ChatGPT/Codex 5h/7d: usaged state file written by the LaunchAgent
 #     ($HOME/.local/state/usaged/state.json, override with USAGED_STATE).
 #   - ctx: stdin context_window.used_percentage.
 # Env: AI_USAGE_COMPACT=1 drops the bars; AI_USAGE_BAR=N sets bar width (default 8).
@@ -21,13 +21,13 @@ IFS=$'\t' read -r model dir ctx c5 c7 < <(printf '%s' "$input" | jq -r '
     (.rate_limits.five_hour.used_percentage // "-"),
     (.rate_limits.seven_day.used_percentage // "-") ] | @tsv' 2>/dev/null || printf 'Claude\t\t-\t-\t-\n')
 
-g5="-"; g7="-"; gb="-"; s5="-"; s7="-"; age="-"
+g5="-"; g7="-"; s5="-"; s7="-"; age="-"
 if [ -f "$STATE" ]; then
-  IFS=$'\t' read -r g5 g7 gb s5 s7 age < <(jq -r '
+  IFS=$'\t' read -r g5 g7 s5 s7 age < <(jq -r '
     def row(p; k): first(.snapshot.providers[]? | select(.id == p) | .rows[]? | select(.k == k));
-    [ (row("codex";"5h").pct // "-"), (row("codex";"7d").pct // "-"), (row("codex";"bal").txt // "-"),
+    [ (row("codex";"5h").pct // "-"), (row("codex";"7d").pct // "-"),
       (row("claude";"5h").pct // "-"), (row("claude";"7d").pct // "-"),
-      ((now - (.snapshot.checked_at // 0)) / 60 | floor) ] | @tsv' "$STATE" 2>/dev/null || printf -- '-\t-\t-\t-\t-\t-\n')
+      ((now - (.snapshot.checked_at // 0)) / 60 | floor) ] | @tsv' "$STATE" 2>/dev/null || printf -- '-\t-\t-\t-\t-\n')
 fi
 [ -z "${model:-}" ] && model="Claude"
 [ -z "${ctx:-}" ] && ctx="-"
@@ -56,7 +56,6 @@ line="\033[1m${model}\033[0m${sep}${proj}"
 [ "$ctx" != "-" ] && line+="${sep}ctx $(bar "$ctx")"
 line+="${sep}Claude 5h $(bar "$c5") 7d $(plain "$c7")"
 line+="${sep}GPT 5h $(bar "$g5") 7d $(plain "$g7")"
-[ "$gb" != "-" ] && line+=" $gb"
 if [ ! -f "$STATE" ]; then line+="${sep}\033[90musaged: not running\033[0m"
 elif [ "$age" != "-" ] && [ "$age" -gt 45 ] 2>/dev/null; then line+="${sep}\033[33mstale ${age}m\033[0m"; fi
 printf '%b\n' "$line"

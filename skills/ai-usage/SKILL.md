@@ -9,13 +9,15 @@ argument-hint: [status | webui | refresh | table | install | uninstall]
 Replaces the old GSD status line. One bash script, no network per render:
 
 ```
-Fable · sticks3-ai-usage · ctx ██░░░░░░ 12% · Claude 5h ████░░░░ 50% 7d 57% · GPT 5h ░░░░░░░░ 0% 7d 54% $165.77
+Opus · sticks3-ai-usage · ctx █░░░░░░░ 12% · Claude 5h ░░░░░░░░ 2% 7d 59% · GPT 5h ░░░░░░░░ 0% 7d 100%
 ```
 
 Sources:
 - **Claude 5h/7d**: Claude Code's own status-line stdin `rate_limits.five_hour/seven_day.used_percentage` (official, Max/Pro plans). Fallback: usaged state file.
-- **ChatGPT/Codex 5h/7d + credits**: `~/.local/state/usaged/state.json`, written every 15 min by the `usaged` LaunchAgent (`com.fcavalcanti.usaged`, repo `~/dev/m5/sticks3-ai-usage`, `make install`). Until that agent runs, the bar says `usaged: not running`; if the file is older than 45 min it says `stale Nm`.
+- **ChatGPT/Codex 5h/7d**: `~/.local/state/usaged/state.json`, written every 15 min by the `usaged` LaunchAgent (`com.fcavalcanti.usaged`, repo `~/dev/m5/sticks3-ai-usage`, `make install`). Until that agent runs, the bar says `usaged: not running`; if the file is older than 45 min it says `stale Nm`.
 - **ctx**: stdin `context_window.used_percentage`.
+
+The bar carries no money figure: ChatGPT reports a COUNT of rate-limit reset credits, not dollars, and the only real balances are OpenRouter's — surfaced through the low-balance alert and the dashboard, not the status line.
 
 Colors: green < 50 %, yellow 50–79 %, red ≥ 80 %. `AI_USAGE_COMPACT=1` drops the bars, `AI_USAGE_BAR=12` widens them.
 
@@ -23,7 +25,7 @@ Colors: green < 50 %, yellow 50–79 %, red ≥ 80 %. `AI_USAGE_COMPACT=1` drops
 
 | ask | do |
 |---|---|
-| status / no args | `bash SKILL_DIR/scripts/statusline.sh < /dev/null` (prints the line from the state file only) and, if the repo exists, `cd ~/dev/m5/sticks3-ai-usage && go run ./cmd/usaged once` for the full table (live, read-only, Keychain + ~/.codex/auth.json; exits 3 when a provider needs `run claude` / `run codex`) |
+| status / no args | `bash SKILL_DIR/scripts/statusline.sh < /dev/null` (prints the line from the state file only) and, if the repo exists, `cd ~/dev/m5/sticks3-ai-usage && go run ./cmd/usaged once` for the full table (live, read-only, Keychain + ~/.codex/auth.json; exits 3 when a provider needs `run claude` / `run codex`). Works from any shell — the non-loopback token check is enforced at the serve boundary, not at config load |
 | webui / web / open / dashboard | `bash SKILL_DIR/scripts/webui.sh` — checks the agent is answering, prints the snapshot age, opens http://127.0.0.1:8765/ in the browser, and prints the LAN URL with the device token for a phone |
 | refresh / force | `curl -s -X POST -H "X-Device-Token: $(grep ^USAGED_DEVICE_TOKEN ~/dev/m5/sticks3-ai-usage/.env | cut -d= -f2-)" http://127.0.0.1:8765/v1/refresh` — makes the agent poll the providers now instead of waiting for the 15-minute tick |
 | table | `curl -s http://127.0.0.1:8765/v1/usage.txt` when the LaunchAgent is running, else the `once` command above |

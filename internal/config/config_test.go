@@ -283,28 +283,34 @@ func TestRedactedNoKeys(t *testing.T) {
 
 // --- SECURITY (ORDER #43 BUG 47) ---------------------------------------------
 
-func TestLoadRejectsNonLoopbackEmptyToken(t *testing.T) {
-	_, err := Load(nil, envFrom(map[string]string{
+// Load no longer enforces the non-loopback token rule: it is a SERVE concern
+// and lives in api.New, because `once`, `stats` and `config` also call Load and
+// never bind a socket. See TestNewRefuses* in internal/api.
+func TestLoadAllowsNonLoopbackEmptyTokenForReadOnlyCommands(t *testing.T) {
+	cfg, err := Load(nil, envFrom(map[string]string{
 		"USAGED_LISTEN": "0.0.0.0:8765",
 	}))
-	if err == nil {
-		t.Fatal("expected error for non-loopback listen with empty token")
+	if err != nil {
+		t.Fatalf("Load must not refuse a serve-only condition: %v", err)
 	}
-	if !strings.Contains(err.Error(), "device token required") {
-		t.Errorf("error should mention device token required, got: %v", err)
+	if cfg.Listen != "0.0.0.0:8765" {
+		t.Errorf("Listen = %q, want 0.0.0.0:8765", cfg.Listen)
+	}
+	if cfg.DeviceToken != "" {
+		t.Errorf("DeviceToken = %q, want empty", cfg.DeviceToken)
 	}
 }
 
-func TestLoadRejectsNonLoopbackPlaceholderToken(t *testing.T) {
-	_, err := Load(nil, envFrom(map[string]string{
+func TestLoadAllowsPlaceholderTokenForReadOnlyCommands(t *testing.T) {
+	cfg, err := Load(nil, envFrom(map[string]string{
 		"USAGED_LISTEN":       "0.0.0.0:8765",
-		"USAGED_DEVICE_TOKEN": "change-me-32-chars",
+		"USAGED_DEVICE_TOKEN": PlaceholderDeviceToken,
 	}))
-	if err == nil {
-		t.Fatal("expected error for placeholder token on non-loopback")
+	if err != nil {
+		t.Fatalf("Load must not refuse a serve-only condition: %v", err)
 	}
-	if !strings.Contains(err.Error(), "placeholder") {
-		t.Errorf("error should mention placeholder, got: %v", err)
+	if cfg.DeviceToken != PlaceholderDeviceToken {
+		t.Errorf("DeviceToken = %q, want the placeholder verbatim", cfg.DeviceToken)
 	}
 }
 

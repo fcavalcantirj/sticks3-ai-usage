@@ -61,7 +61,13 @@ func New(s *sched.Scheduler, cfg config.Config, configPath string, logger *slog.
 		logger = slog.Default()
 	}
 
-	if cfg.DeviceToken == "" && !isLoopbackListen(cfg.Listen) {
+	// SECURITY (ORDER #43 BUG 47): never expose the LAN port without a real
+	// token. The placeholder is rejected too — it ships in this repository's
+	// history, so binding 0.0.0.0 with it is the same as binding with none.
+	// This check lives HERE rather than in config.Load because Load is also
+	// used by the read-only subcommands, which never bind a socket.
+	if !isLoopbackListen(cfg.Listen) &&
+		(cfg.DeviceToken == "" || cfg.DeviceToken == config.PlaceholderDeviceToken) {
 		return nil, refuseStartError(cfg.Listen)
 	}
 

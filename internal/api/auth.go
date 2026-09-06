@@ -183,8 +183,9 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 // non-loopback address without a device token configured.
 func refuseStartError(listen string) error {
 	return fmt.Errorf(
-		"usaged: refusing to start on non-loopback %q with empty USAGED_DEVICE_TOKEN; "+
-			"set USAGED_DEVICE_TOKEN in .env or listen on 127.0.0.1 only",
+		"usaged: refusing to start on non-loopback %q without a real USAGED_DEVICE_TOKEN "+
+			"(empty or the published placeholder); set USAGED_DEVICE_TOKEN in .env "+
+			"or listen on 127.0.0.1 only",
 		listen,
 	)
 }

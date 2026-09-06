@@ -613,6 +613,50 @@ func TestAuthEmptyTokenLAN(t *testing.T) {
 	}
 }
 
+// TestNewRefusesPlaceholderTokenNonLoopback covers the check that moved out of
+// config.Load: the published placeholder must be refused at the serve boundary
+// exactly like an empty token, or a stale .env would bind 0.0.0.0 with a
+// credential that lives in this repository's history.
+func TestNewRefusesPlaceholderTokenNonLoopback(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "0.0.0.0:8765", Interval: 900 * time.Second, TZ: testLoc,
+		DeviceToken: config.PlaceholderDeviceToken,
+	}
+	client := &httpx.Client{HTTP: &http.Client{Transport: httpx.NewFixtureTransport(dir)}}
+	runner := creds.FixtureRunner(dir)
+	fetchers := []providers.Fetcher{
+		providers.NewClaude(client, runner, "testuser", testLoc),
+		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc),
+	}
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
+	if _, err := New(s, cfg, "", logger); err == nil {
+		t.Error("New with the placeholder DeviceToken + non-loopback listen must refuse")
+	}
+}
+
+// TestNewAllowsPlaceholderTokenOnLoopback confirms the refusal is scoped to
+// non-loopback binds — a local-only serve is not exposed and must still start.
+func TestNewAllowsPlaceholderTokenOnLoopback(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen: "127.0.0.1:8765", Interval: 900 * time.Second, TZ: testLoc,
+		DeviceToken: config.PlaceholderDeviceToken,
+	}
+	client := &httpx.Client{HTTP: &http.Client{Transport: httpx.NewFixtureTransport(dir)}}
+	runner := creds.FixtureRunner(dir)
+	fetchers := []providers.Fetcher{
+		providers.NewClaude(client, runner, "testuser", testLoc),
+		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc),
+	}
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
+	if _, err := New(s, cfg, "", logger); err != nil {
+		t.Errorf("loopback serve must start regardless of token: %v", err)
+	}
+}
+
 // --- ORDER #54 / task 59 security gate tests ---
 
 // TestMutatingRouteNoTokenLoopback401 verifies that POST /v1/keys from

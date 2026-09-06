@@ -22,10 +22,11 @@ const (
 	MinIntervalSec     = 300
 )
 
-// oldDefaultDeviceToken is the insecure placeholder that used to ship as the
-// default DeviceToken. It is kept only to reject it at validation time so a
-// stale config can never silently bind 0.0.0.0 with a published token.
-const oldDefaultDeviceToken = "change-me-32-chars"
+// PlaceholderDeviceToken is the insecure placeholder that used to ship as the
+// default DeviceToken. It is exported so the serve boundary (api.New) can
+// reject it: a stale config must never silently bind 0.0.0.0 with a token
+// that is published in this repository's history.
+const PlaceholderDeviceToken = "change-me-32-chars"
 
 // Config holds all runtime configuration for the usaged service.
 type Config struct {
@@ -285,15 +286,11 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 		return cfg, fmt.Errorf("listen address must not be empty")
 	}
 
-	// SECURITY (ORDER #43 BUG 47): refuse to bind a non-loopback address with
-	// an empty or placeholder device token — it would expose the device API
-	// on the LAN with a publicly-known credential.
-	if !isLoopback(cfg.Listen) &&
-		(cfg.DeviceToken == "" || cfg.DeviceToken == oldDefaultDeviceToken) {
-		return cfg, fmt.Errorf("device token required for non-loopback listen %q "+
-			"(set USAGED_DEVICE_TOKEN); the placeholder %q is not accepted",
-			cfg.Listen, oldDefaultDeviceToken)
-	}
+	// SECURITY (ORDER #43 BUG 47) is enforced at the SERVE boundary, in
+	// api.New — not here. Load is called by `once`, `stats` and `config`
+	// too, and none of them bind a socket; refusing to parse config for a
+	// read-only subcommand made the skill's own documented fallback
+	// (`usaged once`) fail from any shell that had not sourced .env.
 
 	return cfg, nil
 }
