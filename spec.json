@@ -760,6 +760,18 @@
     "passes": true
   },
   {
+    "category": "api",
+    "description": "Refresh button now 401s on the local dashboard — ORDER #54 over-applied the token requirement to POST /v1/refresh, and the error text blames reading when refreshing failed",
+    "steps": [
+      "Context: usaged (Go, stdlib only) at /Users/fcavalcanti/dev/m5/sticks3-ai-usage. House rules in AGENTS.md. internal/web/ is embedded with go:embed — nothing there is live until 'make build && launchctl kickstart -k gui/$(id -u)/com.fcavalcanti.usaged'.",
+      "Felipe clicked 'Refresh now' on the local dashboard and got a red banner: '401 Unauthorized — enter your device token to view usage data', with a token entry box. The data itself renders fine because GETs kept the loopback exemption; only the button fails. This is a REGRESSION INTRODUCED BY THE PLANNER'S OWN ORDER #54, which required the device token on every mutating /v1 route even on loopback. That was correct for POST/DELETE /v1/keys and PUT /v1/config — those write his Keychain and rewrite his config, and a cross-site POST to localhost is a real vector. It was WRONG for POST /v1/refresh, which does nothing but ask the agent to poll its providers early. The worst an attacker achieves is a slightly earlier poll. The protection bought nothing and cost the main button on the page.",
+      "FIX: exempt POST /v1/refresh from the loopback token requirement, restoring the pre-#54 behaviour for that route ONLY. Keep the token mandatory on POST /v1/keys, DELETE /v1/keys and PUT /v1/config even on loopback — that is the part of #54 that must not be softened, and the live 401 checks the planner ran must still pass for those three. Keep the application/json Content-Type requirement on refresh so a form-encoded cross-site POST still bounces.",
+      "ALSO FIX THE ERROR TEXT, which is wrong in a way that would mislead anyone: '401 Unauthorized — enter your device token to VIEW USAGE DATA' appeared while the usage data was already on screen. The failure was a refresh, not a read. Report what actually failed ('could not trigger a refresh') and keep the token prompt for the routes that genuinely need one. A banner that misdescribes the failure sends the reader looking in the wrong place.",
+      "Verify: `go test ./internal/api -v` — POST /v1/refresh from loopback with NO token succeeds; POST /v1/keys, DELETE /v1/keys and PUT /v1/config from loopback with no token still return 401; refresh with a non-JSON Content-Type is still rejected. `make verify` and `make smoke` exit 0. THEN REBUILD AND KICKSTART and confirm by clicking the real button in the browser — not by curl alone, since the point is the page."
+    ],
+    "passes": false
+  },
+  {
     "category": "optional",
     "description": "OPTIONAL v3: spike `codex app-server` JSON-RPC account/rateLimits/read so the Codex CLI owns token refresh",
     "steps": [
