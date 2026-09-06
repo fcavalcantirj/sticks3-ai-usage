@@ -1,8 +1,8 @@
 ---
 slug: provisioning-spike
 date: 2026-09-06
-status: open
-round: 0
+status: approved
+round: 1
 author_session: planner session that steered a separate builder agent through the Solvr room for the whole 2026-09-05/06 build (ledger tasks ~45-74)
 ---
 
@@ -211,3 +211,29 @@ answer could remove tasks 77 and 79 entirely.
 - `progress.txt` — the previous builder's running journal.
 - Secrets live in `firmware/include/secrets.h` and the repo-root `.env` — both gitignored.
   Never inline their values.
+
+
+## SUPERSEDED — corrections (2026-09-06, after REVIEW-r1)
+
+Appended, not rewritten. Where this handover disagrees with what you measure, the
+measurement wins.
+
+1. **The credential leak is FIVE values, not four.** `OTA_PASS` is also plaintext in
+   `firmware.bin` — re-confirmed by `strings`. Task 76's security check must cover
+   WIFI_SSID, WIFI_PASS, USAGED_HOST, USAGED_DEVICE_TOKEN **and OTA_PASS**. An
+   undercounted check is one that passes while leaking.
+2. **The `strings` command path is wrong from the repo root.** `.pio/` lives under
+   `firmware/`, so the path is `firmware/.pio/build/m5stack-sticks3/firmware.bin`. Pasted
+   as written it returns nothing, which could be misread as "no leak" — the exact
+   absence-of-evidence trap in blocking constraint 3.
+3. **HEAD was `7c59ad1`** by the time this was delivered; `c1d18a0` predates the handover
+   commit itself.
+4. **Binary size is 1,051,328 bytes** on disk, not 1,051,312. The ~31.4% headroom claim
+   stands.
+5. **`GOLDEN_RULES.md` #8 "NO SOLO RESEARCH" was omitted and belongs in the hard rules.**
+   Ruling, so it is not re-litigated: a ledger-committed investigative task IS the approval
+   #8 requires; answering it from local files is execution, not scope expansion. Anything
+   that cannot be answered locally goes to Felipe rather than to the web.
+6. **`spec.json` has no `id` field** — task numbers are positional (task 75 = index 74).
+7. **Task numbering in `BACKLOG.md` was off by one** and has been corrected: the
+   provisioning group is 75-79, where 75 is the spike.

@@ -2,14 +2,14 @@
 
 Deferred by decision, not by omission. The project closed at **78 of 83 ledger
 tasks passing** (`spec.json`). The open tasks are the provisioning group
-(75-78, item 3 below) and the optional task hub (item 1).
+(75-79, item 3 below) and the optional task hub (item 1).
 
 > **Before publishing a firmware build anywhere, read item 3.** `secrets.h`
 > values are compiled into `firmware.bin` as plaintext — including the Wi-Fi
 > password — and a stranger's flash cannot work regardless. That item is the
 > top priority if this project is ever resumed.
 
-## 1. Task-hub rows — `POST /v1/rows` (spec.json task 78)
+## 1. Task-hub rows — `POST /v1/rows` (spec.json task 83)
 
 Let any process push a row into the snapshot, namespaced `ext:`, with a TTL.
 It then appears on the device and the web page.
@@ -70,7 +70,7 @@ no screen anywhere that lets them fix it.
 
 ### The fix is now fully specced
 
-**`spec.json` tasks 75-78 (PROVISIONING 1/4 … 4/4).** Researched September 2026;
+**`spec.json` tasks 75-79 — 75 is a SPIKE that must run first (PROVISIONING 0/4 … 4/4).** Researched September 2026;
 the reasoning behind the shape is below, the executable detail is in the ledger.
 
 **The decisive constraint:** every off-the-shelf framework — Espressif's
@@ -83,19 +83,19 @@ captive portal wins.
 
 **Build order, which is design rather than preference:**
 
-1. **Credential store + state machine** (task 75) — NVS record, validation, and
+1. **Credential store + state machine** (task 76) — NVS record, validation, and
    the N-failed-joins-back-to-portal rule, so a moved house never needs a cable.
    Pure C++17, host-tested, no radio. Includes the build check that fails if any
    credential appears in `firmware.bin`.
-2. **SoftAP captive portal** (task 76) — the only step that cannot live on the
+2. **SoftAP captive portal** (task 77) — the only step that cannot live on the
    Mac. Per-device AP name from the MAC, **WPA2-protected with the password shown
    on the device screen** (an open AP lets a neighbour reach setup; the screen is
    why we can do this without a printed label). Live scan, hidden-SSID path, DNS
    hijack so the sheet pops by itself on iOS and Android.
-3. **Pairing code** (task 77) — short, unambiguous alphabet, `crypto/rand`,
+3. **Pairing code** (task 78) — short, unambiguous alphabet, `crypto/rand`,
    short-lived, single-use, rate-limited, LAN-only. The agent issues the token so
    the build never carries one.
-4. **Wi-Fi under Settings** (task 78) — Felipe's original request, and correctly
+4. **Wi-Fi under Settings** (task 79) — Felipe's original request, and correctly
    *last*: the Settings page is served by the Mac, so it maintains rather than
    bootstraps. Its hard part is the failure path — a bad password must fall back
    to the old network or the portal, never strand the device.
