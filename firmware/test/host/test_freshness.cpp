@@ -146,3 +146,56 @@ TEST(freshness_failed_fetch_keeps_red) {
     ASSERT_EQ(43215u, (unsigned)aged);
     ASSERT_EQ(2u, (unsigned)usage::freshnessTier(aged, 900)); // still red
 }
+
+// --- sleepDuration ------------------------------------------------------------
+
+// sleepDuration computes the real sleep duration from RTC clock readings
+// before and after deep sleep.  ESP-IDF maintains gettimeofday across sleep.
+
+TEST(sleep_duration_normal_90s) {
+    // 90-second sleep: wake at epoch 1000, sleep at epoch 910.
+    ASSERT_EQ(90u, (unsigned)usage::sleepDuration(1000, 910));
+}
+
+TEST(sleep_duration_zero_is_unknown) {
+    // Same timestamp — clock did not advance or did not survive.
+    ASSERT_EQ(usage::kSleepUnknown, (unsigned)usage::sleepDuration(1000, 1000));
+}
+
+TEST(sleep_duration_underflow_wraps_to_unknown) {
+    // The signature from the failed hardware probe: wake comes back SMALL
+    // against a large sleep value (clock did not survive).  The uint32
+    // subtraction would wrap to ~4 billion — instead we return UNKNOWN.
+    // 4295195 was the observed value; simulate the pattern with larger numbers.
+    ASSERT_EQ(usage::kSleepUnknown, (unsigned)usage::sleepDuration(100, 4000000000u));
+}
+
+TEST(sleep_duration_12h_backstop) {
+    // 12 hours = 43200 seconds.  This is the maximum legitimate sleep.
+    uint32_t sleep = 1788709643u;
+    uint32_t wake = sleep + 43200;
+    ASSERT_EQ(43200u, (unsigned)usage::sleepDuration(wake, sleep));
+}
+
+TEST(sleep_duration_exceeds_ceiling_is_unknown) {
+    // 3 days exceeds the 2-day ceiling — treat as unknown.
+    uint32_t sleep = 1788709643u;
+    uint32_t wake = sleep + 259200; // 3 days
+    ASSERT_EQ(usage::kSleepUnknown, (unsigned)usage::sleepDuration(wake, sleep));
+}
+
+TEST(sleep_duration_clock_backward_is_unknown) {
+    // Wake time before sleep time — clock went backwards.
+    ASSERT_EQ(usage::kSleepUnknown, (unsigned)usage::sleepDuration(500, 1000));
+}
+
+TEST(sleep_duration_unknown_clamps_age) {
+    // When sleepDuration returns kSleepUnknown, the caller must not add it
+    // to the age (that would set age to ~4 billion).  Instead it treats the
+    // age as MAX_UINT32 so freshnessTier returns red.
+    uint32_t age = usage::accumulateAge(10, 0);
+    ASSERT_EQ(10u, (unsigned)age);
+    // In the caller: if sleep == kSleepUnknown, age = kSleepUnknown (MAX_UINT32).
+    // freshnessTier(MAX_UINT32, 900) is red (> 4*900=3600).
+    ASSERT_EQ(2u, (unsigned)usage::freshnessTier(usage::kSleepUnknown, 900));
+}

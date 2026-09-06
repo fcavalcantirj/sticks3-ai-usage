@@ -129,7 +129,7 @@ static uint32_t g_lastBatteryPoll = 0;
 static uint32_t g_dataAgeAtFetch = 0;   // server-reported age at last 200 fetch
 static uint32_t g_lastFetchMs = 0;      // millis() at last 200 fetch
 RTC_DATA_ATTR uint32_t g_effectiveAgeAtSleep = 0; // full effective age at last powerSleep()
-RTC_DATA_ATTR uint32_t g_rtcSleepStartMs = 0;     // RTC ms at powerSleep entry (task 65)
+RTC_DATA_ATTR uint32_t g_rtcSleepStartSec = 0;    // RTC epoch sec at powerSleep entry (task 65)
 RTC_DATA_ATTR bool g_justSlept = false;           // true after powerSleep(), consumed on wake
 
 // --- helpers ----------------------------------------------------------------
@@ -152,8 +152,15 @@ static void redraw() {
 
     // ORDER #65: override the fetch-time tier with the accumulated effective age.
     // effectiveAge = serverAgeAtFetch + elapsed ms since that fetch / 1000.
-    uint32_t effectiveAge = usage::accumulateAge(g_dataAgeAtFetch,
-                                                 nowMs() - g_lastFetchMs);
+    // If the sleep duration was unknowable (clock wrap/failure), g_dataAgeAtFetch
+    // is kSleepUnknown (MAX_UINT32) and we propagate it so the lamp shows RED.
+    uint32_t effectiveAge;
+    if (g_dataAgeAtFetch == usage::kSleepUnknown) {
+        effectiveAge = usage::kSleepUnknown;
+    } else {
+        effectiveAge = usage::accumulateAge(g_dataAgeAtFetch,
+                                             nowMs() - g_lastFetchMs);
+    }
     plan.freshnessTier = usage::freshnessTier(effectiveAge, g_model.nextSec);
 
     drawPlan(plan, netUp(), g_batt);
@@ -210,9 +217,16 @@ static void pollBattery(uint32_t now) {
 // Fetch /v1/usage and apply the result.  Resets failCount on 200.
 static void doFetch() {
     // ORDER #65: compute the effective data age at this moment and send it as
-    // ?age_s=<n> so the server can verify the RTC sleep-duration fix on the
-    // wire.  age_s = serverAgeAtLastFetch + elapsed_ms_since_last_fetch / 1000.
-    uint32_t ageS = usage::accumulateAge(g_dataAgeAtFetch, nowMs() - g_lastFetchMs);
+    // ?age_s=<n> so the server can verify the sleep-duration fix on the wire.
+    // age_s = serverAgeAtLastFetch + elapsed_ms_since_last_fetch / 1000.
+    // If the sleep duration was unknowable, send a sentinel that the server
+    // logs distinctly.
+    uint32_t ageS;
+    if (g_dataAgeAtFetch == usage::kSleepUnknown) {
+        ageS = usage::kSleepUnknown;
+    } else {
+        ageS = usage::accumulateAge(g_dataAgeAtFetch, nowMs() - g_lastFetchMs);
+    }
 
     FetchResult result;
     if (fetchUsage(g_lastRev, result, ageS)) {
@@ -514,20 +528,26 @@ void setup() {
 
         // On warm boot, restore the effective age that was computed and stored
         // BEFORE the sleep (see the powerSleep call-site below).  Before sleeping
-        // we read the RTC clock (esp_timer_get_time, which survives deep sleep)
-        // and compute the full effective age — server-reported age at last fetch
-        // + elapsed time since that fetch, INCLUDING the sleep duration we are
-        // about to incur — into g_effectiveAgeAtSleep.  On wake we read the RTC
-        // clock again and ADD the real sleep duration to the effective age, so
-        // even if the pre-sleep computation was slightly stale the lamp reflects
-        // the true gap.  No special-casing of the wake cause: a timer wake and a
-        // button wake both restore the same accumulated age.  g_lastFetchMs is
-        // reset to nowMs() so post-wake elapsed time accumulates from the wake
-        // instant onward.
+        // we read the RTC clock (gettimeofday, maintained across deep sleep by
+        // ESP-IDF's RTC) and compute the full effective age — server-reported
+        // age at last fetch + elapsed time since that fetch, INCLUDING the sleep
+        // duration we are about to incur — into g_effectiveAgeAtSleep.  On wake
+        // we read the RTC clock again and ADD the real sleep duration (computed
+        // by sleepDuration() in the pure core, which clamps wraps and absurd
+        // deltas to UNKNOWN) to the effective age.  No special-casing of the
+        // wake cause: a timer wake and a button wake both restore the same
+        // accumulated age.  g_lastFetchMs is reset to nowMs() so post-wake
+        // elapsed time accumulates from the wake instant onward.
         if (g_justSlept) {
-            uint32_t rtcEndMs = rtcNowMs();
-            uint32_t sleepMs = rtcEndMs - g_rtcSleepStartMs;
-            g_dataAgeAtFetch = usage::accumulateAge(g_effectiveAgeAtSleep, sleepMs);
+            uint32_t rtcEndSec = rtcNowSec();
+            uint32_t sleepSec = usage::sleepDuration(rtcEndSec, g_rtcSleepStartSec);
+            if (sleepSec == usage::kSleepUnknown) {
+                // Clock did not survive or produced an absurd delta — treat
+                // age as unknown (RED) rather than inventing a number.
+                g_dataAgeAtFetch = usage::kSleepUnknown;
+            } else {
+                g_dataAgeAtFetch = usage::accumulateAge(g_effectiveAgeAtSleep, sleepSec * 1000);
+            }
             g_justSlept = false;  // consume so a cold boot doesn't use stale data
         } else {
             g_dataAgeAtFetch = g_effectiveAgeAtSleep;
@@ -603,12 +623,14 @@ void loop() {
     uint32_t anchor = g_graceActive ? g_lastActivity : now;
     if (usage::powerDecide(vbusNow, now, anchor)
             == usage::PowerAction::SleepNow) {
-        // Task 65: read the RTC clock immediately before powerSleep() so we can
-        // compute the real sleep duration on wake (esp_timer_get_time survives
-        // deep sleep; millis() resets).  Store the full effective age — server-
-        // reported age at last fetch + elapsed since that fetch, INCLUDING the
-        // sleep we are about to incur — into RTC memory.
-        g_rtcSleepStartMs = rtcNowMs();
+        // Task 65: read the RTC clock (gettimeofday, maintained across deep
+        // sleep by ESP-IDF's RTC) immediately before powerSleep() so we can
+        // compute the real sleep duration on wake.  Store the full effective
+        // age — server-reported age at last fetch + elapsed since that fetch,
+        // INCLUDING the sleep we are about to incur — into RTC memory.
+        // NOTE: esp_timer_get_time()/millis() do NOT survive deep sleep on
+        // this board — gettimeofday is the correct primitive.
+        g_rtcSleepStartSec = rtcNowSec();
         g_justSlept = true;
         g_effectiveAgeAtSleep = usage::accumulateAge(g_dataAgeAtFetch,
                                                      now - g_lastFetchMs);

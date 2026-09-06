@@ -42,13 +42,17 @@ uint32_t nowMs() {
     return (uint32_t)millis();
 }
 
-// Task 65: RTC clock that survives deep sleep.  esp_timer_get_time() is
-// wall-clock since boot backed by the RTC slow clock, so it keeps counting
-// across esp_deep_sleep_start() whereas millis() resets on wake.  We read it
-// immediately before powerSleep() and again on wake to compute the real sleep
-// duration.
-uint32_t rtcNowMs() {
-    return (uint32_t)(esp_timer_get_time() / 1000);
+// RTC-backed epoch seconds that survive deep sleep.  ESP-IDF maintains the
+// system clock via the RTC across esp_deep_sleep_start() — gettimeofday()
+// returns the same wall-clock epoch time before sleep and after wake.  We
+// read it immediately before powerSleep() and again on wake to compute the
+// real sleep duration (ORDER #65).  esp_timer_get_time() does NOT survive
+// deep sleep on this board (proven: it wraps to 0 on wake, producing
+// 2^32/1000ms underflow).
+uint32_t rtcNowSec() {
+    struct timeval tv;
+    gettimeofday(&tv, nullptr);
+    return (uint32_t)tv.tv_sec;
 }
 
 void serialLine(const char* s) {
