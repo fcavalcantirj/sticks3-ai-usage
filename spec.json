@@ -797,7 +797,7 @@
       "REMOVE the Poll interval card from the Settings tab entirely. Keep the header select as the single control, keep it writing through the same endpoint, and keep it reflecting the persisted value on load. Do not leave a read-only copy or a label pointing at the header; just delete the card. Settings then opens on Alerts, which also shortens that tab — helping the no-scroll rule.",
       "Verify: a web test asserting the settings markup contains NO interval control while the header markup still does; `go test ./internal/web ./internal/api -v` stays green; `make verify` and `make smoke` exit 0. Rebuild and kickstart, then confirm in the browser that changing the header select still persists across a reload."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "ops",

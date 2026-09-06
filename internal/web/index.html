@@ -335,19 +335,6 @@
   <div id="tab-settings" class="tab-panel">
     <div id="settings-form" style="display:none;">
       <div class="settings-card">
-        <div class="card-header"><span class="card-title">Poll interval</span></div>
-        <div class="row">
-          <label for="setting-interval">Refresh every</label>
-          <select id="setting-interval" aria-label="Refresh interval">
-            <option value="300">5 min</option>
-            <option value="600">10 min</option>
-            <option value="900">15 min</option>
-            <option value="1800">30 min</option>
-            <option value="3600">60 min</option>
-          </select>
-        </div>
-      </div>
-      <div class="settings-card">
         <div class="card-header"><span class="card-title">Alerts</span></div>
         <div class="row">
           <label for="setting-openrouter-low">OpenRouter low balance (USD)</label>
@@ -556,15 +543,6 @@ function loadConfig() {
           }
         }
       }
-      // Sync the settings interval select too.
-      var sel2 = document.getElementById("setting-interval");
-      if (sel2) {
-        for (var j = 0; j < sel2.options.length; j++) {
-          if (Number(sel2.options[j].value) === cfg.interval_sec) {
-            sel2.selectedIndex = j; break;
-          }
-        }
-      }
     }
     if (cfg) {
       cfg_listen_cache = cfg.listen || "";
@@ -587,14 +565,9 @@ function renderSettings(cfg) {
   if (!form) return;
   form.style.display = "block";
 
-  // Populate interval select (syncs with header select too).
-  var intervalSel = document.getElementById("setting-interval");
+  // The interval select lives in the header (single control — ORDER #65 task 68).
+  // Keep the header select in sync with the persisted value.
   var intervalVal = cfg.interval_sec || 900;
-  for (var i = 0; i < intervalSel.options.length; i++) {
-    if (Number(intervalSel.options[i].value) === intervalVal) {
-      intervalSel.selectedIndex = i; break;
-    }
-  }
   var headerSel = document.getElementById("interval-select");
   if (headerSel) {
     for (var j = 0; j < headerSel.options.length; j++) {
@@ -818,7 +791,7 @@ function saveSettings() {
   errEl.style.display = "none";
   errEl.textContent = "";
 
-  var interval = parseInt(document.getElementById("setting-interval").value, 10);
+  var interval = parseInt(document.getElementById("interval-select").value, 10);
   if (isNaN(interval) || interval < 300) {
     showSettingsStatus("Interval must be at least 5 min (300 s)", false);
     return;

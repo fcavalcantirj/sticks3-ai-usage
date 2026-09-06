@@ -110,7 +110,8 @@ func TestIndexHTMLStatsFirstPaintFix(t *testing.T) {
 }
 
 // TestIndexHTMLSettingsTab verifies the Settings tab exists with the
-// config form elements (task 54).
+// config form elements (task 54). The interval control lives in the
+// header (ORDER #65 task 68), so it must NOT appear in the settings form.
 func TestIndexHTMLSettingsTab(t *testing.T) {
 	html := string(IndexHTML)
 	if !strings.Contains(html, `id="tab-settings-tab"`) {
@@ -119,9 +120,8 @@ func TestIndexHTMLSettingsTab(t *testing.T) {
 	if !strings.Contains(html, `id="tab-settings"`) {
 		t.Fatal(`index.html missing id="tab-settings"`)
 	}
-	// Settings form elements.
+	// Settings form elements (interval is in the header, not here).
 	for _, want := range []string{
-		`id="setting-interval"`,
 		`id="setting-openrouter-low"`,
 		`id="setting-quota-warn"`,
 		`id="save-config-btn"`,
@@ -143,21 +143,18 @@ func TestIndexHTMLSettingsTab(t *testing.T) {
 	}
 }
 
-// --- Task 57 settings page tests ---
-
-// TestIndexHTMLSettingsIntervalSelect verifies the settings interval field is
-// a <select> with the same 5/10/15/30/60 minute options as the header, not a
-// raw number input (ORDER #52).
-func TestIndexHTMLSettingsIntervalSelect(t *testing.T) {
+// TestIndexHTMLNoSettingsIntervalSelect verifies the duplicate interval
+// control was removed from Settings (ORDER #65 task 68). The settings
+// markup must contain NO interval select; the header must still have one.
+func TestIndexHTMLNoSettingsIntervalSelect(t *testing.T) {
 	html := string(IndexHTML)
-	// setting-interval must be a select, not an input[type=number]
-	if strings.Contains(html, `id="setting-interval" type="number"`) {
-		t.Error("setting-interval is still a number input, should be a select")
+	// setting-interval must be entirely absent from the markup.
+	if strings.Contains(html, `setting-interval`) {
+		t.Error(`index.html still contains id="setting-interval" — the duplicate interval control must be removed from Settings`)
 	}
-	for _, want := range []string{`id="setting-interval"`, `value="300"`, `value="600"`, `value="900"`, `value="1800"`, `value="3600"`} {
-		if !strings.Contains(html, want) {
-			t.Errorf("index.html missing settings interval option %q", want)
-		}
+	// The header interval select must still exist — it is the single control.
+	if !strings.Contains(html, `id="interval-select"`) {
+		t.Error(`index.html missing id="interval-select" in header — the single interval control must remain`)
 	}
 }
 

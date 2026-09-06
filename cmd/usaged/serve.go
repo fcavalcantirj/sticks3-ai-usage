@@ -43,6 +43,16 @@ func runServe(args []string, stdout io.Writer) int {
 	defer cleanup()
 	cfg.FixturesDir = fixturesDir
 
+	// In fixtures/scenario mode, suppress the real on-disk stats paths so the
+	// scheduler does not overwrite the fixture report or scan real transcript
+	// directories on its first poll.
+	if fixturesDir != "" {
+		cfg.StatsPath = ""
+		cfg.StatsIndexPath = ""
+		cfg.ClaudeDir = ""
+		cfg.CodexDir = ""
+	}
+
 	fetchers := buildFetchers(cfg, creds.NewKeyStore())
 	clock := time.Now
 	s := sched.NewScheduler(fetchers, cfg.Interval, cfg.StatePath, clock, logger)
@@ -68,7 +78,7 @@ func runServe(args []string, stdout io.Writer) int {
 		}
 	}
 
-	// Load stats index and report from disk.
+	// Load stats index and report from disk (none in fixtures mode).
 	if cfg.StatsIndexPath != "" {
 		s.LoadStatsIndex(cfg.StatsIndexPath)
 	}
