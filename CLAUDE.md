@@ -69,3 +69,13 @@ fine: once a transfer starts, `main.cpp` skips the sleep decision while
 `otaInProgress()`, so only the invitation must land inside the window.
 
 **Every device upload needs Felipe's explicit authorization.**
+
+## Do not publish a firmware build
+
+`secrets.h` is a compile-time header, so the Wi-Fi SSID, the **Wi-Fi
+password**, the device token and the host address end up as plaintext strings
+in `firmware.bin` — verified with `strings` against a real build. Publishing to
+M5Burner or anywhere else would hand out the network password of whoever built
+it, and a stranger's flash could not work anyway, since it would try to join
+our SSID and reach our Mac at a fixed address. `BACKLOG.md` item 3 is the fix
+and is the top priority if this project resumes.
