@@ -190,17 +190,16 @@ func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
 		status = http.StatusNotModified
 	}
 
-	// Identify whether the requester is the StickS3 device: it presents
-	// the configured X-Device-Token.  The loopback browser does not.  This
-	// lets the tracker know which client entry to surface as device_state.
-	token := r.Header.Get("X-Device-Token")
-	if token == "" {
-		token = r.URL.Query().Get("token")
-	}
-	hasValidToken := validToken(token, s.cfg.DeviceToken)
+	// Identify whether the requester is the StickS3 device via its User-Agent
+	// ("sticks3-usage/<buildId>"), not by token or address — that was the
+	// ORDER #63 task 64 misclassification (a token-bearing loopback curl and a
+	// browser on the LAN URL were both wrongly reported as the device).  The
+	// auth middleware (auth.go) has already enforced the token above, so this
+	// lookup is only for the device-state tracker.
+	ua := r.Header.Get("User-Agent")
 
 	// Record the request and log access (never logs the device token).
-	s.tracker.record(peer, hasValidToken, now, status)
+	s.tracker.record(peer, ua, now, status)
 	s.logAccess(r, status)
 
 	if matched {
@@ -208,12 +207,11 @@ func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 200 response: include the DEVICE's state (ORDER #61 task 64), not the
-	// requester's.  The browser is loopback and trivially "connected"; the
-	// StickS3's sleep cadence is the signal we need.  DeviceState is outside
-	// the Snapshot hash so rev is unaffected and a 304 stays a 304.
-	// ORDER #65: Age is the server-computed data freshness (now - checkedAt),
-	// outside the rev hash — it changes every second but rev does not churn.
+	// 200 response: include the DEVICE's state (ORDER #63 task 64), not the
+	// requester's.  Only the client whose User-Agent is "sticks3-usage/" is
+	// the StickS3; a browser or token-bearing curl is never the device.
+	// DeviceState is outside the Snapshot hash so rev is unaffected and a
+	// 304 stays a 304.  ORDER #65: Age is the server-computed data freshness
 	resp := usageResponse{
 		Snapshot:    snap,
 		DeviceState: s.tracker.deviceState(),

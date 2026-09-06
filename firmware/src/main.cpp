@@ -278,6 +278,13 @@ static void doDeviceRefresh(uint32_t now) {
             delay(2000);
             refreshUpstream(refreshResult);
         }
+        // ORDER #65 fix: POST /v1/refresh forced a server-side re-poll, so the
+        // data IS fresh at this instant even before the GET returns.  Reset the
+        // age accumulator so a 304 on the conditional GET below shows green, not
+        // red from the old age.  If the GET returns 200, doFetch() overwrites
+        // g_dataAgeAtFetch with the server's fresh age anyway.
+        g_dataAgeAtFetch = 0;
+        g_lastFetchMs = nowMs();
     }
     // Regardless of POST outcome, do the conditional GET to pick up data.
     doFetch();

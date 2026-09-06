@@ -70,13 +70,13 @@ func TestClientTracker200_304Split(t *testing.T) {
 	}
 
 	// First request: 200.
-	tr.record("10.0.0.1", false, now, http.StatusOK)
+	tr.record("10.0.0.1", "", now, http.StatusOK)
 	// Second request: 304.
 	now = now.Add(300 * time.Second)
-	tr.record("10.0.0.1", false, now, http.StatusNotModified)
+	tr.record("10.0.0.1", "", now, http.StatusNotModified)
 	// Third request: 200.
 	now = now.Add(300 * time.Second)
-	tr.record("10.0.0.1", false, now, http.StatusOK)
+	tr.record("10.0.0.1", "", now, http.StatusOK)
 
 	st := tr.state("10.0.0.1")
 	if st == nil {
@@ -104,9 +104,9 @@ func TestClientTrackerIntervalFromTimestamps(t *testing.T) {
 		now:     func() time.Time { return now },
 	}
 
-	tr.record("10.0.0.2", false, now, http.StatusOK)
+	tr.record("10.0.0.2", "", now, http.StatusOK)
 	now = now.Add(60 * time.Second)
-	tr.record("10.0.0.2", false, now, http.StatusOK)
+	tr.record("10.0.0.2", "", now, http.StatusOK)
 
 	st := tr.state("10.0.0.2")
 	if st == nil {
@@ -126,7 +126,7 @@ func TestClientTrackerFirstRequestHasNoInterval(t *testing.T) {
 		now:     func() time.Time { return base },
 	}
 
-	tr.record("10.0.0.3", false, base, http.StatusOK)
+	tr.record("10.0.0.3", "", base, http.StatusOK)
 	st := tr.state("10.0.0.3")
 	if st == nil {
 		t.Fatal("state is nil")
@@ -152,14 +152,14 @@ func TestClientTrackerUnknownClient(t *testing.T) {
 
 // TestUsageDeviceState200 verifies that a 200 /v1/usage response includes
 // device_state with the correct status and counts. The request is made WITH
-// the device token so it is tracked as the StickS3 device (ORDER #61 task 64).
+// the device User-Agent so it is tracked as the StickS3 device (ORDER #63).
 func TestUsageDeviceState200(t *testing.T) {
 	dir := setupFixtures(t)
 	ts, _ := newFixtureServerWithCapture(t, dir)
 	defer ts.Close()
 
 	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
-	req.Header.Set("X-Device-Token", "x")
+	req.Header.Set("User-Agent", "sticks3-usage/test1234")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -192,20 +192,21 @@ func TestUsageDeviceState200(t *testing.T) {
 	}
 }
 
-// TestUsageDeviceStateFromDeviceNotBrowser verifies the ORDER #61 fix: when a
-// browser (loopback, no token) requests /v1/usage, the device_state field
-// reports the StickS3's state — not the browser's. The browser request is
-// the LAST request, so if the tracker were keyed by the requester it would
-// report the browser's trivially-"connected" state. deviceState() must return
-// the device's entry instead.
+// TestUsageDeviceStateFromDeviceNotBrowser verifies the ORDER #63 fix: when a
+// browser with a device token but no device User-Agent requests /v1/usage
+// (e.g. a loopback curl carrying the token), it must NOT be classified as the
+// device.  Only the User-Agent "sticks3-usage/" marks a client as the device.
+// The browser request is the LAST request, so if the tracker were keyed by the
+// requester it would report the browser's trivially-"connected" state.  The
+// real StickS3 request (with the device UA) must be the one surfaced.
 func TestUsageDeviceStateFromDeviceNotBrowser(t *testing.T) {
 	dir := setupFixtures(t)
 	ts, _ := newFixtureServerWithCapture(t, dir)
 	defer ts.Close()
 
-	// Step 1: the StickS3 polls with its device token (non-loopback OR token).
+	// Step 1: the StickS3 polls with its device User-Agent.
 	reqDev, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
-	reqDev.Header.Set("X-Device-Token", "x")
+	reqDev.Header.Set("User-Agent", "sticks3-usage/test1234")
 	resp1, err := http.DefaultClient.Do(reqDev)
 	if err != nil {
 		t.Fatal(err)
@@ -215,8 +216,11 @@ func TestUsageDeviceStateFromDeviceNotBrowser(t *testing.T) {
 		t.Fatalf("device request status = %d, want 200", resp1.StatusCode)
 	}
 
-	// Step 2: the browser (loopback, no token) opens the dashboard.
+	// Step 2: the browser opens the dashboard — it may carry the token (loopback
+	// bypasses the auth check) but it does NOT send the device User-Agent, so it
+	// must not be classified as the StickS3.
 	reqBrowser, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
+	reqBrowser.Header.Set("X-Device-Token", "x")
 	resp2, err := http.DefaultClient.Do(reqBrowser)
 	if err != nil {
 		t.Fatal(err)
@@ -253,14 +257,15 @@ func TestUsageDeviceStateFromDeviceNotBrowser(t *testing.T) {
 }
 
 // TestUsageDeviceStateNilWithoutDevice verifies that when only a browser
-// (loopback, no token) has made requests, device_state is absent — there is
-// no StickS3 to report.
+// (no device User-Agent) has made requests, device_state is absent — there is
+// no StickS3 to report, even if the browser carries the device token.
+// ORDER #63: a token-bearing loopback curl must NOT be reported as the device.
 func TestUsageDeviceStateNilWithoutDevice(t *testing.T) {
 	dir := setupFixtures(t)
 	ts, _ := newFixtureServerWithCapture(t, dir)
 	defer ts.Close()
 
-	// Browser request only — no device token.
+	// Browser/curl request only — has the token but no device User-Agent.
 	resp, err := http.Get(ts.URL + "/v1/usage")
 	if err != nil {
 		t.Fatal(err)
@@ -272,13 +277,45 @@ func TestUsageDeviceStateNilWithoutDevice(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 	if _, ok := raw["device_state"]; ok {
-		t.Fatal("device_state should be absent when no device client has been seen")
+		t.Fatal("device_state should be absent when no device UA client has been seen")
+	}
+}
+
+// TestUsageDeviceStateCurlNotDevice verifies ORDER #63's core fix: a
+// token-bearing loopback curl (which has the device token but a non-device
+// User-Agent) must NOT be classified as the StickS3 device, so
+// device_state is absent even though the token is valid.
+func TestUsageDeviceStateCurlNotDevice(t *testing.T) {
+	dir := setupFixtures(t)
+	ts, _ := newFixtureServerWithCapture(t, dir)
+	defer ts.Close()
+
+	// A curl from loopback with the device token but a curl User-Agent.
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
+	req.Header.Set("X-Device-Token", "x")
+	req.Header.Set("User-Agent", "curl/8.0")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (loopback bypasses token check)", resp.StatusCode)
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if _, ok := raw["device_state"]; ok {
+		t.Fatal("device_state should be absent: curl UA is not the StickS3")
 	}
 }
 
 // TestUsageDeviceState304Split verifies that a 304 request is counted in the
 // split, and that the next 200 response reflects the updated counts. All
-// requests carry the device token so the tracker sees the StickS3 (ORDER #61).
+// requests carry the device User-Agent so the tracker sees the StickS3
+// (ORDER #63).
 func TestUsageDeviceState304Split(t *testing.T) {
 	dir := setupFixtures(t)
 	ts, _ := newFixtureServerWithCapture(t, dir)
@@ -286,7 +323,7 @@ func TestUsageDeviceState304Split(t *testing.T) {
 
 	// First request → 200, as the device.
 	req1, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
-	req1.Header.Set("X-Device-Token", "x")
+	req1.Header.Set("User-Agent", "sticks3-usage/test1234")
 	resp1, err := http.DefaultClient.Do(req1)
 	if err != nil {
 		t.Fatal(err)
@@ -300,7 +337,7 @@ func TestUsageDeviceState304Split(t *testing.T) {
 	// Second request with matching If-None-Match → 304.
 	req2, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
 	req2.Header.Set("If-None-Match", etag)
-	req2.Header.Set("X-Device-Token", "x")
+	req2.Header.Set("User-Agent", "sticks3-usage/test1234")
 	resp2, err := http.DefaultClient.Do(req2)
 	if err != nil {
 		t.Fatal(err)
@@ -314,7 +351,7 @@ func TestUsageDeviceState304Split(t *testing.T) {
 	// should now show Count200=2, Count304=1.
 	req3, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
 	req3.Header.Set("If-None-Match", `"deadbeef"`)
-	req3.Header.Set("X-Device-Token", "x")
+	req3.Header.Set("User-Agent", "sticks3-usage/test1234")
 	resp3, err := http.DefaultClient.Do(req3)
 	if err != nil {
 		t.Fatal(err)
@@ -472,8 +509,8 @@ func TestAccessLogDifferentClients(t *testing.T) {
 		now:     func() time.Time { return time.Now() },
 	}
 
-	tr.record("10.0.0.1", false, tr.now(), http.StatusOK)
-	tr.record("10.0.0.2", false, tr.now(), http.StatusNotModified)
+	tr.record("10.0.0.1", "", tr.now(), http.StatusOK)
+	tr.record("10.0.0.2", "", tr.now(), http.StatusNotModified)
 
 	st1 := tr.state("10.0.0.1")
 	st2 := tr.state("10.0.0.2")
@@ -489,9 +526,9 @@ func TestAccessLogDifferentClients(t *testing.T) {
 }
 
 // TestClientTrackerDeviceStateReturnsDevice verifies that deviceState() returns
-// the state of the StickS3 (the client identified as a device — non-loopback
-// or token-bearing), NOT the browser (loopback, no token), even when the
-// browser made its request most recently.
+// the state of the StickS3 (the client identified by User-Agent prefix
+// "sticks3-usage/"), NOT a browser or token-bearing loopback curl — even when
+// the browser made its request most recently.  This is the ORDER #63 fix.
 func TestClientTrackerDeviceStateReturnsDevice(t *testing.T) {
 	base := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
 	var now time.Time = base
@@ -500,11 +537,11 @@ func TestClientTrackerDeviceStateReturnsDevice(t *testing.T) {
 		now:     func() time.Time { return now },
 	}
 
-	// StickS3 polls from a non-loopback address with its token.
-	tr.record("10.0.0.50", true, now, http.StatusOK)
-	// 300s later, the browser (loopback, no token) opens the dashboard.
+	// StickS3 polls with its identifying User-Agent.
+	tr.record("10.0.0.50", "sticks3-usage/abcd1234", now, http.StatusOK)
+	// 300s later, the browser opens the dashboard (no device UA).
 	now = now.Add(300 * time.Second)
-	tr.record("127.0.0.1", false, now, http.StatusOK)
+	tr.record("127.0.0.1", "Mozilla/5.0", now, http.StatusOK)
 
 	// The browser's own state is trivially "connected" (just requested).
 	browserState := tr.state("127.0.0.1")
@@ -534,8 +571,8 @@ func TestClientTrackerDeviceStateNilWithoutDevice(t *testing.T) {
 		now:     func() time.Time { return base },
 	}
 
-	// Only a loopback browser — no device seen.
-	tr.record("127.0.0.1", false, base, http.StatusOK)
+	// Only a loopback browser — no device UA.
+	tr.record("127.0.0.1", "Mozilla/5.0", base, http.StatusOK)
 
 	if dev := tr.deviceState(); dev != nil {
 		t.Errorf("deviceState = %+v, want nil (no device client seen)", dev)

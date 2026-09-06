@@ -3,6 +3,7 @@ package api
 import (
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,7 +19,7 @@ type clientEntry struct {
 	count200   int
 	count304   int
 	addr       string // client IP address (without port)
-	isDevice   bool   // true if this client is the StickS3 (non-loopback or token-bearing)
+	isDevice   bool   // true if this client is the StickS3 (User-Agent prefix sticks3-usage/)
 }
 
 // clientTracker records per-client /v1/usage request metadata so the system
@@ -46,12 +47,11 @@ func newClientTracker(nowFn func() time.Time) *clientTracker {
 }
 
 // record stores the latest /v1/usage request from clientKey at time now with
-// the given HTTP status (200 or 304).  hasValidToken should be true when the
-// client presented the configured X-Device-Token.  The client is marked as a
-// device (isDevice) when it is non-loopback or has ever presented a valid
-// token — the StickS3 is non-loopback and always token-bearing, while a
-// loopback browser is neither.
-func (t *clientTracker) record(clientKey string, hasValidToken bool, now time.Time, status int) {
+// the given HTTP status (200 or 304).  userAgent is the request's User-Agent
+// header value.  The client is marked as a device (isDevice) when its
+// User-Agent starts with "sticks3-usage/" — the firmware identifies itself
+// that way, while a browser or loopback curl never does (ORDER #63 task 64).
+func (t *clientTracker) record(clientKey, userAgent string, now time.Time, status int) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -76,7 +76,7 @@ func (t *clientTracker) record(clientKey string, hasValidToken bool, now time.Ti
 	entry.lastSeen = now
 	entry.lastStatus = status
 	entry.addr = clientKey
-	if hasValidToken || !isLoopbackHost(clientKey) {
+	if isDeviceUserAgent(userAgent) {
 		entry.isDevice = true
 	}
 	if status == http.StatusOK {
@@ -100,11 +100,12 @@ func (t *clientTracker) state(clientKey string) *deviceState {
 }
 
 // deviceState returns the state of the StickS3 device itself — the most
-// recently active tracked client identified as a device (non-loopback or
-// token-bearing) — rather than the client making the current request.  This
-// is the fix for ORDER #61 task 64: the browser (loopback, no token) must
-// not report its own trivially-"connected" state as the device's.  Returns
-// nil if no device client has been seen yet.
+// recently active tracked client identified as a device by its User-Agent
+// ("sticks3-usage/") — rather than the client making the current request.
+// This is the fix for ORDER #63 task 64: a token-bearing loopback curl or a
+// browser on the LAN URL must not be reported as the device.  Returns nil if
+// no device client has been seen yet, so device_state is ABSENT (never absent
+// a fallback to the requester).
 func (t *clientTracker) deviceState() *deviceState {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -178,8 +179,8 @@ func computeDeviceState(intervalSec, secondsSince int64) string {
 // usageResponse wraps the snapshot with the StickS3 device's state
 // (ORDER #61 task 64).  DeviceState is NOT part of the ETag/rev hash and
 // does not affect the firmware's 304 behaviour — on 304 there is no body.
-// The device_state field describes the physical device (the non-loopback
-// or token-bearing client), not whichever browser happened to ask.
+// The device_state field describes the physical device (the client whose
+// User-Agent is "sticks3-usage/"), not whichever browser happened to ask.
 // The firmware's JSON parser ignores the extra field.
 //
 // ORDER #65 task 65: Age is the server-computed data freshness in seconds
@@ -201,6 +202,14 @@ func peerIP(r *http.Request) string {
 		return r.RemoteAddr
 	}
 	return host
+}
+
+// isDeviceUserAgent reports whether the User-Agent string identifies the
+// StickS3 firmware client.  The firmware sends "sticks3-usage/<buildId>"
+// (see firmware/src/hal/sticks3/fetch.cpp).  A browser, curl, or any other
+// client sends a different UA and is never classified as the device.
+func isDeviceUserAgent(ua string) bool {
+	return strings.HasPrefix(ua, "sticks3-usage/")
 }
 
 // isLoopbackHost reports whether a bare IP address string (without port, as

@@ -53,3 +53,38 @@ TEST(accumulate_age_adds_elapsed_seconds) {
     // Large elapsed: 1 hour of sleep.
     ASSERT_EQ(3642u, (unsigned)usage::accumulateAge(42, 3600000));
 }
+
+// --- ORDER #65 fix: age reset on device-initiated refresh ---------------------
+
+// When the user presses the refresh button, doDeviceRefresh() POSTs
+// /v1/refresh (forcing the server to re-poll providers), then does a
+// conditional GET.  If the GET returns 304, the firmware has no fresh age
+// from the body — it must rely on the reset done in doDeviceRefresh().
+// These tests verify the accumulateAge + freshnessTier combination produces
+// green when the age accumulator is reset to 0, even after a short delay.
+
+TEST(freshness_reset_age_yields_green) {
+    // After doDeviceRefresh resets g_dataAgeAtFetch=0 and g_lastFetchMs=now,
+    // a 304 GET 5s later: effectiveAge = accumulateAge(0, 5000) = 5.
+    uint32_t effAge = usage::accumulateAge(0, 5000);
+    ASSERT_EQ(5u, (unsigned)effAge);
+    ASSERT_EQ(0u, (unsigned)usage::freshnessTier(effAge, 900)); // green
+}
+
+TEST(freshness_reset_age_vs_stale_without_reset) {
+    // Without the reset, a 304 at age 1801s (already yellow) 5s later:
+    uint32_t staleAge = usage::accumulateAge(1801, 5000); // 1806
+    ASSERT_EQ(1u, (unsigned)usage::freshnessTier(staleAge, 900)); // yellow
+
+    // With the reset, the same 5s later: green.
+    uint32_t freshAge = usage::accumulateAge(0, 5000); // 5
+    ASSERT_EQ(0u, (unsigned)usage::freshnessTier(freshAge, 900)); // green
+}
+
+TEST(freshness_reset_age_304_still_green_after_30s) {
+    // A 304 response gives no body and no fresh age.  After the reset,
+    // 30s of no-change polling keeps it green (30 < 2*900=1800).
+    uint32_t effAge = usage::accumulateAge(0, 30000);
+    ASSERT_EQ(30u, (unsigned)effAge);
+    ASSERT_EQ(0u, (unsigned)usage::freshnessTier(effAge, 900)); // green
+}
