@@ -2,6 +2,7 @@
 // nextPage, tierName, tierColor565, footerCompute.
 #include "usage/render_plan.h"
 #include "usage/textfit.h"
+#include "usage/freshness.h"
 
 #include <cstdio>
 #include <cstring>
@@ -208,6 +209,10 @@ void buildPlan(const Model& model, uint8_t page, const char* buildId,
     uint8_t totalPages = countPages(model);
     out.pageCount = totalPages;
     out.page = (uint8_t)(page + 1); // 1-indexed for display
+
+    // ORDER #65: freshness tier from the server-reported age at fetch time.
+    // main.cpp overrides this with the accumulated age after buildPlan returns.
+    out.freshnessTier = usage::freshnessTier(model.age, model.nextSec);
 
     if (totalPages == 0) return;
 

@@ -24,25 +24,71 @@ void batteryLabelText(int battPct, bool battOnUsb, bool battKnown,
     }
 }
 
+// freshnessColor returns the RGB565 colour for a freshness tier.
+// 0=green, 1=yellow, 2=red.
+uint16_t freshnessColor(uint8_t tier) {
+    switch (tier) {
+        case 1: return 0xFD20;  // yellow
+        case 2: return 0xF800;  // red
+        default: return 0x07E0; // green
+    }
+}
+
 void compute(Layout& out, int16_t W,
              uint8_t page, uint8_t pageCount,
              const char* title, int battPct, bool battOnUsb, bool battKnown,
+             bool wifiOk, uint8_t freshnessTier,
              int (*measure)(const char*)) {
+    (void)freshnessTier;  // colour is applied by the caller (screen.cpp)
     std::memset(&out, 0, sizeof(out));
     out.W = W;
 
-    // --- right-hand cluster (wifi dot + battery unit) ---
+    // --- right-hand cluster (freshness dot + wifi bars + battery unit) ---
     // Packed right-to-left from x = W - kRightMargin.
+    // Order: [freshness dot] [8px] [wifi bars] [4px] [battery] [pageInd] [title]
     int16_t cursor = W - kRightMargin;  // cursor starts at the right margin
 
-    // 1. Wifi dot (r=3, diameter 6).  Centre at (cursor - r), right edge at cursor.
+    // 1. Freshness dot (r=3, diameter 6).  Always drawn; colour from the tier.
+    //    Centre at (cursor - r), right edge at cursor.
     int16_t dotCx = cursor - 3;
-    out.wifiDot.x = dotCx;
-    out.wifiDot.w = 6;       // diameter
-    out.wifiDot.drawn = true;
-    cursor = dotCx - 3 - kGapWifi;  // left edge of dot, minus gap
+    out.freshnessDot.x = dotCx;
+    out.freshnessDot.w = 6;       // diameter
+    out.freshnessDot.drawn = true;
+    // cursor now = left edge of dot (dotCx - 3) minus the 8px gap.
+    cursor = dotCx - 3 - kGapWifi;
 
-    // 2. Battery: label text is to the LEFT of the gauge.
+    // 2. Wifi bars (3×1px ascending).  Dropped FIRST when space runs out
+    //    (lower drop precedence than the dot and battery, which are always drawn).
+    //    Drawn whenever wifiOk; dimmed when not ok.
+    out.wifiBars.drawn = false;
+    out.wifiBars.x = -1;
+    out.wifiBars.w = 0;
+    if (wifiOk) {
+        // Try to place the 7px-wide bars between the dot and the battery.
+        // Need: kWifiBarsW + kGap (4px) before the battery unit.
+        int16_t barsRight = cursor;
+        int16_t barsLeft = barsRight - kWifiBarsW;
+        out.wifiBars.x = barsLeft;
+        out.wifiBars.w = kWifiBarsW;
+        out.wifiBars.drawn = true;
+        // cursor moves left past the bars + 4px gap to the battery.
+        cursor = barsLeft - kGap;
+    } else {
+        // No wifi bars drawn — but if there's room, still try to draw dimmed bars.
+        // Actually: bars are drawn whenever space permits, dimmed when !wifiOk.
+        // This gives the user visual feedback that wifi is present but not linked.
+        int16_t barsRight = cursor;
+        int16_t barsLeft = barsRight - kWifiBarsW;
+        if (barsLeft - kGap >= 5) {  // need room for bars + gap + at least title start
+            out.wifiBars.x = barsLeft;
+            out.wifiBars.w = kWifiBarsW;
+            out.wifiBars.drawn = true;
+            cursor = barsLeft - kGap;
+        }
+        // If no room, bars stay dropped; cursor stays at dot gap.
+    }
+
+    // 3. Battery: label text is to the LEFT of the gauge.
     char battLabel[8];
     batteryLabelText(battPct, battOnUsb, battKnown, battLabel, sizeof(battLabel));
     int16_t labelW = measure(battLabel);

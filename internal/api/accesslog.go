@@ -181,9 +181,17 @@ func computeDeviceState(intervalSec, secondsSince int64) string {
 // The device_state field describes the physical device (the non-loopback
 // or token-bearing client), not whichever browser happened to ask.
 // The firmware's JSON parser ignores the extra field.
+//
+// ORDER #65 task 65: Age is the server-computed data freshness in seconds
+// (now - checked_at), added so the firmware — which has no clock — can
+// track staleness as age + elapsed millis since the last fetch.  It is
+// outside the Snapshot struct and therefore outside the rev hash: it
+// changes every second, but rev stays stable and a 304 still returns no
+// body.  The firmware's JSON parser reads it via model.parseSnapshot.
 type usageResponse struct {
 	snapshot.Snapshot
 	DeviceState *deviceState `json:"device_state,omitempty"`
+	Age         uint32       `json:"age,omitempty"`
 }
 
 // peerIP extracts the client IP from r.RemoteAddr, stripping the port.

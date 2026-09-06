@@ -29,6 +29,7 @@
 #include "usage/serial_proto.h"
 #include "usage/hold_flip.h"
 #include "usage/battery.h"
+#include "usage/freshness.h"
 
 #include <cstdio>
 #include <cstring>
@@ -112,6 +113,16 @@ static battery::BatteryView g_prevBatt;
 static bool g_battEverPolled = false;
 static uint32_t g_lastBatteryPoll = 0;
 
+// ORDER #65: data-freshness tracking across fetches and deep sleeps.
+// The device has no RTC, so it cannot compute "how old is this data".
+// The server sends `age` (seconds since checked_at) on each 200 response.
+// The device stores that age at fetch time and adds elapsed millis to get
+// the effective age: effectiveAge = serverAgeAtFetch + (nowMs - lastFetchMs)/1000.
+// On a warm boot (deep-sleep wake), millis() resets — we re-seed from the
+// RTC-restored model.age and reset lastFetchMs to nowMs().
+static uint32_t g_dataAgeAtFetch = 0;   // server-reported age at last 200 fetch
+static uint32_t g_lastFetchMs = 0;      // millis() at last 200 fetch
+
 // --- helpers ----------------------------------------------------------------
 
 // Exponential backoff: 30 s, 60 s, 120 s, 240 s, then capped at kPollMs (300 s).
@@ -129,6 +140,13 @@ static uint32_t pollInterval() {
 static void redraw() {
     usage::RenderPlan plan;
     usage::buildPlan(g_model, g_view.page, buildId(), plan);
+
+    // ORDER #65: override the fetch-time tier with the accumulated effective age.
+    // effectiveAge = serverAgeAtFetch + elapsed ms since that fetch / 1000.
+    uint32_t effectiveAge = usage::accumulateAge(g_dataAgeAtFetch,
+                                                 nowMs() - g_lastFetchMs);
+    plan.freshnessTier = usage::freshnessTier(effectiveAge, g_model.nextSec);
+
     drawPlan(plan, netUp(), g_batt);
 
     char buf[64];
@@ -206,6 +224,10 @@ static void doFetch() {
                 }
                 g_model = model;
                 g_hasModel = true;
+                // ORDER #65: record the server-reported age at fetch time and
+                // the millis() baseline for the accumulation.
+                g_dataAgeAtFetch = model.age;
+                g_lastFetchMs = nowMs();
                 // Persist to RTC memory so a wake paints instantly and a
                 // 304 needs no redraw.
                 g_wakeSnapshot.model = model;
@@ -468,6 +490,12 @@ void setup() {
         for (size_t i = 0; i < 8; i++)
             g_lastRev[i] = g_model.rev[i];
         g_lastRev[8] = '\0';
+
+        // ORDER #65: millis() resets on deep-sleep wake.  Re-seed the freshness
+        // accumulator from the RTC-restored model.age so the tier reflects the
+        // true data age (server age + sleep duration) without a fresh fetch.
+        g_dataAgeAtFetch = g_model.age;
+        g_lastFetchMs = nowMs();;
 
         // ORDER #60 (task 63d): ORDER #31 forces one paint on warm boot, BUT
         // only when the screen is lit.  A timer wake on battery skips the

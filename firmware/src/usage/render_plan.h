@@ -39,6 +39,7 @@ struct RenderPlan {
     uint16_t kindColor;   // RGB565 accent for stripe + title
     uint8_t page;         // 1-indexed for display
     uint8_t pageCount;    // total pages across all kinds
+    uint8_t freshnessTier; // ORDER #65: 0=green, 1=yellow, 2=red from data age
     uint8_t lineCount;
     Line lines[5];        // max 5 lines per page (4 when crit banner active)
     char footer[25];      // ORDER #51+57: when no crit banner, just the version

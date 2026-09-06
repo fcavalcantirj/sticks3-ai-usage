@@ -33,6 +33,7 @@ TEST(model_parses_example) {
     ASSERT_EQ(1u, m.seq);
     ASSERT_EQ(1788414949u, m.generatedAt);
     ASSERT_EQ(900u, m.nextSec);
+    ASSERT_EQ(0u, m.age);  // absent in fixture → defaults to 0
 
     // Two providers: claude, codex.
     ASSERT_EQ(2, (int)m.providerCount);
@@ -176,4 +177,18 @@ TEST(model_rejects_missing_rev) {
     bool ok = usage::parseSnapshot(json, strlen(json), m, err, sizeof(err));
     ASSERT_TRUE(!ok);
     ASSERT_TRUE(err[0] != '\0');
+}
+
+// --- ORDER #65: age field parsing ----------------------------------------------
+
+TEST(model_parses_age) {
+    Model m;
+    char err[256];
+    const char* json =
+        "{\"v\":1,\"seq\":1,\"rev\":\"a1b2c3d4\","
+        "\"generated_at\":0,\"next_sec\":900,\"age\":42,"
+        "\"providers\":[]}";
+    bool ok = usage::parseSnapshot(json, strlen(json), m, err, sizeof(err));
+    ASSERT_TRUE(ok);
+    ASSERT_EQ(42u, m.age);
 }

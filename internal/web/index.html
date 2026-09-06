@@ -1002,8 +1002,18 @@ function renderRow(row, isStale) {
 function updateFooter(snap) {
   var asOf = fmtTime(snap.generated_at);
   var el = document.getElementById("footer-text");
-  el.textContent = "Data as of " + asOf + " \u00b7 checked " + asOf +
-    " \u00b7 rev " + (snap.rev || "\u2014") + " \u00b7 seq " + (snap.seq != null ? snap.seq : "\u2014");
+  var parts = ["Data as of " + asOf, "checked " + asOf,
+               "rev " + (snap.rev || "\u2014"),
+               "seq " + (snap.seq != null ? snap.seq : "\u2014")];
+  // ORDER #65: server-computed age (seconds since checked_at) rides on 200
+  // responses.  A 304 has no body so age is not refreshed — the web page keeps
+  // the last known value, which is correct (it was fresh at the last check).
+  if (snap.age != null && snap.age >= 0) {
+    var tier = snap.age <= snap.next_sec * 2 ? "fresh"
+             : snap.age <= snap.next_sec * 4 ? "stale" : "very stale";
+    parts.push("age " + snap.age + "s (" + tier + ")");
+  }
+  el.textContent = parts.join(" \u00b7 ");
 }
 
 function updateFooterChecked(h) {

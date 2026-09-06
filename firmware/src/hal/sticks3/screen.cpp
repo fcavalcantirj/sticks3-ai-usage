@@ -60,19 +60,33 @@ void drawPlan(const usage::RenderPlan& plan, bool wifiOk,
     M5.Display.setTextSize(1);
     M5.Display.setTextColor(TFT_WHITE);
 
-    // TOP BAR (y = 0..21) — ORDER #51: header keeps only wifi dot, battery
-    // gauge+label, page indicator, and title.  Version and seq moved to the
-    // footer.  The packer handles gaps and drop-precedence.
+    // TOP BAR (y = 0..21) — ORDER #51/#65: header keeps only the freshness dot,
+    // wifi bars, battery gauge+label, page indicator, and title.  Version and seq
+    // moved to the footer.  The packer handles gaps and drop-precedence.
 
     topbar::Layout tbl;
     topbar::compute(tbl, W,
                     (uint8_t)(plan.page - 1), plan.pageCount,
                     plan.title, batt.pct, batt.onUsb, batt.known,
+                    wifiOk, plan.freshnessTier,
                     measureText);
 
-    // Wifi dot (always drawn).
-    uint16_t dotColor = wifiOk ? 0x07E0 : 0xFD20;   // green / amber
-    M5.Display.fillCircle(tbl.wifiDot.x, topbar::kDotY, 3, dotColor);
+    // Freshness dot (always drawn, far right, colour from the tiered age).
+    M5.Display.fillCircle(tbl.freshnessDot.x, topbar::kDotY, 3,
+                          topbar::freshnessColor(plan.freshnessTier));
+
+    // Wifi bars (3 ascending 1px bars).  Solid when wifiOk, dimmed grey when not.
+    // Dropped first by the packer when space runs out — lower precedence than the
+    // freshness dot, which must always be visible.
+    if (tbl.wifiBars.drawn) {
+        uint16_t barColor = wifiOk ? 0x07E0 : 0x8410;  // green / dim grey
+        for (int b = 0; b < 3; b++) {
+            int16_t bx = tbl.wifiBars.x + b * topbar::kWifiBarGap; // 2px pitch
+            int16_t bh = topbar::kWifiBarHeights[b];
+            int16_t by = topbar::kDotY - bh / 2;  // centred on the bar midline
+            M5.Display.fillRect(bx, by, 1, bh, barColor);
+        }
+    }
 
     // Battery gauge + label (always drawn).
     drawBatteryGauge(tbl.battery.x, topbar::kGaugeY, topbar::kTextY,

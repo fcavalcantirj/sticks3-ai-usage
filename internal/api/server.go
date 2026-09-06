@@ -212,9 +212,12 @@ func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
 	// requester's.  The browser is loopback and trivially "connected"; the
 	// StickS3's sleep cadence is the signal we need.  DeviceState is outside
 	// the Snapshot hash so rev is unaffected and a 304 stays a 304.
+	// ORDER #65: Age is the server-computed data freshness (now - checkedAt),
+	// outside the rev hash — it changes every second but rev does not churn.
 	resp := usageResponse{
 		Snapshot:    snap,
 		DeviceState: s.tracker.deviceState(),
+		Age:         uint32(now.Unix() - snap.CheckedAt),
 	}
 	body, err := json.Marshal(resp)
 	if err != nil {

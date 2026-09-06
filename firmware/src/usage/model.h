@@ -39,6 +39,7 @@ struct Model {
     char rev[9];          // 8 hex chars + NUL
     uint32_t generatedAt; // unix s of last CHANGE
     uint16_t nextSec;     // seconds until next poll (900)
+    uint32_t age;         // ORDER #65: server-computed age in seconds (now - checked_at at fetch time)
     uint8_t providerCount;
     Provider providers[5];
 };

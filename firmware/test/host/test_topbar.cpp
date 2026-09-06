@@ -1,6 +1,6 @@
 // firmware/test/host/test_topbar.cpp — tests for the pure top-bar packer.
-// ORDER #51: the header packs wifi dot, battery (gauge + label), page
-// indicator and title only.  Version and seq live in the footer now.
+// ORDER #65: the header packs freshness dot + wifi bars + battery (gauge + label),
+// page indicator and title.  Version and seq live in the footer now.
 #include "framework.h"
 #include "usage/topbar.h"
 
@@ -20,10 +20,12 @@ static int measureFixed(const char* s) {
 
 // Build a layout for a standard 240×135 screen.
 static Layout buildLayout(uint8_t page, uint8_t pageCount, const char* title,
-                           int battPct, bool battOnUsb, bool battKnown) {
+                           int battPct, bool battOnUsb, bool battKnown,
+                           bool wifiOk = true, uint8_t freshnessTier = 0) {
     Layout l;
     sticks3::topbar::compute(l, 240, page, pageCount,
                              title, battPct, battOnUsb, battKnown,
+                             wifiOk, freshnessTier,
                              measureFixed);
     return l;
 }
@@ -34,7 +36,8 @@ TEST(topbar_all_items_above_y21) {
     Layout l = buildLayout(0, 3, "PLANS", 87, true, true);
 
     // Every header item is drawn.
-    ASSERT_TRUE(l.wifiDot.drawn);
+    ASSERT_TRUE(l.freshnessDot.drawn);
+    ASSERT_TRUE(l.wifiBars.drawn);
     ASSERT_TRUE(l.battery.drawn);
     ASSERT_TRUE(l.battLabel.drawn);
     ASSERT_TRUE(l.pageInd.drawn);
@@ -48,20 +51,27 @@ TEST(topbar_all_items_above_y21) {
     ASSERT_TRUE(sticks3::topbar::kTextY + 8 <= sticks3::topbar::kBarH);
 }
 
-// --- wifi-to-battery gap is 8px (ORDER #51) ----------------------------------
+// --- freshness dot to wifi bars gap is 8px, wifi bars to battery is 4px -------
 
-TEST(topbar_wifi_battery_gap_is_8) {
+TEST(topbar_freshness_wifi_battery_gap) {
     ASSERT_EQ(8, sticks3::topbar::kGapWifi);
     ASSERT_EQ(4, sticks3::topbar::kGap);
 
     Layout l = buildLayout(0, 3, "PLANS", 87, true, true);
 
-    // Wifi dot right edge = dotCx + r = (W-4-3) + 3 = W-4 = 236.
-    // Battery right edge = gaugeLeft + 35.  The gap between the dot's LEFT
-    // edge and the battery's right edge must be exactly kGapWifi (8px).
-    int16_t dotLeft = l.wifiDot.x - 3;           // centre - radius
+    // Fresh dot right edge = W - kRightMargin = 240 - 4 = 236.
+    // Dot left edge = dotCx - 3 = (236 - 3) - 3 = 230.
+    // 8px gap → wifi bars right edge = 230 - 8 = 222.
+    // Wifi bars are 7px wide → left edge = 222 - 7 = 215.
+    // 4px gap → battery unit right edge = 215 - 4 = 211.
+    int16_t dotLeft = l.freshnessDot.x - 3;       // centre - radius
+    int16_t barsRight = l.wifiBars.x + l.wifiBars.w;
     int16_t battRight = l.battery.x + l.battery.w; // gauge_left + 35
-    ASSERT_EQ(sticks3::topbar::kGapWifi, dotLeft - battRight);
+
+    // Gap from dot left edge to bars right edge must be kGapWifi (8px).
+    ASSERT_EQ(sticks3::topbar::kGapWifi, dotLeft - barsRight);
+    // Gap from bars left edge to battery right edge must be kGap (4px).
+    ASSERT_EQ(sticks3::topbar::kGap, l.wifiBars.x - battRight);
 }
 
 // --- no overlap between adjacent items --------------------------------------
@@ -70,15 +80,15 @@ TEST(topbar_no_overlap_full) {
     Layout l = buildLayout(1, 3, "CREDITS", 87, false, true);
 
     // Every header item is drawn.
-    ASSERT_TRUE(l.wifiDot.drawn);
+    ASSERT_TRUE(l.freshnessDot.drawn);
     ASSERT_TRUE(l.battery.drawn);
     ASSERT_TRUE(l.battLabel.drawn);
     ASSERT_TRUE(l.pageInd.drawn);
     ASSERT_TRUE(l.title.drawn);
 
-    // Right-to-left chain: wifiDot → battery unit → pageInd → title.
-    // 1. Battery right edge + kGapWifi <= wifi dot left edge.
-    int16_t dotLeft  = l.wifiDot.x - 3;       // centre - radius
+    // Right-to-left chain: freshnessDot → wifiBars → battery unit → pageInd → title.
+    // 1. Battery right edge + kGapWifi <= freshness dot left edge.
+    int16_t dotLeft  = l.freshnessDot.x - 3;       // centre - radius
     int16_t battRight = l.battery.x + l.battery.w; // gauge_left + 35
     ASSERT_TRUE(battRight + sticks3::topbar::kGapWifi <= dotLeft);
 
@@ -101,7 +111,8 @@ TEST(topbar_no_overlap_full) {
 
 TEST(topbar_battery_always_drawn_pageind_only_when_multi) {
     Layout l = buildLayout(0, 1, "PLANS", 5, false, true);
-    ASSERT_TRUE(l.wifiDot.drawn);
+    ASSERT_TRUE(l.freshnessDot.drawn);
+    ASSERT_TRUE(l.wifiBars.drawn);
     ASSERT_TRUE(l.battery.drawn);
     ASSERT_TRUE(l.battLabel.drawn);
     ASSERT_FALSE(l.pageInd.drawn);  // pageCount == 1
@@ -117,9 +128,9 @@ TEST(topbar_title_dropped_when_narrow) {
     // title (210 px) cannot fit → title dropped.
     Layout l = buildLayout(0, 1, "ANEXTREMELYLONGTITLETHATWILLNOTFIT",
                            87, false, true);
-    // Battery and wifi dot are never dropped.
+    // Battery and freshness dot are never dropped.
     ASSERT_TRUE(l.battery.drawn);
-    ASSERT_TRUE(l.wifiDot.drawn);
+    ASSERT_TRUE(l.freshnessDot.drawn);
     // Title should be dropped (not enough room).
     ASSERT_FALSE(l.title.drawn);
 }
@@ -131,9 +142,9 @@ TEST(topbar_pageind_dropped_before_title) {
     // drop order still holds: with a huge title the page indicator is dropped
     // first, then the title.
     Layout l = buildLayout(0, 3, "ANEXTREMELYLONGTITLETHATWILLNOTFIT", 87, false, true);
-    // Battery and wifi dot survive.
+    // Battery and freshness dot survive.
     ASSERT_TRUE(l.battery.drawn);
-    ASSERT_TRUE(l.wifiDot.drawn);
+    ASSERT_TRUE(l.freshnessDot.drawn);
     // At least one of pageInd/title is dropped.
     ASSERT_TRUE(!l.pageInd.drawn || !l.title.drawn);
 }
@@ -145,21 +156,21 @@ TEST(topbar_battery_label_width_no_overlap) {
     Layout l2 = buildLayout(0, 3, "PLANS", 100, true, true);
 
     // Both should have all items drawn.
-    ASSERT_TRUE(l1.wifiDot.drawn);
-    ASSERT_TRUE(l2.wifiDot.drawn);
+    ASSERT_TRUE(l1.freshnessDot.drawn);
+    ASSERT_TRUE(l2.freshnessDot.drawn);
     ASSERT_TRUE(l1.battery.drawn);
     ASSERT_TRUE(l2.battery.drawn);
 
     // The right-edge chain must not extend past W.
-    ASSERT_TRUE(l1.wifiDot.x + 3 <= 240);
-    ASSERT_TRUE(l2.wifiDot.x + 3 <= 240);
+    ASSERT_TRUE(l1.freshnessDot.x + 3 <= 240);
+    ASSERT_TRUE(l2.freshnessDot.x + 3 <= 240);
 
     // No overlap in either layout.
-    int16_t dotLeft1 = l1.wifiDot.x - 3;
+    int16_t dotLeft1 = l1.freshnessDot.x - 3;
     int16_t battRight1 = l1.battery.x + l1.battery.w;
     ASSERT_TRUE(battRight1 + sticks3::topbar::kGapWifi <= dotLeft1);
 
-    int16_t dotLeft2 = l2.wifiDot.x - 3;
+    int16_t dotLeft2 = l2.freshnessDot.x - 3;
     int16_t battRight2 = l2.battery.x + l2.battery.w;
     ASSERT_TRUE(battRight2 + sticks3::topbar::kGapWifi <= dotLeft2);
 }
@@ -184,20 +195,49 @@ TEST(topbar_battery_gauge_within_bar) {
 // --- item ordering verification (right-to-left) ------------------------------
 
 TEST(topbar_item_ordering_right_to_left) {
-    // Verify the right-to-left chain: wifiDot, battery, pageInd, title.
+    // Verify the right-to-left chain: freshnessDot, wifiBars, battery, pageInd, title.
     Layout l = buildLayout(0, 3, "PLANS", 50, false, true);
 
-    ASSERT_TRUE(l.wifiDot.drawn);
+    ASSERT_TRUE(l.freshnessDot.drawn);
     ASSERT_TRUE(l.battery.drawn);
     ASSERT_TRUE(l.pageInd.drawn);
     ASSERT_TRUE(l.title.drawn);
 
-    // wifiDot is rightmost.
-    ASSERT_TRUE(l.wifiDot.x > l.battery.x);
+    // Fresh dot is rightmost.
+    ASSERT_TRUE(l.freshnessDot.x > l.battery.x);
     // battery is right of pageInd.
     ASSERT_TRUE(l.battery.x > l.pageInd.x);
     // pageInd is right of title (title is left-aligned at x=5).
     ASSERT_TRUE(l.pageInd.x > l.title.x);
+}
+
+// --- wifi bars drawn when wifiOk, dropped when not on wifi (if no room) --------
+
+TEST(topbar_wifi_bars_when_wifi_ok) {
+    Layout l = buildLayout(0, 3, "PLANS", 87, true, true, /*wifiOk=*/true);
+    ASSERT_TRUE(l.freshnessDot.drawn);
+    ASSERT_TRUE(l.wifiBars.drawn);
+    ASSERT_EQ(sticks3::topbar::kWifiBarsW, l.wifiBars.w);
+
+    // Bars right edge should be exactly kGapWifi left of the dot's left edge.
+    int16_t dotLeft = l.freshnessDot.x - 3;
+    int16_t barsRight = l.wifiBars.x + l.wifiBars.w;
+    ASSERT_EQ(sticks3::topbar::kGapWifi, dotLeft - barsRight);
+}
+
+TEST(topbar_wifi_bars_drawn_when_not_ok) {
+    // Bars are drawn even when wifi is down (dimmed), as long as there is room.
+    Layout l = buildLayout(0, 3, "PLANS", 87, true, true, /*wifiOk=*/false);
+    ASSERT_TRUE(l.freshnessDot.drawn);
+    // On a 240px screen with a short title, there is plenty of room.
+    ASSERT_TRUE(l.wifiBars.drawn);
+}
+
+TEST(topbar_freshness_color_tiers) {
+    ASSERT_EQ(0x07E0, sticks3::topbar::freshnessColor(0));  // green
+    ASSERT_EQ(0xFD20, sticks3::topbar::freshnessColor(1));  // yellow
+    ASSERT_EQ(0xF800, sticks3::topbar::freshnessColor(2));  // red
+    ASSERT_EQ(0x07E0, sticks3::topbar::freshnessColor(99));  // default green
 }
 
 // --- page indicator CENTERED in the free span (ORDER #56 task 60) ---------------

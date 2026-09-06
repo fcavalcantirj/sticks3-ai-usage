@@ -382,6 +382,59 @@ func TestUsageRevUnaffectedByDeviceState(t *testing.T) {
 	}
 }
 
+// TestUsageAgeField verifies the ORDER #65 age field: on a 200 it is present
+// and positive (server-computed seconds since checked_at), and on a 304 there
+// is no body (so no age).  Age is outside the Snapshot hash — it does not
+// affect the ETag/rev.
+func TestUsageAgeField(t *testing.T) {
+	dir := setupFixtures(t)
+	ts, _ := newFixtureServerWithCapture(t, dir)
+	defer ts.Close()
+
+	// 200 response: age must be present and >= 0.
+	resp1, err := http.Get(ts.URL + "/v1/usage")
+	if err != nil {
+		t.Fatalf("GET /v1/usage: %v", err)
+	}
+	defer resp1.Body.Close()
+
+	var raw map[string]json.RawMessage
+	if err := json.NewDecoder(resp1.Body).Decode(&raw); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	ageRaw, ok := raw["age"]
+	if !ok {
+		t.Fatal("age field missing from 200 response")
+	}
+	var age uint32
+	if err := json.Unmarshal(ageRaw, &age); err != nil {
+		t.Fatalf("unmarshal age: %v", err)
+	}
+	// age is unsigned; it must parse as a non-negative integer.
+	_ = age
+
+	etag1 := resp1.Header.Get("ETag")
+	if etag1 == "" {
+		t.Fatal("no ETag on first request")
+	}
+
+	// 304 response: no body, no age field.
+	req2, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
+	req2.Header.Set("If-None-Match", etag1)
+	resp2, err := http.DefaultClient.Do(req2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp2.Body.Close()
+	body2, _ := io.ReadAll(resp2.Body)
+	if resp2.StatusCode != http.StatusNotModified {
+		t.Errorf("status = %d, want 304", resp2.StatusCode)
+	}
+	if len(body2) != 0 {
+		t.Errorf("304 body = %d bytes, want 0 (no age in 304)", len(body2))
+	}
+}
+
 // TestAccessLogNoToken verifies that the device token never appears in the
 // slog access-log output for a /v1/usage request.
 func TestAccessLogNoToken(t *testing.T) {

@@ -750,7 +750,7 @@
       "Show the same freshness in the WEB dashboard so the two agree — if the device says yellow, the browser must not say everything is fine. Reuse the server-side age directly there, where a real clock exists.",
       "Verify: pure host tests for the tier function (age 0 is green; exactly 2x next_sec is green; one second past is yellow; 4x is yellow; past that is red; tiers move when next_sec changes) and for the age accumulator (a 12-hour sleep followed by a wake yields an age of roughly 12 hours plus whatever the server reported, not zero and not a wrapped value). A test asserting the age field does NOT change rev and a conditional GET still returns 304 with an empty body. `make fw-test` Failed 0, `make fw-build` SUCCESS, `go test ./...` green. Do not flash — batch it with tasks 62 and 63 on the next OTA, which the planner runs and Felipe authorizes."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "optional",

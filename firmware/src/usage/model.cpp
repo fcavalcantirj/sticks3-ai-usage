@@ -88,6 +88,7 @@ bool parseSnapshot(const char* json, size_t len, Model& out,
     out.seq = (uint32_t)doc["seq"].as<unsigned long>();
     out.generatedAt = (uint32_t)doc["generated_at"].as<unsigned long>();
     out.nextSec = (uint16_t)doc["next_sec"].as<unsigned int>();
+    out.age = (uint32_t)doc["age"].as<unsigned long>(); // ORDER #65: server-computed freshness age
 
     JsonArray providers = doc["providers"].as<JsonArray>();
     if (providers.size() > 5) {
