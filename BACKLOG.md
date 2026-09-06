@@ -1,7 +1,8 @@
 # Backlog
 
-Deferred by decision, not by omission. The project closed at **78 of 79 ledger
-tasks passing** (`spec.json`).
+Deferred by decision, not by omission. The project closed at **78 of 83 ledger
+tasks passing** (`spec.json`). The open tasks are the provisioning group
+(75-78, item 3 below) and the optional task hub (item 1).
 
 > **Before publishing a firmware build anywhere, read item 3.** `secrets.h`
 > values are compiled into `firmware.bin` as plaintext — including the Wi-Fi

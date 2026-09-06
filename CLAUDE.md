@@ -1,8 +1,11 @@
 # usaged — AI usage monitor (M5StickS3 + Mac agent)
 
-**Status: closed 2026-09-06 at 78 of 79 ledger tasks passing.** The remaining
-task is deferred by decision — see `BACKLOG.md`. Do not treat it as unfinished
-work to pick up unasked.
+**Status: closed 2026-09-06 at 78 of 83 ledger tasks passing.** Everything the
+device does today is built and confirmed on hardware. The open tasks are
+DEFERRED BY DECISION, not unfinished work: tasks 75-78 are the fully specced
+Wi-Fi provisioning group (see `BACKLOG.md` item 3 — it is also the reason this
+firmware must not be published), and the last is the optional task hub. Do not
+pick any of them up unasked.
 
 A Go agent (`usaged`) polls Claude, ChatGPT/Codex, OpenRouter and Groq every
 15 minutes, serves a dashboard on `127.0.0.1:8765`, and pushes a snapshot to an
