@@ -90,23 +90,45 @@ If so, `esp_sleep_enable_ext0_wakeup(GPIO_NUM_13, 0)` with the standard
 pullup/pulldown pair may work without writing any PM1 IRQ registers. This
 must be validated on hardware before any code change.
 
-### Hold-to-flip screen (ORDER #53 REVISED, task 58)
+### Button map (ORDER #53 REVISED, task 58 + ORDER #72, task 72)
 
 The BMI270 IMU is **not used**. `internal_imu` is `false` in `boardInit()`
 and `M5.Imu.begin()` is never called. The device has no vibration motor, so
 haptic feedback is not an option.
 
-Screen rotation is controlled by **BtnB (GPIO 12, the side button) hold**:
-- **Click** (release before 1500 ms): POST `/v1/refresh` + conditional GET,
-  same as today.
-- **Hold** (1500 ms threshold): toggle the screen 180° (rotation 1 ↔ 3).
-- **Hint** (500 ms into a hold): a brief amber "hold to flip 180°" text
-  appears in the footer area without a full repaint.
+All button logic lives in `main.cpp:buttonsUpdate()`. The binding table is
+single-sourced from `render_plan.cpp:kBindings` — the instructions page
+(task 73) renders it verbatim, never hand-written literals.
 
-The logic is a pure C++17 state machine in `usage/hold_flip.{h,cpp}`,
-host-tested by `test/host/test_hold_flip.cpp` — no sensor polling, no
-hardware dependency. `M5.BtnB.setHoldThresh(1500)` documents the threshold
-even though the state machine handles the timing via `isPressed()` polling.
+#### BtnA (GPIO 11, the blue button)
+
+| Gesture      | Action              | Mode |
+|--------------|---------------------|------|
+| single-click | cycle pages         | both |
+| double-click | enter/exit brightness mode | normal → brightness |
+| **HOLD**     | **reserved**        | —    |
+
+**BtnA HOLD is RESERVED** for a future AI-agent action (ORDER #72, task 72).
+It is not bound to any handler in the firmware. Felipe reported blue-hold
+"does nothing" — the root cause is that the 600 ms hold threshold (set in
+`board.cpp`) is too short for a deliberate hold: the click detector fires
+first and consumes the event before `M5.BtnA.wasHold()` can. A 1500 ms
+threshold (matching BtnB) would fix it, but the hold now belongs to the
+agent, not to refresh.
+
+#### BtnB (GPIO 12, the side button)
+
+| Gesture      | Action              | Mode |
+|--------------|---------------------|------|
+| click        | refresh / step down | normal / brightness |
+| hold (≥1500 ms) | flip 180°        | both |
+| hint (after 500 ms into a hold) | amber "hold to flip 180°" | both |
+
+The click-vs-hold disambiguation is a pure C++17 state machine in
+`usage/hold_flip.{h,cpp}`, host-tested by `test/host/test_hold_flip.cpp`
+— no sensor polling, no hardware dependency.
+`M5.BtnB.setHoldThresh(1500)` documents the threshold even though the state
+machine handles the timing via `isPressed()` polling.
 
 Rotation is persisted in NVS (namespace `"usated"`, key `"rot"`) as values
 1 (upright) or 3 (flipped). It is loaded before the first paint so a flipped

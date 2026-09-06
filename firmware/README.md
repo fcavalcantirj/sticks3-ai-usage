@@ -48,8 +48,8 @@ hardware behaviour is verified without a camera or extra tools.
 | `[FETCH]` | `[FETCH] code=-1 err=timeout ms=8000`  (error; rev reused as err)     |
 | `[RENDER]`| `[RENDER] page=1 lines=5 rev=abcd1234`                                 |
 | `[GESTURE]`| `[GESTURE] flip rot=3`  (BtnB hold ≥ 1500 ms, 180° rotation)         |
-| `[BTN]`    | `[BTN] gpio=11 click page`  (blue button short → page cycle)     |
-| `[BTN]`    | `[BTN] gpio=11 hold refresh`  (blue button long → POST /v1/refresh)|
+| `[BTN]`    | `[BTN] gpio=11 click page`  (blue button → page cycle)     |
+| `[BTN]`    | `[BTN] gpio=11 double brightness`  (blue button double-click → brightness mode) |
 | `[BTN]`    | `[BTN] gpio=12 click refresh`  (side button → POST /v1/refresh) |
 | `[REFRESH]`| `[REFRESH] code=200 ms=310`  (POST /v1/refresh, fresh data ready) |
 | `[REFRESH]`| `[REFRESH] code=202 retry`  (server poll still running)        |
@@ -154,13 +154,17 @@ ORDER #49 settled the physical button mapping empirically. The footer
 relables them by physical position, not GPIO number:
 
 - **Blue button** (GPIO 11, BtnA) short press: cycles to the next page.
-- **Blue button** long press (600 ms threshold): POSTs `/v1/refresh` then does
-  a conditional GET (ORDER #38).
+- **Blue button** double-click: enters/exits brightness mode (gauge with
+  5/10/25/50/75/100% steps, default 25%, persisted to NVS).
+- **Blue button** HOLD (600 ms threshold): **reserved** for a future
+  AI-agent action — not bound to any handler. Felipe reported "does nothing";
+  the 600 ms threshold is too short for a deliberate hold, the click detector
+  fires first. See docs/DEVICES.md §Button map.
 - **Side button** (GPIO 12, BtnB) short press: POSTs `/v1/refresh` then does a
   conditional GET, with a 10 s throttle and a single 202-retry after ~2 s.
 
-The device emits `[BTN] gpio=11 click page`, `[BTN] gpio=11 hold refresh`, or
-`[BTN] gpio=12 click refresh` on every button event. The `gpio=` field is the
+The device emits `[BTN] gpio=11 click page`, `[BTN] gpio=11 double brightness`,
+or `[BTN] gpio=12 click refresh` on every button event. The `gpio=` field is the
 physical GPIO number so Felipe can correlate a press with the hardware pin
 without consulting the source.
 

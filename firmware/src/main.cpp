@@ -9,7 +9,7 @@
 //   now = nowMs()
 //   netUpdate(now)           — Wi-Fi state machine + [NET] lines
 //   pollUpdate(now)          — first fetch / periodic poll / backoff
-//   buttonsUpdate(now)       — BtnA(gpio11) page/double=brightness/hold-refresh,
+//   buttonsUpdate(now)       — BtnA(gpio11) page/double=brightness, HOLD reserved,
 //                              BtnB(gpio12) refresh/stepdown/hold=flip
 //   updateBrightness(now)    — dim after 30 min idle, full in brightness mode
 //   heapWatchdog(now)        — [HEAP] line every 60 s
@@ -374,11 +374,17 @@ static void pollUpdate(uint32_t now) {
 static void drawFlipHint();
 
 // Buttons: BtnA (GPIO 11) single-click cycles pages, double-click enters
-// brightness mode, long-press refreshes.  BtnB (GPIO 12) click refreshes
-// (or steps brightness down in mode), hold (>= 1500 ms) flips the screen.
+// brightness mode.  BtnB (GPIO 12) click refreshes (or steps brightness down
+// in mode), hold (>= 1500 ms) flips the screen.
 // ORDER #53 REVISED: one threshold governs click and hold on BtnB.
 // ORDER #72 task 72: brightness mode entered via double-click, exited via
 // 5 s inactivity timeout.  Inside mode, BtnA click = step up, BtnB click = step down.
+// ORDER #72: BtnA HOLD is RESERVED for a future AI-agent action.  It is not
+// bound to any handler here.  Felipe reported blue-hold "does nothing" — the
+// root cause is a 600 ms hold threshold (board.cpp:47), too short for a
+// deliberate hold: the click detector fires first and consumes the event
+// before wasHold() can.  A 1500 ms threshold (matching BtnB) would fix it,
+// but the hold now belongs to the agent, so the branch is simply removed.
 // ORDER #49: emit [BTN] gpio=N <action> for physical-button clarity.
 // Step 8 fix: [BTN] line emitted outside netUp() gate so button activity is
 // always logged.
@@ -396,16 +402,7 @@ static void buttonsUpdate(uint32_t now) {
             usage::fmtBtn(buf, sizeof(buf), 11, "step up");
             serialLine(buf);
         }
-        // wasHold still refreshes (keep).
-        if (M5.BtnA.wasHold()) {
-            if (netUp()) {
-                doDeviceRefresh(now);
-            }
-            g_lastActivity = now;
-            char buf[64];
-            usage::fmtBtn(buf, sizeof(buf), 11, "hold refresh");
-            serialLine(buf);
-        }
+        // BtnA HOLD is reserved (ORDER #72) — no handler here.
     } else {
         // Normal mode: wasSingleClicked = page cycle (disambiguates from
         // double-click for brightness entry — ~250 ms latency tradeoff).
@@ -427,16 +424,8 @@ static void buttonsUpdate(uint32_t now) {
             usage::fmtBtn(buf, sizeof(buf), 11, "brightness enter");
             serialLine(buf);
         }
-        // wasHold = refresh.
-        if (M5.BtnA.wasHold()) {
-            if (netUp()) {
-                doDeviceRefresh(now);
-            }
-            g_lastActivity = now;
-            char buf[64];
-            usage::fmtBtn(buf, sizeof(buf), 11, "hold refresh");
-            serialLine(buf);
-        }
+        // BtnA HOLD is reserved (ORDER #72) — no handler here;
+        // refresh is triggered by BtnB click or POST /v1/refresh on the web page.
     }
 
     // --- BtnB: hold_flip detector disambiguates click vs hold ---

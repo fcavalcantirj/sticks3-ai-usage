@@ -146,7 +146,7 @@ int fmtGesture(char* out, size_t n, uint8_t rot) {
 
 // fmtBtn formats a button event line with the GPIO number (ORDER #49):
 //   [BTN] gpio=11 click page
-//   [BTN] gpio=11 hold refresh
+//   [BTN] gpio=11 double brightness
 //   [BTN] gpio=12 click refresh
 int fmtBtn(char* out, size_t n, int gpio, const char* action) {
     return std::snprintf(out, n, "[BTN] gpio=%d %s",
