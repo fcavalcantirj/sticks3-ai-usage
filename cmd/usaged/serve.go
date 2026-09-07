@@ -99,8 +99,25 @@ func runServe(args []string, stdout io.Writer) int {
 	ctx, cancel := context.WithCancel(context.Background())
 	go s.Run(ctx)
 
+	// One-click BLE device setup, wired only where this OS can act as a BLE
+	// central: a Provisioner that can only ever fail is worse than none,
+	// because with none the routes say "not available in this build" and the
+	// dashboard explains itself instead of showing a button that always errors.
+	//
+	// bleSupported is a BUILD TAG, not a probe. Probing — calling Enable() here
+	// and wiring on success — deadlocks the daemon under launchd, because
+	// CoreBluetooth never reports PoweredOn without a GUI session and the
+	// process then never reaches ListenAndServe. See bleprov_darwin.go.
+	// Constructing the adapter itself touches no radio.
+	apiOpts := []api.Option{api.WithKeyStore(creds.NewKeyStore())}
+	if bleSupported {
+		apiOpts = append(apiOpts, api.WithProvisioner(newBLEProvisioner(cfg, logger)))
+	} else {
+		logger.Info("ble setup: unsupported on this platform; the setup routes will say so")
+	}
+
 	// Build and start the HTTP API.
-	httpSrv, err := api.New(s, cfg, cfg.ConfigPath, logger, api.WithKeyStore(creds.NewKeyStore()))
+	httpSrv, err := api.New(s, cfg, cfg.ConfigPath, logger, apiOpts...)
 	if err != nil {
 		logger.Error("http server init failed", "err", err)
 		fmt.Fprintln(stdout, err.Error())

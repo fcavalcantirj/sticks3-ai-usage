@@ -637,6 +637,16 @@ func (e *DeviceError) Error() string {
 	return "bleprov: device refused the transfer: " + e.Code.String()
 }
 
+// ProvisionDeviceCode satisfies internal/api's ProvisionCoded interface, which
+// that package declares so this one's error type reaches the dashboard without
+// a translation table at the wiring point — "where a forgotten case would
+// silently degrade every message to the generic sentence".
+//
+// Returns the device's own error number from docs/BLE_PROVISIONING.md section
+// 7. Zero is the documented "the device never answered" value, and the zero
+// DeviceError yields it naturally.
+func (e *DeviceError) ProvisionDeviceCode() int { return int(e.Code) }
+
 // Is lets callers write errors.Is(err, &DeviceError{Code: ErrJoinFailed})
 // without unwrapping by hand. Only the code is compared: the status varies
 // with how far the transfer got and is diagnostic, not identity.

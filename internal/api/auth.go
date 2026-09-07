@@ -101,6 +101,38 @@ func (a *Auth) middleware(next http.Handler) http.Handler {
 			return
 		}
 
+		// ONE-CLICK SETUP ON LOOPBACK: exempt, and it has to be.
+		//
+		// This flow's entire job is to GIVE a device its token. Requiring one
+		// to start it is the same circularity the pairing claim above avoids:
+		// on a fresh install USAGED_DEVICE_TOKEN is unset, validToken fails an
+		// empty want, and the "Set up" button returns 401 — so the zero-config
+		// path a stranger flashes from M5Burner cannot begin at all. Measured
+		// 2026-09-07: GET /v1/setup 200, POST /v1/setup/scan 401.
+		//
+		// WHAT AUTHORISES A RUN IS NOT A HEADER. It is the BLE bond: LE Secure
+		// Connections with MITM protection and a six-digit passkey the owner
+		// reads off the DEVICE'S OWN SCREEN and types into the macOS dialog.
+		// The device refuses every unpaired write — verified on hardware, the
+		// controller logs GATT_INSUF_AUTHENTICATION. A caller on loopback is
+		// already running on the machine that holds the Wi-Fi password; the
+		// passkey is what stops it reaching any device.
+		//
+		// LOOPBACK ONLY. A LAN peer still needs the token, so a machine on the
+		// same Wi-Fi cannot make this Mac hand its password to a device of the
+		// attacker's choosing. The JSON content-type check below still bounces
+		// a form-encoded cross-site POST.
+		if isSetupPath(r.URL.Path) && isLoopbackAddr(r.RemoteAddr) {
+			if r.ContentLength > 0 && !isJSONContentType(r.Header.Get("Content-Type")) {
+				writeJSON(w, http.StatusUnsupportedMediaType, map[string]string{
+					"ok": "false", "error": "Content-Type must be application/json",
+				})
+				return
+			}
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		// Mutating methods require the token even on loopback (ORDER #54).
 		isMutating := r.Method == http.MethodPost ||
 			r.Method == http.MethodPut ||
@@ -232,4 +264,11 @@ func refuseStartError(listen string) error {
 			"or listen on 127.0.0.1 only",
 		listen,
 	)
+}
+
+// isSetupPath reports whether the path belongs to the one-click BLE setup
+// flow. Exact matches only — no prefix test, so a future /v1/setup-something
+// cannot inherit the loopback exemption by accident.
+func isSetupPath(p string) bool {
+	return p == setupPath || p == setupScanPath || p == setupProvisionPath
 }

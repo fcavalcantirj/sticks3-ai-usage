@@ -122,6 +122,14 @@ func New(s *sched.Scheduler, cfg config.Config, configPath string, logger *slog.
 	// by cmd/usaged (internal/bleprov) through WithProvisioner; with none wired
 	// the routes answer "not available" instead of 404, so the dashboard can
 	// explain itself rather than showing a dead button.
+	//
+	// A Provisioner that implements TokenIssuerAware is handed the
+	// mint-and-record function here — it must come AFTER srv.pairing exists,
+	// and it is the only way the BLE central can produce a token this agent
+	// will later accept. See TokenIssuerAware in setup.go.
+	if issuerAware, ok := srv.provisioner.(TokenIssuerAware); ok {
+		issuerAware.SetTokenIssuer(srv.pairing.issueDeviceToken)
+	}
 	srv.setup = newSetup(srv.provisioner, srv.providerReadiness, time.Now, logger)
 	srv.setup.routes(mux)
 
@@ -407,9 +415,28 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, _ *http.Request) {
 		providers = append(providers, entry)
 	}
 
+	// The published tiers, so the settings page can offer them instead of
+	// asking the owner to type their own bill. Same for every install, so they
+	// ship with the binary rather than living in anyone's config file.
+	presets := map[string][]map[string]any{}
+	for id, list := range config.PlanPresets() {
+		for _, pl := range list {
+			entry := map[string]any{
+				"cost":     pl.Cost,
+				"currency": pl.Currency,
+				"label":    pl.Label,
+			}
+			if pl.HasCostUSD {
+				entry["cost_usd"] = pl.CostUSD
+			}
+			presets[id] = append(presets[id], entry)
+		}
+	}
+
 	resp := map[string]any{
 		"interval_sec": int(s.cfg.Interval.Seconds()),
 		"listen":       s.cfg.Listen,
+		"plan_presets": presets,
 		"tz":           s.cfg.TZ.String(),
 		"alerts": map[string]any{
 			"openrouter_low_usd": s.cfg.AlertOpenRouterLowUSD,
@@ -914,9 +941,7 @@ func (s *Server) handleNotFound(w http.ResponseWriter, _ *http.Request) {
 func etagMatch(inm, rev string) bool {
 	for _, part := range strings.Split(inm, ",") {
 		p := strings.TrimSpace(part)
-		if strings.HasPrefix(p, "W/") {
-			p = p[2:]
-		}
+		p = strings.TrimPrefix(p, "W/")
 		if p == `"`+rev+`"` || p == rev {
 			return true
 		}

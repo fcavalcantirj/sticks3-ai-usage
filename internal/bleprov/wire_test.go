@@ -604,3 +604,33 @@ func TestRecordWipe(t *testing.T) {
 		t.Fatalf("Wipe left %+v", rec)
 	}
 }
+
+// TestDeviceErrorImplementsProvisionCoded: internal/api classifies a failure by
+// asking the error for the device's own error number, through a one-method
+// interface it declares (api.ProvisionCoded) precisely so this package's error
+// type needs no translation at the wiring point. Without this method every
+// device refusal — including ErrJoinFailed (24), the one an owner actually
+// hits — degrades to the generic "it didn't work" sentence.
+//
+// The interface is redeclared here rather than imported: internal/api imports
+// nothing from this package, and inverting that to satisfy a test would create
+// the import cycle the api-side comment exists to avoid.
+func TestDeviceErrorImplementsProvisionCoded(t *testing.T) {
+	type provisionCoded interface{ ProvisionDeviceCode() int }
+
+	var err error = &DeviceError{Code: ErrJoinFailed}
+	coded, ok := err.(provisionCoded)
+	if !ok {
+		t.Fatal("*DeviceError does not implement ProvisionDeviceCode() int")
+	}
+	if got := coded.ProvisionDeviceCode(); got != int(ErrJoinFailed) {
+		t.Errorf("ProvisionDeviceCode() = %d, want %d", got, int(ErrJoinFailed))
+	}
+
+	// A zero code means "the device never answered", which is what api's
+	// classifyFailure falls back on. It must not be confused with a real code.
+	var none error = &DeviceError{}
+	if got := none.(provisionCoded).ProvisionDeviceCode(); got != 0 {
+		t.Errorf("zero-value DeviceError code = %d, want 0", got)
+	}
+}

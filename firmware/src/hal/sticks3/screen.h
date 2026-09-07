@@ -1,6 +1,7 @@
 // firmware/src/hal/sticks3/screen.h — display HAL for the M5StickS3 screen.
 #pragma once
 
+#include "hal/sticks3/bleprov.h"
 #include "usage/battery.h"
 #include "usage/render_plan.h"
 
@@ -44,5 +45,25 @@ void drawBatteryGauge(int16_t gaugeX, int16_t gaugeY, int16_t labelY,
 // ORDER #74 task 74: tick positions are evenly spaced by index, not by raw.
 void drawBrightnessGauge(uint8_t currentRaw, uint8_t currentPercent,
                          uint8_t idleRaw, uint8_t levelIdx);
+
+// Full-screen BLE zero-config setup status.
+//
+// hal/sticks3/bleprov.* deliberately DOES NOT DRAW — it returns state, the
+// passkey, a fixed message and a transfer count, and the screen is decided
+// here, the same split every other screen in this file uses.
+//
+// THE PASSKEY SCREEN CARRIES NOTHING BUT THE SIX DIGITS.  At size 6 the
+// default font is 36x48 px per glyph, so six digits are exactly 216x48 on a
+// 240x135 panel: x=(240-216)/2=12, y=(135-48)/2=44 (43.5 rounded up).  That
+// is a deliberate decision, not a layout accident — the owner is reading
+// those digits off a 1.14" screen and typing them into a macOS dialog, and
+// anything else on screen is something to misread them against.  The digits
+// are drawn HERE and never printed to the serial line, exactly as the
+// portal's AP passphrase is.
+//
+// Every other state gets an ordinary informational screen.  `received` and
+// `declared` are progress only, never content.
+void drawBleSetup(BleProvState state, const char* name, const char* passkey,
+                  const char* message, uint16_t received, uint16_t declared);
 
 } // namespace sticks3

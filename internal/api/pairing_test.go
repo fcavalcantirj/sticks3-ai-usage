@@ -687,3 +687,71 @@ func TestPairedTokenAuthenticatesUsage(t *testing.T) {
 		t.Errorf("devices.json not written beside the state file: %v", err)
 	}
 }
+
+// TestIssueDeviceTokenRecordsAndAuthenticates covers the token path BLE needs.
+//
+// The HTTP claim flow cannot serve BLE: the device is handed its token BEFORE
+// it is on Wi-Fi, so it can never POST /v1/pair/claim to collect one. But a
+// token this agent has not RECORDED is a credential nothing accepts — the
+// device would join, present it, and be refused forever. So the BLE path needs
+// a mint-and-record that is not coupled to an HTTP response.
+func TestIssueDeviceTokenRecordsAndAuthenticates(t *testing.T) {
+	rig := newPairRig(t)
+
+	tok, err := rig.pairing.issueDeviceToken("usaged-D534", "StickS3")
+	if err != nil {
+		t.Fatalf("issueDeviceToken: %v", err)
+	}
+	if len(tok) != pairTokenBytes*2 {
+		t.Errorf("token length = %d, want %d hex chars", len(tok), pairTokenBytes*2)
+	}
+	// The whole point: the agent must now accept it.
+	if !rig.pairing.matchToken(tok) {
+		t.Error("matchToken(issued token) = false, want true — the token was not recorded")
+	}
+	if rig.pairing.matchToken("not-the-token") {
+		t.Error("matchToken(wrong token) = true, want false")
+	}
+
+	// It must survive a restart, like every other issued token.
+	reloaded := newPairing(filepath.Join(rig.dir, "devices.json"),
+		func() time.Time { return rig.now }, slog.New(slog.NewJSONHandler(rig.logs, nil)))
+	if !reloaded.matchToken(tok) {
+		t.Error("token did not survive a reload of the paired-device store")
+	}
+
+	// Never logged.
+	if strings.Contains(rig.logs.String(), tok) {
+		t.Error("the issued token value reached the log")
+	}
+}
+
+// TestIssueDeviceTokenIsPerDevice: a second device gets its own token and does
+// not evict the first. Two StickS3s on one Mac is an ordinary case.
+func TestIssueDeviceTokenIsPerDevice(t *testing.T) {
+	rig := newPairRig(t)
+
+	a, err := rig.pairing.issueDeviceToken("usaged-AAAA", "")
+	if err != nil {
+		t.Fatalf("issueDeviceToken(a): %v", err)
+	}
+	b, err := rig.pairing.issueDeviceToken("usaged-BBBB", "")
+	if err != nil {
+		t.Fatalf("issueDeviceToken(b): %v", err)
+	}
+	if a == b {
+		t.Fatal("two devices were issued the same token")
+	}
+	if !rig.pairing.matchToken(a) || !rig.pairing.matchToken(b) {
+		t.Error("both tokens must remain valid")
+	}
+}
+
+// TestIssueDeviceTokenRequiresID: an empty id would key every device to the
+// same record and silently overwrite the previous one's token.
+func TestIssueDeviceTokenRequiresID(t *testing.T) {
+	rig := newPairRig(t)
+	if _, err := rig.pairing.issueDeviceToken("", "StickS3"); err == nil {
+		t.Error("issueDeviceToken(\"\") = nil error, want a refusal")
+	}
+}

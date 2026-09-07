@@ -32,21 +32,22 @@ var DefaultProviderOrder = []string{
 type DefaultProvider = YamlProvider
 
 // DefaultProviders returns the five built-in provider defaults in display order.
-// These match config.example.yaml so the plan-value ratio works out of the
-// box: Claude Max 20x ($200 USD) and ChatGPT Plus (R$110 BRL).
+// The two subscription plans default to the vendors' published BRL list prices
+// (see PlanPresets for the sources), each carrying the USD equivalent the
+// vendor itself prints so the API-equiv ratio needs no invented exchange rate.
 func DefaultProviders() []DefaultProvider {
 	return []DefaultProvider{
 		{
 			ID:      ProviderClaude,
 			Enabled: true,
 			Label:   "Claude",
-			Plan:    &PlanConfig{Cost: 200, Currency: "USD", Label: "Max 20x"},
+			Plan:    &PlanConfig{Cost: 1100, Currency: "BRL", CostUSD: 200, HasCostUSD: true, Label: "Max 20x"},
 		},
 		{
 			ID:      ProviderCodex,
 			Enabled: true,
 			Label:   "ChatGPT",
-			Plan:    &PlanConfig{Cost: 110, Currency: "BRL", Label: "Plus"},
+			Plan:    &PlanConfig{Cost: 110, Currency: "BRL", CostUSD: 20, HasCostUSD: true, Label: "Plus"},
 		},
 		{
 			ID:      ProviderOpenRouterMain,
@@ -223,4 +224,48 @@ func (c Config) GroqProbeEnabled() bool {
 		return p.Probe
 	}
 	return c.GroqProbe
+}
+
+// --- Published plan prices ---------------------------------------------------
+
+// PlanPresets returns the subscription tiers each provider publishes, keyed by
+// provider id, in the order a picker should show them.
+//
+// WHY THESE ARE BUILT IN RATHER THAN CONFIGURED. A plan's price is a published
+// list price: it is the same for every user of usaged, nobody can look it up
+// faster than we can ship it, and asking each person to hand-write cost,
+// currency and label into a YAML file is three chances to get their own bill
+// wrong. Settings offers the list; typing stays possible for anyone on a plan
+// that is not here (legacy pricing, an enterprise agreement, a currency we do
+// not list).
+//
+// PRICES ARE IN BRL, WITH THE USD EQUIVALENT THE VENDOR ITSELF PRINTS. Both
+// pages quote a local price and a USD one; carrying both means the API-equiv
+// ratio can be computed without inventing an exchange rate — the rule
+// config.example.yaml already states ("when absent for non-USD plans, no ratio
+// is shown — no invented FX").
+//
+// SOURCES, read 2026-09-07:
+//   - anthropic.com pricing: Pro "R$110 if billed monthly"; Max "From R$550 per
+//     month", "Choose 5x or 20x more usage than Pro" — the 20x tier is double
+//     the 5x one.
+//   - openai.com/business/pricing (ChatGPT tab): Standard seat R$100/month
+//     ("$25/month if billed monthly"); Premium seat R$500/month ("$125/month if
+//     billed monthly", "5x more usage than standard, with no 5-hour limit").
+//
+// THESE GO STALE. They are list prices on someone else's page, so treat a
+// mismatch with a real invoice as this table being out of date, not the bill.
+func PlanPresets() map[string][]PlanConfig {
+	return map[string][]PlanConfig{
+		ProviderClaude: {
+			{Cost: 110, Currency: "BRL", CostUSD: 20, HasCostUSD: true, Label: "Pro"},
+			{Cost: 550, Currency: "BRL", CostUSD: 100, HasCostUSD: true, Label: "Max 5x"},
+			{Cost: 1100, Currency: "BRL", CostUSD: 200, HasCostUSD: true, Label: "Max 20x"},
+		},
+		ProviderCodex: {
+			{Cost: 110, Currency: "BRL", CostUSD: 20, HasCostUSD: true, Label: "Plus"},
+			{Cost: 100, Currency: "BRL", CostUSD: 25, HasCostUSD: true, Label: "Business Standard"},
+			{Cost: 500, Currency: "BRL", CostUSD: 125, HasCostUSD: true, Label: "Business Premium"},
+		},
+	}
 }

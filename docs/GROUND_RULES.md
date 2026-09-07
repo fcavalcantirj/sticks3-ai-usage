@@ -2,9 +2,35 @@
 
 These rules are the floor for every task. Violating any one fails the task.
 
-## Go: stdlib only
+## Go: stdlib only, with one approved exception
 
-No external Go dependencies. `go list -m all | wc -l` must print 1 (just `usaged` itself).
+No external Go dependencies, except **`tinygo.org/x/bluetooth`** and what it drags in.
+Felipe approved it explicitly ("go for it") for BLE zero-config provisioning: the daemon
+must drive CoreBluetooth as a central to hand a freshly-flashed device its Wi-Fi
+credentials, and the stdlib has no path to CoreBluetooth at all. `muka/go-bluetooth` was
+refused (Linux/BlueZ only, archived July 2024). Adding any OTHER dependency is still a
+task failure.
+
+The gate asserts the SET, not a count — a swapped dependency that kept the count the same
+would sail through a count. This must print exactly these four lines and nothing else:
+
+```
+go list -deps ./... | grep '^[^/]*\.[^/]*/' | cut -d/ -f1-3 | sort -u
+github.com/sirupsen/logrus
+github.com/tinygo-org/cbgo
+golang.org/x/sys
+tinygo.org/x/bluetooth
+```
+
+`go.sum` carries 13 modules but only those four compile on darwin; the rest are the
+Linux and Windows radio backends, excluded by build tags.
+
+**Do not use the old `go list -m all | wc -l` test — it no longer runs.** It fails with
+`github.com/tdakkota/win32metadata@v0.1.0: ... remote: Repository not found`, a dead
+upstream repo in `saltosystems/winrt-go`'s graph (the Windows BLE backend). Nothing on
+darwin reaches it: `go build`, `go vet`, `go test` and `go mod download` are all clean.
+Only the whole-graph walk touches it. [REAL, 2026-09-07]
+
 `staticcheck` (at ~/go/bin/staticcheck) is the linter; it has zero false-positive tolerance here.
 
 ## One HTTP client

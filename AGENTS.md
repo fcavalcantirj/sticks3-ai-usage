@@ -84,6 +84,13 @@ One bracketed tag per line. See `firmware/README.md` for the full table.
    specific upload — builds, tests and monitors never authorize one.
 7. Commit only via the loop's own `git add . && git commit` at the end of a task; never push.
 
+## Dependencies
+
+Go is stdlib-only with exactly ONE approved exception — `tinygo.org/x/bluetooth`, for BLE
+provisioning. The rule, the reasoning and the mechanical gate live in
+`docs/GROUND_RULES.md` "Go: stdlib only, with one approved exception". Adding any other
+dependency fails the task.
+
 ## Endpoint provenance
 
 - **Claude**: `GET https://api.anthropic.com/api/oauth/usage` — UNOFFICIAL.

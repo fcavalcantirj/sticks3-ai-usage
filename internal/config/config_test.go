@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -113,6 +114,57 @@ func TestLoadPublishDefaultsEmpty(t *testing.T) {
 	}
 	if cfg.PublishToken != "" {
 		t.Errorf("PublishToken = %q, want empty by default", cfg.PublishToken)
+	}
+}
+
+// TestLoadDeviceOTAPass covers the one value BLE provisioning needs that the
+// agent had no source for: the device's ArduinoOTA password. It lives in
+// firmware/include/secrets.h, a compile-time header the daemon cannot read, so
+// without this the daemon can only ever send bleprov.Record.OTAPass = "" and
+// every zero-config device comes up with OTA disarmed — flashable only by cable.
+//
+// Empty IS the default and IS legal: an unset password leaves OTA disarmed,
+// which is the right posture for a stranger's device. Arming it is the owner's
+// deliberate act.
+func TestLoadDeviceOTAPass(t *testing.T) {
+	cfg, err := Load(nil, envFrom(map[string]string{
+		"USAGED_DEVICE_TOKEN": "test-token",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.DeviceOTAPass != "" {
+		t.Errorf("DeviceOTAPass = %q, want empty by default (OTA disarmed)", cfg.DeviceOTAPass)
+	}
+
+	cfg, err = Load(nil, envFrom(map[string]string{
+		"USAGED_DEVICE_TOKEN":    "test-token",
+		"USAGED_DEVICE_OTA_PASS": "arm-me",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.DeviceOTAPass != "arm-me" {
+		t.Errorf("DeviceOTAPass = %q, want %q", cfg.DeviceOTAPass, "arm-me")
+	}
+}
+
+// TestRedactedHidesDeviceOTAPass: it is a credential, so Redacted() must render
+// its length and never its value — GROUND_RULES "No secrets in logs".
+func TestRedactedHidesDeviceOTAPass(t *testing.T) {
+	cfg, err := Load(nil, envFrom(map[string]string{
+		"USAGED_DEVICE_TOKEN":    "test-token",
+		"USAGED_DEVICE_OTA_PASS": "sekrit-ota",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got := fmt.Sprintf("%v", cfg.Redacted())
+	if strings.Contains(got, "sekrit-ota") {
+		t.Error("Redacted() leaked the OTA password value")
+	}
+	if want := "set(len=10)"; !strings.Contains(got, want) {
+		t.Errorf("Redacted() device_ota_pass = %v, want it to contain %q", got, want)
 	}
 }
 

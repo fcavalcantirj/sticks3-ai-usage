@@ -5,15 +5,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"usaged/internal/config"
+	"usaged/internal/sched"
 )
 
 // --- One-click device setup test rig ---
@@ -199,54 +202,63 @@ func runBlock(t *testing.T, st map[string]any) map[string]any {
 
 // --- Auth boundaries: ORDER #54 applies to BOTH actions ---
 
-// TestSetupScanRequiresATokenEvenFromLoopback: a scan powers a radio, so it is
-// mutating, so the token is required even from this Mac.
-func TestSetupScanRequiresATokenEvenFromLoopback(t *testing.T) {
+// TestSetupScanIsLoopbackOnly: a scan powers a radio, so it stays closed to the
+// LAN — but it is OPEN on loopback with no token.
+//
+// SUPERSEDES the old "requires a token even from loopback" rule (ORDER #54) for
+// these three routes only. That rule made the feature impossible: the flow
+// exists to GIVE a device a token, and on a fresh install none is configured,
+// so the button returned 401 and zero-config could never start. Measured
+// 2026-09-07 against the live daemon: GET /v1/setup 200, POST /v1/setup/scan
+// 401. What authorises a run is the BLE bond and its six-digit passkey, not an
+// HTTP header — see the comment in auth.go.
+func TestSetupScanIsLoopbackOnly(t *testing.T) {
 	rig := newDefaultSetupRig(t)
 
 	rec := rig.do(http.MethodPost, setupScanPath, `{}`, setupLoopback, "")
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("unauthenticated loopback scan: status = %d, want 401", rec.Code)
-	}
-	rig.setup.wg.Wait()
-	if rig.fake.scans != 0 {
-		t.Fatal("an unauthenticated request reached the Provisioner")
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("loopback scan with no token: status = %d, want 202", rec.Code)
 	}
 
-	rec = rig.do(http.MethodPost, setupScanPath, `{}`, setupLoopback, setupDashToken)
-	if rec.Code != http.StatusAccepted {
-		t.Fatalf("authenticated scan: status = %d, want 202 (body %s)", rec.Code, rec.Body.String())
+	rec = rig.do(http.MethodPost, setupScanPath, `{}`, setupLANPeer, "")
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("LAN scan with no token: status = %d, want 401", rec.Code)
 	}
 }
 
-// TestSetupProvisionRequiresATokenEvenFromLoopback: provisioning hands a device
-// the keys to the network, which is the last thing that should be reachable
-// from any process on this Mac without a token.
-func TestSetupProvisionRequiresATokenEvenFromLoopback(t *testing.T) {
+// TestSetupProvisionIsLoopbackOnly: provisioning hands a device the Wi-Fi
+// password, so the LAN must never reach it without a token. Loopback may,
+// because a process already on this Mac can read the keychain anyway, and the
+// passkey on the device's screen is what gates which device receives it.
+func TestSetupProvisionIsLoopbackOnly(t *testing.T) {
 	rig := newDefaultSetupRig(t)
 	rig.scan(t)
 
-	rec := rig.do(http.MethodPost, setupProvisionPath, `{"addr":"`+setupDeviceOne+`"}`, setupLoopback, "")
+	rec := rig.do(http.MethodPost, setupProvisionPath, `{"addr":"`+setupDeviceOne+`"}`, setupLANPeer, "")
 	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("unauthenticated loopback provision: status = %d, want 401", rec.Code)
+		t.Fatalf("LAN provision with no token: status = %d, want 401", rec.Code)
 	}
 	rig.setup.wg.Wait()
 	if rig.fake.provisions != 0 {
-		t.Fatal("an unauthenticated request reached the Provisioner")
+		t.Fatal("an unauthenticated LAN request reached the Provisioner")
 	}
 
-	rec = rig.do(http.MethodPost, setupProvisionPath, `{"addr":"`+setupDeviceOne+`"}`, setupLANPeer, setupDashToken)
+	rec = rig.do(http.MethodPost, setupProvisionPath, `{"addr":"`+setupDeviceOne+`"}`, setupLoopback, "")
 	if rec.Code != http.StatusAccepted {
-		t.Fatalf("authenticated provision: status = %d, want 202 (body %s)", rec.Code, rec.Body.String())
+		t.Fatalf("loopback provision with no token: status = %d, want 202 (body %s)", rec.Code, rec.Body.String())
 	}
 }
 
-// TestSetupStopRequiresAToken covers the third mutating route.
-func TestSetupStopRequiresAToken(t *testing.T) {
+// TestSetupStopIsLoopbackOnly covers the third mutating route.
+func TestSetupStopIsLoopbackOnly(t *testing.T) {
 	rig := newDefaultSetupRig(t)
-	rec := rig.do(http.MethodDelete, setupPath, "", setupLoopback, "")
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("unauthenticated stop: status = %d, want 401", rec.Code)
+	// 409 (nothing is running) is a fine answer here — the point is that the
+	// request was ANSWERED rather than rejected for want of a token.
+	if rec := rig.do(http.MethodDelete, setupPath, "", setupLoopback, ""); rec.Code == http.StatusUnauthorized {
+		t.Fatalf("loopback stop with no token: status = 401, want the handler to answer")
+	}
+	if rec := rig.do(http.MethodDelete, setupPath, "", setupLANPeer, ""); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("LAN stop with no token: status = %d, want 401", rec.Code)
 	}
 }
 
@@ -826,5 +838,114 @@ func TestSetupHonoursAnImplementationsOwnCodedError(t *testing.T) {
 	reason, _ := run["error"].(string)
 	if !strings.Contains(reason, "could not join your Wi-Fi") {
 		t.Errorf("reason = %q, want the JoinFailed sentence", reason)
+	}
+}
+
+// tokenIssuerProvisioner is a Provisioner that also wants a token issuer.
+type tokenIssuerProvisioner struct {
+	issue func(deviceID, name string) (string, error)
+}
+
+func (p *tokenIssuerProvisioner) Scan(context.Context) ([]FoundDevice, error) { return nil, nil }
+func (p *tokenIssuerProvisioner) Provision(context.Context, string) error     { return nil }
+func (p *tokenIssuerProvisioner) SetTokenIssuer(fn func(string, string) (string, error)) {
+	p.issue = fn
+}
+
+// TestServerHandsTheProvisionerATokenIssuer: the BLE central must be able to
+// mint AND RECORD a per-device token, because it hands the device that token
+// before the device has ever been on Wi-Fi and so can never collect one over
+// HTTP. The pairing store is unexported and New returns an *http.Server, so
+// the Server hands the capability to a Provisioner that asks for it.
+func TestServerHandsTheProvisionerATokenIssuer(t *testing.T) {
+	prov := &tokenIssuerProvisioner{}
+	dir := t.TempDir()
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	s := sched.NewScheduler(nil, time.Hour, "", func() time.Time { return fixedNow }, logger)
+	cfg := config.Config{
+		Listen:      "127.0.0.1:0",
+		DeviceToken: setupDashToken,
+		StatePath:   filepath.Join(dir, "state.json"),
+	}
+	if _, err := New(s, cfg, "", logger, WithProvisioner(prov)); err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	if prov.issue == nil {
+		t.Fatal("SetTokenIssuer was never called: the provisioner cannot mint a recordable token")
+	}
+	tok, err := prov.issue("usaged-D534", "StickS3")
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	if len(tok) != pairTokenBytes*2 {
+		t.Errorf("token length = %d, want %d", len(tok), pairTokenBytes*2)
+	}
+}
+
+// TestSetupRoutesWorkOnLoopbackWithNoToken is the bootstrap fix.
+//
+// The setup flow exists to GIVE a device its token, but every mutating /v1/*
+// route required one even from loopback (ORDER #54) — and validToken fails a
+// configured token of "". So on a fresh install the "Set up" button returned
+// 401 and the zero-config path could not start at all. Measured on 2026-09-07:
+// GET /v1/setup 200, POST /v1/setup/scan 401.
+//
+// The exemption is loopback-only and setup-only. What actually authorises a
+// provisioning run is not an HTTP header: it is the BLE bond — LE Secure
+// Connections with MITM protection and a six-digit passkey the owner reads off
+// the device's own screen. A caller on loopback is already on the machine that
+// holds the Wi-Fi password; the passkey is what stops it reaching a device.
+// The JSON content-type check still bounces a form-encoded cross-site POST.
+func TestSetupRoutesWorkOnLoopbackWithNoToken(t *testing.T) {
+	fake := &fakeProvisioner{found: []FoundDevice{
+		{Addr: setupDeviceOne, Name: "usaged-D534", RSSI: -48},
+	}}
+	rig := newSetupRig(t, fake, fake)
+	// A fresh install: no device token configured at all.
+	logger := slog.New(slog.NewJSONHandler(rig.logs, nil))
+	mux := http.NewServeMux()
+	rig.setup.routes(mux)
+	handler := newAuth(config.Config{Listen: "127.0.0.1:0"}, nil, logger).middleware(mux)
+
+	for _, tc := range []struct{ method, path, body string }{
+		{http.MethodGet, setupPath, ""},
+		{http.MethodPost, setupScanPath, ""},
+		{http.MethodPost, setupProvisionPath, `{"addr":"` + setupDeviceOne + `"}`},
+		{http.MethodDelete, setupPath, ""},
+	} {
+		var req *http.Request
+		if tc.body == "" {
+			req = httptest.NewRequest(tc.method, tc.path, nil)
+		} else {
+			req = httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+			req.Header.Set("Content-Type", "application/json")
+		}
+		req.RemoteAddr = "127.0.0.1:54321"
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code == http.StatusUnauthorized {
+			t.Errorf("%s %s from loopback with no token = 401, want it to work", tc.method, tc.path)
+		}
+	}
+}
+
+// TestSetupRoutesStillRefuseTheLAN: the exemption is loopback ONLY. A machine
+// on the same Wi-Fi must not be able to make this Mac hand its Wi-Fi password
+// to a device of the attacker's choosing.
+func TestSetupRoutesStillRefuseTheLAN(t *testing.T) {
+	fake := &fakeProvisioner{}
+	rig := newSetupRig(t, fake, fake)
+	logger := slog.New(slog.NewJSONHandler(rig.logs, nil))
+	mux := http.NewServeMux()
+	rig.setup.routes(mux)
+	handler := newAuth(config.Config{Listen: "0.0.0.0:8765", DeviceToken: setupDashToken}, nil, logger).middleware(mux)
+
+	req := httptest.NewRequest(http.MethodPost, setupScanPath, nil)
+	req.RemoteAddr = "192.168.0.99:54321"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("POST %s from the LAN with no token = %d, want 401", setupScanPath, rec.Code)
 	}
 }

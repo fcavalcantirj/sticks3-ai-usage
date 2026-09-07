@@ -745,3 +745,65 @@ func isLANPeer(host string) bool {
 	}
 	return ip.IsPrivate() || ip.IsLinkLocalUnicast()
 }
+
+// issueDeviceToken mints a per-device token, records it in the paired-device
+// store, and returns it. It is the BLE path's equivalent of issueTokenLocked.
+//
+// WHY A SECOND ENTRY POINT EXISTS. issueTokenLocked is welded to an
+// http.ResponseWriter because the HTTP flow's whole job is to answer a device
+// that asked. BLE inverts that: the daemon hands the device its token over an
+// encrypted GATT link BEFORE the device has ever been on Wi-Fi, so there is no
+// request to answer and no /v1/pair/claim the device could reach. What must
+// still happen — and is the entire reason this is not just newDeviceToken() —
+// is the RECORDING. A token this agent has not persisted is a credential
+// nothing accepts: the device would join, present it, and be refused forever.
+//
+// It deliberately does NOT open, consume or close the pairing window. The
+// window exists so an unauthenticated LAN claim can be authorised by a human;
+// a BLE transfer is already authorised by a bonded, MITM-protected link and a
+// six-digit passkey the owner read off the device's own screen. Coupling the
+// two would mean the owner had to open a window on the dashboard to do the
+// thing the dashboard button already does.
+//
+// The token value is returned to the caller and never logged.
+func (p *pairing) issueDeviceToken(deviceID, name string) (string, error) {
+	if deviceID == "" {
+		// Keying by "" would file every device under one record and silently
+		// replace the previous device's token with the new one.
+		return "", errors.New("pairing: a device id is required to issue a token")
+	}
+
+	token, err := newDeviceToken()
+	if err != nil {
+		return "", err
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	rec := pairedDevice{
+		ID:       deviceID,
+		Name:     name,
+		Token:    token,
+		IssuedAt: p.now().Unix(),
+		Peer:     "ble",
+	}
+	prev, had := p.devices[deviceID]
+	p.devices[deviceID] = rec
+	if err := p.persistLocked(); err != nil {
+		// Roll back, exactly as issueTokenLocked does: a token in memory but
+		// not on disk stops working at the next restart, which is worse than
+		// failing now.
+		if had {
+			p.devices[deviceID] = prev
+		} else {
+			delete(p.devices, deviceID)
+		}
+		p.logger.Error("pairing: persist BLE-paired device", "device_id", deviceID, "err", err)
+		return "", err
+	}
+
+	p.logger.Info("pairing: token issued over BLE",
+		"device_id", deviceID, "token_len", len(token))
+	return token, nil
+}

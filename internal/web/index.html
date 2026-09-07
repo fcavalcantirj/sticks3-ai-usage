@@ -393,6 +393,34 @@
         </div>
       </div>
 
+      <!-- One-click setup over Bluetooth. THE ZERO-TYPING PATH, and the reason
+           the other two cards are fallbacks rather than the main event.
+
+           THIS CARD HAS NO INPUT FIELDS AT ALL, AND THAT IS THE WHOLE POINT.
+           The daemon already knows the SSID, the Wi-Fi password, its own
+           address, its port, and a token it can mint on the spot — so the owner
+           clicks once and types nothing. The only six characters they ever type
+           go into the macOS pairing dialog, and those are shown on the DEVICE's
+           own screen, never here: that is what makes typing them proof of
+           physical possession, exactly as the pairing code is above. -->
+      <div class="settings-card" id="setup-card">
+        <div class="card-header"><span class="card-title">Set up a new device</span></div>
+        <div class="row">
+          <span id="setup-status" class="info">Checking&hellip;</span>
+        </div>
+        <div class="row row-inner">
+          <button id="setup-scan-btn">Look for a device</button>
+          <button id="setup-provision-btn" disabled>Set it up</button>
+          <button id="setup-stop-btn" class="btn-small" style="display:none;">Stop</button>
+        </div>
+        <div class="row">
+          <span id="setup-found" class="info"></span>
+        </div>
+        <div class="row">
+          <span id="setup-steps" class="info"></span>
+        </div>
+      </div>
+
       <!-- Device Wi-Fi (task 79). The everyday case: move an already-reachable
            device to a different network. The captive portal on the device
            bootstraps one that has never joined anything; this maintains one
@@ -553,6 +581,7 @@ var cfg_listen_cache = "";   // listen address from last GET /v1/config
 var cfg_tz_cache = "";       // tz from last GET /v1/config
 var currentDeviceState = null;  // from GET /v1/device (no ETag, polled separately)
 var currentSnap = null;         // latest /v1/usage snapshot (for attention re-render)
+var planPresets = {};           // published plan tiers from GET /v1/config
 
 // ---- Fetch ----
 
@@ -635,6 +664,9 @@ function renderSettings(cfg) {
   var form = document.getElementById("settings-form");
   if (!form) return;
   form.style.display = "block";
+
+  // Published list prices, shipped with the binary — same for every install.
+  planPresets = cfg.plan_presets || {};
 
   // The interval select lives in the header (single control — ORDER #65 task 68).
   // Keep the header select in sync with the persisted value.
@@ -774,6 +806,14 @@ function createProviderCard(p) {
     planTitle.style.marginBottom = "8px";
     planBlock.appendChild(planTitle);
 
+    // The published tiers for this provider, so nobody has to type their own
+    // bill. Picking one fills the four fields below; they stay editable for
+    // legacy pricing, an enterprise agreement, or a currency we do not list.
+    var presets = (planPresets && planPresets[p.id]) || [];
+    if (presets.length) {
+      planBlock.appendChild(makePlanPicker(presets, p.plan));
+    }
+
     planBlock.appendChild(makePlanRow("cost", "Cost", "number", p.plan.cost || "", "60px"));
     planBlock.appendChild(makePlanRow("currency", "Currency", "text", p.plan.currency || "USD", "70px"));
     planBlock.appendChild(makePlanRow("label", "Label", "text", p.plan.label || "", "80px"));
@@ -832,6 +872,66 @@ function toggleProviderCard(card) {
   if (!isOpen) {
     card.classList.add("expanded");
   }
+}
+
+function makePlanPicker(presets, current) {
+  var row = document.createElement("div");
+  row.className = "plan-row";
+  var lbl = document.createElement("span");
+  lbl.className = "plan-label";
+  lbl.textContent = "Plan";
+  lbl.style.minWidth = "60px";
+
+  var sel = document.createElement("select");
+  sel.className = "plan-input";
+
+  // "Custom" is first and is what a plan we do not publish selects to. It is
+  // never auto-applied: choosing it changes nothing, it just says the fields
+  // below are the owner's own numbers.
+  var custom = document.createElement("option");
+  custom.value = "";
+  custom.textContent = "Custom";
+  sel.appendChild(custom);
+
+  presets.forEach(function(pl, i) {
+    var o = document.createElement("option");
+    o.value = String(i);
+    o.textContent = pl.label + " \u2014 " + fmtPlanPrice(pl);
+    sel.appendChild(o);
+    // Match on the numbers, not the label: a plan whose cost and currency
+    // equal a published tier IS that tier, whatever it has been renamed to.
+    if (current && Number(current.cost) === Number(pl.cost) &&
+        (current.currency || "") === pl.currency) {
+      sel.value = String(i);
+    }
+  });
+
+  sel.addEventListener("change", function() {
+    if (sel.value === "") return;
+    var pl = presets[parseInt(sel.value, 10)];
+    if (!pl) return;
+    var block = sel.closest(".plan-block") || sel.parentNode.parentNode;
+    setPlanField(block, "cost", pl.cost);
+    setPlanField(block, "currency", pl.currency);
+    setPlanField(block, "label", pl.label);
+    setPlanField(block, "cost_usd", pl.cost_usd === undefined ? "" : pl.cost_usd);
+  });
+
+  row.appendChild(lbl);
+  row.appendChild(sel);
+  return row;
+}
+
+function setPlanField(block, field, val) {
+  var el = block.querySelector('[data-field="plan.' + field + '"]');
+  if (el) el.value = val;
+}
+
+function fmtPlanPrice(pl) {
+  var sym = pl.currency === "BRL" ? "R$" : (pl.currency === "USD" ? "$" : pl.currency + " ");
+  var s = sym + pl.cost;
+  if (pl.cost_usd !== undefined && pl.currency !== "USD") s += " (~$" + pl.cost_usd + ")";
+  return s + "/mo";
 }
 
 function makePlanRow(field, labelText, type, val, labelW) {
@@ -975,6 +1075,7 @@ function loadSettings() {
     .then(function(r) { if (r.status === 401) { showTokenInput(); return null; } return r.ok ? r.json() : null; })
     .then(function(cfg) { if (cfg) renderSettings(cfg); });
   refreshPairStatus();
+  refreshSetup();
   loadWifi();
 }
 
@@ -1115,6 +1216,155 @@ function renderPairDevices(devices) {
   });
   el.innerHTML = "Paired: " + parts.join(" \u00b7 ");
 }
+
+// ---- One-click setup over Bluetooth ----
+//
+// The card is a thin renderer over GET /v1/setup. Every sentence the owner
+// reads — the headline, the step text, the failure reason and what to do next
+// — is CHOSEN BY THE AGENT, not composed here, so no implementation string can
+// reach the page. That is the same rule the pairing card follows, and it is why
+// this code never builds an error message out of a response field it did not
+// expect.
+//
+// It polls only while something is happening. An idle card costs one request
+// when the Settings tab is opened and nothing after that.
+
+var setupOfferAddr = null;   // the device the button would set up
+var setupTimer = null;       // poll handle; non-null means polling
+var setupPrevRun = null;     // previous run.state, to catch the edge into done
+
+function setupPolling(on) {
+  if (on && !setupTimer) {
+    setupTimer = setInterval(refreshSetup, 2000);
+  } else if (!on && setupTimer) {
+    clearInterval(setupTimer);
+    setupTimer = null;
+  }
+}
+
+function refreshSetup() {
+  fetch("/v1/setup", { headers: authHeaders() })
+    .then(function(r) { if (r.status === 401) { showTokenInput(); return null; } return r.ok ? r.json() : null; })
+    .then(function(js) { if (js) renderSetup(js); });
+}
+
+function renderSetup(js) {
+  var status = document.getElementById("setup-status");
+  var scanBtn = document.getElementById("setup-scan-btn");
+  var provBtn = document.getElementById("setup-provision-btn");
+  var stopBtn = document.getElementById("setup-stop-btn");
+
+  if (!js.available) {
+    // No BLE central in this build, or none on this OS. Say so and stop:
+    // a card that offers a button which always fails is worse than one that
+    // explains itself.
+    status.textContent = js.headline || "Bluetooth setup is not available.";
+    status.style.color = "var(--muted)";
+    scanBtn.disabled = true;
+    provBtn.disabled = true;
+    setupPolling(false);
+    return;
+  }
+
+  status.textContent = js.headline || "";
+  status.style.color = "var(--muted)";
+
+  var run = js.run;
+  var running = run && run.state === "running";
+  var scanning = js.state === "scanning";
+
+  scanBtn.disabled = running || scanning;
+  scanBtn.textContent = scanning ? "Looking\u2026" : "Look for a device";
+  stopBtn.style.display = running ? "" : "none";
+
+  // The offer is the agent's own pick of what to set up. The page never
+  // chooses for itself, so a device the agent did not offer cannot be
+  // provisioned by clicking.
+  setupOfferAddr = js.offer ? js.offer.addr : null;
+  provBtn.disabled = running || !setupOfferAddr;
+  provBtn.textContent = js.offer ? "Set up " + js.offer.name : "Set it up";
+
+  renderSetupFound(js.scan);
+  renderSetupSteps(run);
+
+  // Poll while anything is in flight, and for one pass after it ends so the
+  // final message lands.
+  var active = running || scanning;
+  setupPolling(active);
+  if (!active && setupPrevRun === "running") refreshSetup();
+  setupPrevRun = run ? run.state : null;
+}
+
+function renderSetupFound(scan) {
+  var el = document.getElementById("setup-found");
+  if (!scan) { el.textContent = ""; return; }
+  if (scan.error) {
+    // Agent-chosen sentence, plus the agent's own "what to do next".
+    el.textContent = scan.error + (scan.next ? " " + scan.next : "");
+    el.style.color = "var(--warn)";
+    return;
+  }
+  el.style.color = "var(--muted)";
+  if (!scan.found || !scan.found.length) {
+    el.textContent = "";
+    return;
+  }
+  var parts = scan.found.map(function(d) {
+    // rssi is the only number worth showing: it tells the owner WHICH stick on
+    // the desk this is. Nothing else here identifies anything secret.
+    return esc(d.name || d.addr) + (d.provisioned ? " (already set up)" : "") +
+           " \u00b7 " + d.rssi + " dBm";
+  });
+  el.innerHTML = "Found: " + parts.join(" \u00b7 ");
+}
+
+function renderSetupSteps(run) {
+  var el = document.getElementById("setup-steps");
+  if (!run) { el.textContent = ""; return; }
+
+  if (run.state === "failed") {
+    el.textContent = (run.error || "Setup did not finish.") + (run.next ? " " + run.next : "");
+    el.style.color = "var(--crit)";
+    return;
+  }
+  if (run.state === "applied") {
+    el.textContent = run.message || "Done.";
+    el.style.color = "var(--ok)";
+    return;
+  }
+  el.style.color = "var(--muted)";
+  // While running, show the step list the agent built. Each entry's text is a
+  // fixed sentence from the agent's own vocabulary.
+  var steps = (run.steps || []).map(function(s) { return esc(s.text); });
+  el.innerHTML = steps.length ? steps.join("<br>") : esc(run.message || "");
+}
+
+function startSetupScan() {
+  fetch("/v1/setup/scan", { method: "POST", headers: authHeaders() })
+    .then(function(r) { if (r.status === 401) { showTokenInput(); return null; } return r.ok ? r.json() : null; })
+    .then(function(js) { if (js) renderSetup(js); setupPolling(true); });
+}
+
+function startSetupProvision() {
+  if (!setupOfferAddr) return;
+  var headers = authHeaders();
+  headers["Content-Type"] = "application/json";
+  fetch("/v1/setup/provision", {
+    method: "POST",
+    headers: headers,
+    body: JSON.stringify({ addr: setupOfferAddr })
+  })
+    .then(function(r) { if (r.status === 401) { showTokenInput(); return null; } return r.ok ? r.json() : null; })
+    .then(function(js) { if (js) renderSetup(js); setupPolling(true); });
+}
+
+function stopSetup() {
+  fetch("/v1/setup", { method: "DELETE", headers: authHeaders() })
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(js) { if (js) renderSetup(js); });
+}
+
+// ---- One-click setup over Bluetooth ends ----
 
 function setPairMessage(msg, ok) {
   var el = document.getElementById("pair-status");
@@ -1784,6 +2034,9 @@ function init() {
   document.getElementById("token-save").addEventListener("click", saveToken);
   document.getElementById("interval-select").addEventListener("change", saveInterval);
   document.getElementById("save-config-btn").addEventListener("click", saveSettings);
+  document.getElementById("setup-scan-btn").addEventListener("click", startSetupScan);
+  document.getElementById("setup-provision-btn").addEventListener("click", startSetupProvision);
+  document.getElementById("setup-stop-btn").addEventListener("click", stopSetup);
   document.getElementById("pair-open-btn").addEventListener("click", openPairWindow);
   document.getElementById("pair-confirm-btn").addEventListener("click", confirmPairCode);
   document.getElementById("pair-code-field").addEventListener("keydown", function(e) {

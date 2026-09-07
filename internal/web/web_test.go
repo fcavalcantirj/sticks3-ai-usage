@@ -361,3 +361,59 @@ func TestIndexHTMLWifiSaysItIsNotInstant(t *testing.T) {
 		t.Error("index.html never points the user at the device screen when a join fails")
 	}
 }
+
+// TestIndexHTMLSetupCard verifies the Settings tab carries the one-click BLE
+// setup control: a scan button, a place for what the scan found, a set-up
+// button, and the live step list — plus the three endpoints behind them.
+//
+// This is the zero-typing path. The owner clicks once and the daemon sends the
+// SSID, the Wi-Fi password, its own address, its port and a freshly minted
+// token over a bonded BLE link. Nothing on this card is a credential field.
+func TestIndexHTMLSetupCard(t *testing.T) {
+	html := string(IndexHTML)
+	for _, want := range []string{
+		`id="setup-card"`,
+		`id="setup-scan-btn"`,
+		`id="setup-status"`,
+		`id="setup-found"`,
+		`id="setup-provision-btn"`,
+		`id="setup-steps"`,
+		`"/v1/setup/scan"`,
+		`"/v1/setup/provision"`,
+		`"/v1/setup"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("index.html missing setup element %q", want)
+		}
+	}
+}
+
+// TestIndexHTMLSetupNeverRendersACredential is the page-side half of the rule
+// the whole design rests on: the daemon holds the Wi-Fi password and the device
+// token, and NEITHER is ever shown, typed or echoed here. The six passkey
+// digits live on the DEVICE screen — that is what makes typing them into the
+// macOS dialog proof of physical possession — so the card must not render a
+// passkey either.
+//
+// A previous agent left a credential input in this page and the work had to be
+// reverted rather than committed. This test is why that cannot recur silently.
+func TestIndexHTMLSetupNeverRendersACredential(t *testing.T) {
+	html := string(IndexHTML)
+	// The setup card must contribute no password/token input of its own.
+	for _, banned := range []string{
+		`id="setup-pass-field"`,
+		`id="setup-token-field"`,
+		`id="setup-ssid-field"`,
+		`id="setup-passkey"`,
+		`setupJs.password`,
+		`run.password`,
+		`run.token`,
+		`run.passkey`,
+		`scan.password`,
+		`d.token`,
+	} {
+		if strings.Contains(html, banned) {
+			t.Errorf("index.html setup card renders or accepts a credential: %q", banned)
+		}
+	}
+}

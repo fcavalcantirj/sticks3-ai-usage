@@ -18,6 +18,7 @@
 //   delay(1)
 #include <M5Unified.h>
 
+#include "hal/sticks3/bleprov.h"
 #include "hal/sticks3/board.h"
 #include "hal/sticks3/creds.h"
 #include "hal/sticks3/fetch.h"
@@ -147,7 +148,70 @@ RTC_DATA_ATTR bool g_justSlept = false;           // true after powerSleep(), co
 // cannot work — the failure that would otherwise need a USB cable to escape.
 static usage::provision::Machine g_provision;
 
+// --- BLE zero-config setup ---------------------------------------------------
+// BLE FIRST, THE PORTAL AS A TIMED FALLBACK — never both at once.  Both radios
+// share one 2.4 GHz front end, and the portal is the most timing-fragile code
+// in this firmware: a scan with the SoftAP up was measured at ~9.2 s against a
+// deadline that was 6 s, and 100% of scans failed.  Adding a second radio user
+// to that is not a risk worth taking for a path most owners never reach.
+//
+// So: advertise over BLE while unprovisioned and let the owner's own Mac send
+// the SSID, the password, this agent's port and a freshly minted token.  If no
+// daemon has connected within kBleWindowMs, release the BLE stack — which hands
+// ~70 KB back to the heap, so the portal starts richer than it would have — and
+// raise the captive portal for the owner who has no Mac, no Bluetooth, or
+// refused the permission.
+//
+// THE HANDOVER IS ONE-WAY WITHIN A BOOT.  bleProvEnd(true) releases the
+// controller memory irreversibly (esp_bt.h: "once BT memory is released, the
+// process cannot be reversed"), so BLE does not come back until a reboot.  That
+// is deliberate: the alternative, bleProvEnd(false), leaks the whole BLEServer
+// object graph every time it re-opens.
+static const uint32_t kBleWindowMs = 120000;  // 2 min, then the portal
+
+static bool     g_bleSetupRunning = false;  // main.cpp owns the lifecycle flag
+static uint32_t g_bleDeadlineMs   = 0;      // when Advertising gives up
+static uint32_t g_bleDrawnRev     = 0;      // last bleProvRevision() painted
+
+// Latched the first time a central does ANYTHING, and never cleared.
+//
+// WITHOUT THIS THE WINDOW EATS ITS OWN SUCCESS.  Advertising is not only the
+// opening state: the HAL restarts advertising after a disconnect, and the
+// daemon disconnects as soon as it has read the Applied status — while the HAL
+// is still counting down its post-apply dwell before it reports Provisioned.
+// So a device that has just joined passes back through Advertising for a moment
+// with an expired deadline, and a plain `state == Advertising` timeout tears
+// down a completed setup and raises the portal on top of it.
+//
+// OBSERVED ON HARDWARE 2026-09-07, and only on the serial line — every layer
+// above it reported success:
+//     [BLE] join=ok ip=192.168.0.136
+//     [BLE] no daemon within the window — handing over to the portal
+//     [PORTAL] ap=usaged-D534 ip=192.168.4.1
+// The daemon said "Done", the dashboard said "Done", and the device was sitting
+// in the captive portal.
+static bool     g_bleEngaged      = false;  // a central has connected at least once
+
 // --- helpers ----------------------------------------------------------------
+
+// Raise the SoftAP captive portal.  Called from setup() when BLE could not
+// start at all, and from loop() when the BLE window expires with nobody
+// listening.
+//
+// The record is loaded into a LOCAL and dies with this call.  An unprovisioned
+// device's record is empty or partial by definition, but keeping a credential
+// record alive in a file-static for the rest of the boot would be a habit worth
+// not forming.
+static void raiseSetupPortal() {
+    usage::provision::Record rec;
+    credsLoad(rec);
+    serialLine("[CREDS] raising the setup portal");
+    if (!portalBegin(rec)) {
+        char err[64];
+        usage::fmtErr(err, sizeof(err), "portal failed to start");
+        serialLine(err);
+    }
+}
 
 // Exponential backoff: 30 s, 60 s, 120 s, 240 s, then capped at kPollMs (300 s).
 static uint32_t pollInterval() {
@@ -742,11 +806,21 @@ void setup() {
             setBrightness(g_brightCtrl.rawLevel());
             g_currentBrightness = g_brightCtrl.rawLevel();
         }
-        serialLine("[CREDS] unprovisioned — raising the setup portal");
-        if (!portalBegin(creds)) {
-            char err[64];
-            usage::fmtErr(err, sizeof(err), "portal failed to start");
-            serialLine(err);
+        // BLE FIRST.  The owner's Mac already knows the SSID, the Wi-Fi
+        // password, its own port and a token it can mint, so the whole
+        // conversation can happen with the owner typing nothing but the six
+        // pairing digits this device puts on its own screen.  The portal is the
+        // fallback, not the first offer — see kBleWindowMs above.
+        if (bleProvBegin(false)) {
+            g_bleSetupRunning = true;
+            g_bleDeadlineMs   = nowMs() + kBleWindowMs;
+            g_bleDrawnRev     = 0;  // 0 is never a live revision: forces one paint
+            std::snprintf(buf, sizeof(buf), "[BLE] advertising as %s", bleProvName());
+            serialLine(buf);
+        } else {
+            // No radio, no stack, or the memory was already released this boot.
+            serialLine("[BLE] could not start — falling back to the portal");
+            raiseSetupPortal();
         }
     }
 
@@ -763,6 +837,68 @@ void setup() {
 void loop() {
     M5.update();
     uint32_t now = nowMs();
+
+    // BLE setup owns the radio and the whole pass, exactly as the portal branch
+    // below does and for the same reasons: netUpdate() would re-issue
+    // WiFi.begin() with empty credentials every 30 s, and a device being set up
+    // cannot deep-sleep mid-conversation.
+    //
+    // The flag is main.cpp's, not bleProvActive()'s, because a successful
+    // bleProvUpdate() TEARS THE STACK DOWN ITSELF and leaves the state at
+    // Provisioned — so bleProvActive() goes false on the very pass that
+    // succeeded, and gating on it would drop the success on the floor.
+    if (g_bleSetupRunning) {
+        bleProvUpdate(now);
+
+        // Redraw only when something the screen shows actually changed — the
+        // same discipline the usage page keeps with `rev`.
+        const uint32_t rev = bleProvRevision();
+        if (rev != g_bleDrawnRev) {
+            drawBleSetup(bleProvState(), bleProvName(), bleProvPasskey(),
+                         bleProvMessage(), bleProvReceived(), bleProvDeclared());
+            g_bleDrawnRev = rev;
+        }
+
+        const BleProvState st = bleProvState();
+
+        // Latch on the first sign of a central. Anything past Advertising means
+        // someone is talking to us, and from then on the window never applies —
+        // however long the owner takes over the passkey dialog, and however
+        // briefly the state passes back through Advertising afterwards.
+        if (st != BleProvState::Advertising && st != BleProvState::Off) {
+            g_bleEngaged = true;
+        }
+
+        if (st == BleProvState::Provisioned) {
+            // Same decision the portal makes on Joined, for the same reason:
+            // a restart lands the device on the ordinary provisioned boot path
+            // with no second wiring to keep correct.  The NVS write happened
+            // before the join.
+            serialLine("[BLE] provisioned — restarting");
+            g_bleSetupRunning = false;
+            ESP.restart();
+        } else if (!bleProvActive()) {
+            // Torn down without provisioning — the stack gave up on its own.
+            // Anything that ends BLE and is not success hands over to the
+            // portal, so there is no path where setup silently stops existing.
+            serialLine("[BLE] stack down without provisioning — handing over");
+            g_bleSetupRunning = false;
+            raiseSetupPortal();
+        } else if (!g_bleEngaged && st == BleProvState::Advertising &&
+                   (int32_t)(now - g_bleDeadlineMs) >= 0) {
+            // NOBODY EVER CAME.  The window closes only on a device no central
+            // has ever touched — see g_bleEngaged above for the success this
+            // guard was watched to eat on hardware.
+            serialLine("[BLE] no daemon within the window — handing over to the portal");
+            bleProvEnd(true);  // releases ~70 KB the portal is about to want
+            g_bleSetupRunning = false;
+            raiseSetupPortal();
+        }
+
+        heapWatchdog(now);
+        delay(1);
+        return;
+    }
 
     // Task 77: while the portal is up it owns the radio and the whole pass —
     // the same shape the OTA branch below uses.  It must come BEFORE

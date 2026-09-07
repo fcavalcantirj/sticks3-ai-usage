@@ -42,11 +42,23 @@ import (
 //     escape. An implementation that returns a plain error gets the honest
 //     generic sentence, never its own text.
 //
-//  3. BOTH ACTIONS ARE MUTATING, so ORDER #54 applies unchanged: the device
-//     token is required EVEN FROM LOOPBACK. Scanning powers a radio and
-//     provisioning hands a device the keys to the network; neither is a read.
-//     The status route is a GET and follows the ordinary GET rule, which is
-//     safe precisely because rule 1 leaves it nothing to disclose.
+//  3. THESE ROUTES ARE LOOPBACK-ONLY, NOT TOKEN-GATED — the one place ORDER
+//     #54 does not apply. That rule (a device token even from loopback) made
+//     this feature impossible: the flow exists to GIVE a device a token, and on
+//     a fresh install none is configured, so every button returned 401 and
+//     zero-config could not begin. Measured 2026-09-07 before the change: GET
+//     /v1/setup 200, POST /v1/setup/scan 401.
+//
+//     What authorises a run is not a header. It is the BLE bond — LE Secure
+//     Connections with MITM protection and a six-digit passkey the owner reads
+//     off the DEVICE'S OWN SCREEN. The device refuses every unpaired write, and
+//     that is verified on hardware, not assumed: the controller logs
+//     GATT_INSUF_AUTHENTICATION. A caller on loopback already runs on the Mac
+//     that holds the Wi-Fi password; the passkey is what decides WHICH device
+//     receives it.
+//
+//     The LAN still needs the token, so a machine on the same Wi-Fi cannot make
+//     this Mac provision a device of its choosing. See auth.go isSetupPath.
 //
 //  4. ONE OPERATION AT A TIME. A scan and a provisioning run share one radio,
 //     and a second run against a half-provisioned device is a way to strand it.
@@ -100,6 +112,27 @@ type Provisioner interface {
 type ProgressProvisioner interface {
 	Provisioner
 	ProvisionProgress(ctx context.Context, addr string, report func(step string)) error
+}
+
+// TokenIssuerAware is OPTIONAL, and is how a Provisioner gets the one thing it
+// cannot mint for itself: a device token this agent will actually ACCEPT.
+//
+// bleprov.MintToken() produces 128 bits of entropy, which is a token nothing
+// recognises. What makes a token real is being RECORDED in the paired-device
+// store, and that store is unexported — New returns an *http.Server, so
+// cmd/usaged never holds a *Server and cannot reach it. So the Server pushes
+// the capability instead: a Provisioner that implements this is handed a
+// mint-and-record function during New.
+//
+// The BLE path needs it because it is the inverse of the HTTP one: the device
+// is GIVEN its token over a bonded GATT link before it has ever joined Wi-Fi,
+// so it can never POST /v1/pair/claim to collect one.
+//
+// deviceID keys the paired-device record — the advertised "usaged-XXXX"
+// identity is the natural choice, since one device has one such name however
+// it is set up. name is a human label and may be empty.
+type TokenIssuerAware interface {
+	SetTokenIssuer(issue func(deviceID, name string) (string, error))
 }
 
 // FoundDevice is one StickS3 seen in a scan. Every string in it was broadcast
@@ -220,8 +253,6 @@ const (
 	setupMaxNameLen = 40
 	// setupMaxSteps bounds the progress list a Provisioner can build up.
 	setupMaxSteps = 24
-
-	setupMaxBodyBytes = 4096
 
 	// Both limiters guard a human clicking a button, like /v1/keys and the
 	// pairing confirm. A scan gets a little more room because the page runs one
@@ -1038,6 +1069,9 @@ func setupStepText(step string) string {
 
 // decodeSetupBody reads a small JSON body into dst. An empty body is allowed:
 // the scan route has none.
+// decodeSetupBody delegates to the pairing decoder, which already caps the body
+// at pairMaxBodyBytes (4096). A second constant of the same value here was dead
+// weight that read as if the limit were enforced separately.
 func decodeSetupBody(r *http.Request, dst any) error {
 	return decodePairBody(r, dst)
 }

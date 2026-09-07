@@ -447,4 +447,89 @@ void drawBrightnessGauge(uint8_t currentRaw, uint8_t currentPercent,
     M5.Display.fillRect(curTickX - 1, trackY + (trackH - 3) / 2, 3, 3, TFT_WHITE);
 }
 
+// --- BLE zero-config setup ---------------------------------------------------
+
+namespace {
+
+// Draw `s` at `size`, horizontally centred, with its top at `y`.
+void bleCentered(int16_t y, uint8_t size, uint16_t color, const char* s) {
+    if (s == nullptr || s[0] == '\0') {
+        return;
+    }
+    M5.Display.setTextSize(size);
+    M5.Display.setTextColor(color);
+    int16_t x = usage::centerTextX(0, (int16_t)M5.Display.width(),
+                                   (int16_t)M5.Display.textWidth(s));
+    M5.Display.setCursor(x, y);
+    M5.Display.println(s);
+}
+
+} // namespace
+
+void drawBleSetup(BleProvState state, const char* name, const char* passkey,
+                  const char* message, uint16_t received, uint16_t declared) {
+    M5.Display.fillScreen(TFT_BLACK);
+
+    // THE PASSKEY OWNS THE WHOLE SCREEN WHENEVER THERE IS ONE.  It is checked
+    // before the state because the stack raises the passkey during pairing and
+    // clears it the moment the link bonds or drops (bleProvPasskey()'s
+    // contract) — so a non-empty passkey IS the "type these six digits now"
+    // state, whatever else is going on.  Six digits at size 6 is 216x48 px on a
+    // 240x135 panel; centring both axes puts them at x=12, y=44.
+    if (passkey != nullptr && passkey[0] != '\0') {
+        M5.Display.setTextSize(6);
+        M5.Display.setTextColor(TFT_WHITE);
+        int16_t tw = (int16_t)M5.Display.textWidth(passkey);
+        int16_t th = (int16_t)M5.Display.fontHeight();
+        M5.Display.setCursor(usage::centerTextX(0, (int16_t)M5.Display.width(), tw),
+                             usage::centerTextY(0, (int16_t)M5.Display.height(), th));
+        M5.Display.println(passkey);
+        return;
+    }
+
+    switch (state) {
+        case BleProvState::Advertising:
+            bleCentered(6, 1, TFT_WHITE, "SETUP - no wi-fi needed");
+            bleCentered(26, 2, TFT_YELLOW, name);
+            bleCentered(60, 1, TFT_DARKGREY, "on your Mac, open usaged");
+            bleCentered(74, 1, TFT_DARKGREY, "and click Set up");
+            break;
+
+        case BleProvState::Linked:
+            // Bonded, between transfers.  Nothing for the owner to do.
+            bleCentered(30, 2, TFT_GREEN, "PAIRED");
+            bleCentered(66, 1, TFT_DARKGREY, "sending settings...");
+            break;
+
+        case BleProvState::Receiving: {
+            bleCentered(24, 2, TFT_WHITE, "RECEIVING");
+            char line[32];
+            std::snprintf(line, sizeof(line), "%u / %u bytes",
+                          (unsigned)received, (unsigned)declared);
+            bleCentered(60, 1, TFT_YELLOW, line);
+            break;
+        }
+
+        case BleProvState::Applying:
+            bleCentered(24, 2, TFT_WHITE, "JOINING");
+            bleCentered(60, 1, TFT_DARKGREY, "saving and connecting");
+            break;
+
+        case BleProvState::Provisioned:
+            bleCentered(24, 2, TFT_GREEN, "CONNECTED");
+            bleCentered(60, 1, TFT_DARKGREY, "setup done - restarting");
+            break;
+
+        case BleProvState::Off:
+        default:
+            bleCentered(50, 2, TFT_DARKGREY, "BLUETOOTH OFF");
+            break;
+    }
+
+    // One honest status line, bottom of the panel.  bleProvMessage() is a fixed
+    // sentence by construction — it can never contain a submitted byte — so it
+    // is safe to draw.  A failed transfer says so here instead of vanishing.
+    bleCentered(112, 1, TFT_ORANGE, message);
+}
+
 } // namespace sticks3
