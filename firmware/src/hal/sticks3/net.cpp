@@ -43,8 +43,18 @@ static void emitNet(const char* state, const char* ip) {
 
 void netBegin() {
     WiFi.persistent(false);
-    WiFi.mode(WIFI_STA);
+    // setHostname() MUST precede mode(): it only writes a file-static buffer
+    // (WiFiGeneric.cpp:901-905), and the ONLY place that buffer is pushed to
+    // the netif is inside mode() (:1264-1270), which early-returns when the
+    // requested mode already equals the current one (:1252-1254).  Called
+    // after mode(), it is a silent no-op and the DHCP hostname stays the
+    // default esp32s3-<last 3 MAC bytes>.
+    // This went unnoticed for a reason worth recording: sticks3-usage.local
+    // still resolves, because mDNS is a SEPARATE name published by
+    // ArduinoOTA.setHostname() -> MDNS.begin() in otaBegin().  Only the DHCP
+    // hostname (what the router shows) was wrong.
     WiFi.setHostname("sticks3-usage");
+    WiFi.mode(WIFI_STA);
     WiFi.setAutoReconnect(true);
     WiFi.setSleep(true);
     WiFi.begin(WIFI_SSID, WIFI_PASS);
