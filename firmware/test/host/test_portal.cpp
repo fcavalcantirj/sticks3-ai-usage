@@ -34,6 +34,7 @@ using usage::portal::renderPage;
 using usage::portal::validate;
 using usage::provision::Record;
 using usage::provision::complete;
+using usage::provision::joinable;
 using usage::provision::kDefaultPort;
 
 namespace {
@@ -54,6 +55,23 @@ std::string render(const PageInput& in) {
 
 bool has(const std::string& hay, const char* needle) {
     return hay.find(needle) != std::string::npos;
+}
+
+// The page in two halves.  The SPLIT is the property under test: a field that
+// belongs in the Advanced block must not also be sitting above it, where a
+// stranger would read it as something they are being asked for.
+std::string beforeDetails(const std::string& page) {
+    size_t d = page.find("<details");
+    return d == std::string::npos ? page : page.substr(0, d);
+}
+
+std::string insideDetails(const std::string& page) {
+    size_t d = page.find("<details");
+    if (d == std::string::npos) {
+        return std::string();
+    }
+    size_t e = page.find("</details>", d);
+    return e == std::string::npos ? page.substr(d) : page.substr(d, e - d);
 }
 
 // A page input with a completed scan and nothing found, which every test then
@@ -83,6 +101,21 @@ Submission baseSubmission() {
     s.port = "8765";
     s.token = "test-token-0123";
     s.otaPass = "test-ota-pass";
+    return s;
+}
+
+// What the DEFAULT form actually posts: a network, a password, and four empty
+// strings from the untouched Advanced block.  This is the submission a stranger
+// makes, so it is the one that must be accepted.
+Submission minimalSubmission() {
+    Submission s;
+    s.ssidPick = "test-ssid";
+    s.ssidManual = "";
+    s.pass = "hunter2-not-real";
+    s.host = "";
+    s.port = "";
+    s.token = "";
+    s.otaPass = "";
     return s;
 }
 
@@ -258,18 +291,118 @@ TEST(portal_page_carries_every_field_the_device_needs) {
     in.count = count;
     std::string page = render(in);
 
+    // Every field still EXISTS — the last four inside the Advanced block, which
+    // is the escape hatch for a network that blocks multicast.
     ASSERT_TRUE(has(page, "name=\"ssid\""));         // pick-list
     ASSERT_TRUE(has(page, "name=\"ssid_manual\""));  // hidden networks
     ASSERT_TRUE(has(page, "name=\"pass\""));
     ASSERT_TRUE(has(page, "name=\"host\""));
     ASSERT_TRUE(has(page, "name=\"port\""));
     ASSERT_TRUE(has(page, "name=\"token\""));
+    ASSERT_TRUE(has(page, "name=\"ota\""));
     ASSERT_TRUE(has(page, "action=\"/save\""));
     ASSERT_TRUE(has(page, "home-wifi"));
     ASSERT_TRUE(has(page, "-45 dBm"));
     ASSERT_TRUE(has(page, "usaged.local"));   // agent host prefill
     ASSERT_TRUE(has(page, "value=\"8765\"")); // agent port prefill
     ASSERT_TRUE(has(page, "usaged-D534"));    // which device this is
+}
+
+// --- the default form asks for a password and nothing else ---------------------
+
+TEST(portal_default_form_asks_only_for_a_network_and_a_password) {
+    Network list[2];
+    size_t count = 0;
+    insertNetwork(list, 2, count, "home-wifi", -45, true);
+
+    PageInput in = basePage();
+    in.networks = list;
+    in.count = count;
+    std::string top = beforeDetails(render(in));
+
+    // The three things a stranger is asked for...
+    ASSERT_TRUE(has(top, "name=\"ssid\""));
+    ASSERT_TRUE(has(top, "name=\"ssid_manual\""));
+    ASSERT_TRUE(has(top, "name=\"pass\""));
+
+    // ...and nothing else.  An agent address or a 64-character token sitting
+    // above the fold is the failure this whole change exists to remove.
+    ASSERT_FALSE(has(top, "name=\"host\""));
+    ASSERT_FALSE(has(top, "name=\"port\""));
+    ASSERT_FALSE(has(top, "name=\"token\""));
+    ASSERT_FALSE(has(top, "name=\"ota\""));
+
+    // Not even their PREFILLS may leak above the fold: an address on screen is
+    // read as an address that must be typed.
+    ASSERT_FALSE(has(top, "usaged.local"));
+    ASSERT_FALSE(has(top, "8765"));
+}
+
+TEST(portal_advanced_block_holds_every_optional_field) {
+    PageInput in = basePage();
+    std::string page = render(in);
+    std::string adv = insideDetails(page);
+
+    ASSERT_TRUE(has(page, "</details>"));
+    ASSERT_TRUE(has(adv, "<summary>"));
+    ASSERT_TRUE(has(adv, "Advanced"));
+    ASSERT_TRUE(has(adv, "name=\"host\""));
+    ASSERT_TRUE(has(adv, "name=\"port\""));
+    ASSERT_TRUE(has(adv, "name=\"token\""));
+    ASSERT_TRUE(has(adv, "name=\"ota\""));
+    // The prefills are still reachable for the network that needs them.
+    ASSERT_TRUE(has(adv, "usaged.local"));
+    ASSERT_TRUE(has(adv, "value=\"8765\""));
+}
+
+TEST(portal_advanced_block_is_closed_and_needs_no_script) {
+    PageInput in = basePage();
+    std::string page = render(in);
+
+    // Folded by the browser itself.  Anything script-driven would need a second
+    // request through a server that takes ONE client at a time.
+    ASSERT_FALSE(has(page, "<details open"));
+    ASSERT_FALSE(has(page, "<script"));
+    ASSERT_FALSE(has(page, "onclick"));
+    ASSERT_FALSE(has(page, "javascript:"));
+
+    // Exactly one block: a second one would mean a field escaped the first.
+    ASSERT_TRUE(page.find("<details") != std::string::npos);
+    ASSERT_EQ(page.find("<details"), page.rfind("<details"));
+}
+
+TEST(portal_advanced_block_says_why_it_should_stay_shut) {
+    PageInput in = basePage();
+    std::string page = render(in);
+    std::string top = beforeDetails(page);
+    std::string adv = insideDetails(page);
+
+    // The user is told where the next step happens, because it happens on the
+    // device screen after this browser session is already gone.
+    ASSERT_TRUE(has(top, "pairing code"));
+    ASSERT_TRUE(has(top, "by itself"));
+    ASSERT_TRUE(has(adv, "Leave every field below empty"));
+    ASSERT_TRUE(has(adv, "pairing code"));
+}
+
+TEST(portal_submit_button_is_outside_the_advanced_block) {
+    // A submit button folded inside <details> is a form nobody can send.
+    PageInput in = basePage();
+    std::string page = render(in);
+    size_t end = page.find("</details>");
+    size_t btn = page.find("<button");
+    ASSERT_TRUE(end != std::string::npos);
+    ASSERT_TRUE(btn != std::string::npos);
+    ASSERT_TRUE(btn > end);
+    ASSERT_TRUE(page.find("</form>") > btn);
+}
+
+TEST(portal_joining_page_has_no_advanced_block_either) {
+    PageInput in = basePage();
+    in.joining = true;
+    std::string page = render(in);
+    ASSERT_FALSE(has(page, "<details"));
+    ASSERT_FALSE(has(page, "name=\"token\""));
 }
 
 TEST(portal_page_explains_an_empty_scan_with_the_24ghz_reason) {
@@ -391,21 +524,70 @@ TEST(portal_validate_rejects_a_submission_with_no_network) {
     ASSERT_FALSE(complete(rec));
 }
 
-TEST(portal_validate_rejects_a_submission_with_no_host) {
-    Submission s = baseSubmission();
-    s.host = "";
+TEST(portal_validate_accepts_a_network_and_a_password_alone) {
+    // The submission the default form makes.  If this is ever refused, the
+    // stranger this work exists for is stuck.
     Record rec;
-    ASSERT_TRUE(validate(s, rec) == Reject::NoHost);
+    ASSERT_TRUE(validate(minimalSubmission(), rec) == Reject::None);
+    ASSERT_STREQ(rec.ssid, "test-ssid");
+    ASSERT_STREQ(rec.pass, "hunter2-not-real");
+    ASSERT_STREQ(rec.host, "");
+    ASSERT_STREQ(rec.token, "");
+    ASSERT_STREQ(rec.otaPass, "");
+    ASSERT_EQ(rec.port, kDefaultPort);
+
+    // Joinable, and deliberately NOT complete: the device joins on this, then
+    // discovers the agent over mDNS and is handed a token by pairing.
+    ASSERT_TRUE(joinable(rec));
     ASSERT_FALSE(complete(rec));
 }
 
-TEST(portal_validate_rejects_a_submission_with_no_token) {
-    // The completeness rule requires a token, so accepting this would store a
-    // record that reads back as unprovisioned on the very next boot.
+TEST(portal_validate_accepts_an_open_network_with_nothing_else) {
+    Submission s = minimalSubmission();
+    s.pass = "";
+    Record rec;
+    ASSERT_TRUE(validate(s, rec) == Reject::None);
+    ASSERT_STREQ(rec.pass, "");
+    ASSERT_TRUE(joinable(rec));
+}
+
+TEST(portal_validate_no_longer_requires_an_agent_address) {
+    // Refusing an empty address would refuse the normal path: empty means
+    // "find it", and the device does.
+    Submission s = baseSubmission();
+    s.host = "";
+    Record rec;
+    ASSERT_TRUE(validate(s, rec) == Reject::None);
+    ASSERT_STREQ(rec.host, "");
+    ASSERT_TRUE(joinable(rec));
+
+    s.host = "   ";  // whitespace only is the same as empty
+    ASSERT_TRUE(validate(s, rec) == Reject::None);
+    ASSERT_STREQ(rec.host, "");
+}
+
+TEST(portal_validate_no_longer_requires_a_device_token) {
+    // Nobody types a 64-character token any more; an empty one means "pair for
+    // one", which is what the code on the device screen is for.
     Submission s = baseSubmission();
     s.token = "  ";
     Record rec;
-    ASSERT_TRUE(validate(s, rec) == Reject::NoToken);
+    ASSERT_TRUE(validate(s, rec) == Reject::None);
+    ASSERT_STREQ(rec.token, "");
+    ASSERT_TRUE(joinable(rec));
+    ASSERT_FALSE(complete(rec));
+}
+
+TEST(portal_validate_drops_a_corrupt_host_instead_of_refusing) {
+    // sanitize() cuts a field at the first control character, and for the host
+    // that is not fatal: an emptied host simply falls back to discovery, which
+    // is where a default submission starts anyway.  Only the SSID is fatal.
+    Submission s = baseSubmission();
+    s.host = "\x01usaged.local";
+    Record rec;
+    ASSERT_TRUE(validate(s, rec) == Reject::None);
+    ASSERT_STREQ(rec.host, "");
+    ASSERT_TRUE(joinable(rec));
     ASSERT_FALSE(complete(rec));
 }
 
@@ -497,14 +679,16 @@ TEST(portal_validate_rejects_an_impossible_port) {
     ASSERT_TRUE(validate(s, rec) == Reject::BadPort);
 }
 
-TEST(portal_validate_refuses_a_field_sanitize_would_empty) {
+TEST(portal_validate_refuses_an_ssid_sanitize_would_empty) {
     // sanitize() cuts a field at the first control character, so a crafted POST
-    // can produce a record that passes every length check and still reads back
-    // as unprovisioned.  Refuse it rather than store it.
+    // can produce a record that passes every length check and still has no
+    // network name left.  That one IS fatal — unlike the host, an emptied SSID
+    // has no fallback — so refuse it rather than store it.
     Submission s = baseSubmission();
     s.ssidManual = "\x01hidden";
     Record rec;
     ASSERT_TRUE(validate(s, rec) == Reject::Unstorable);
+    ASSERT_FALSE(joinable(rec));
     ASSERT_FALSE(complete(rec));
 }
 
@@ -523,11 +707,13 @@ TEST(portal_validate_tolerates_missing_fields) {
 }
 
 TEST(portal_reject_text_is_a_sentence_for_every_reason) {
+    // No NoHost and no NoToken: a missing agent address is answered by mDNS
+    // discovery and a missing token by pairing, so neither is a rejection any
+    // more.  What is left is the set of genuinely unusable values.
     const Reject all[] = {
         Reject::NoSsid,        Reject::SsidTooLong,   Reject::PassTooShort,
-        Reject::PassTooLong,   Reject::NoHost,        Reject::HostTooLong,
-        Reject::BadPort,       Reject::NoToken,       Reject::TokenTooLong,
-        Reject::OtaPassTooLong, Reject::Unstorable,
+        Reject::PassTooLong,   Reject::HostTooLong,   Reject::BadPort,
+        Reject::TokenTooLong,  Reject::OtaPassTooLong, Reject::Unstorable,
     };
     for (Reject r : all) {
         const char* t = rejectText(r);

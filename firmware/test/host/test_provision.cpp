@@ -19,6 +19,7 @@ using usage::provision::Record;
 using usage::provision::State;
 using usage::provision::clear;
 using usage::provision::complete;
+using usage::provision::joinable;
 using usage::provision::kDefaultPort;
 using usage::provision::kMaxHost;
 using usage::provision::kMaxOtaPass;
@@ -86,6 +87,131 @@ TEST(provision_clear_leaves_nothing_for_sanitize_to_fix) {
     Record r;
     clear(r);
     ASSERT_FALSE(sanitize(r));
+}
+
+// --- joinable: the rule the PORTAL clears -------------------------------------
+//
+// The whole point of the pair of predicates: a stranger types a Wi-Fi password
+// and nothing else, so the bar for "try to join" cannot include an agent
+// address (discovered over mDNS) or a token (handed over by pairing).
+
+TEST(provision_joinable_needs_only_an_ssid) {
+    Record r;
+    clear(r);
+    setField(r.ssid, kMaxSsid, "test-ssid");
+
+    ASSERT_TRUE(joinable(r));
+    // ...and that same record is deliberately NOT complete: it can get onto the
+    // network, but it cannot yet reach or authenticate to the agent.
+    ASSERT_FALSE(complete(r));
+}
+
+TEST(provision_joinable_needs_no_password_open_network) {
+    Record r;
+    clear(r);
+    setField(r.ssid, kMaxSsid, "open-net");
+    r.pass[0] = '\0';
+    ASSERT_TRUE(joinable(r));
+}
+
+TEST(provision_joinable_false_without_an_ssid) {
+    // Everything else in the world and no network name is nothing to try.
+    Record r = makeComplete();
+    r.ssid[0] = '\0';
+    ASSERT_FALSE(joinable(r));
+
+    clear(r);
+    ASSERT_FALSE(joinable(r));
+}
+
+TEST(provision_joinable_ignores_host_token_and_otapass) {
+    Record r = makeComplete();
+    ASSERT_TRUE(joinable(r));
+
+    r.host[0] = '\0';
+    ASSERT_TRUE(joinable(r));
+    r.token[0] = '\0';
+    ASSERT_TRUE(joinable(r));
+    r.otaPass[0] = '\0';
+    ASSERT_TRUE(joinable(r));
+    // Every one of those emptied complete(), and none of them emptied joinable().
+    ASSERT_FALSE(complete(r));
+}
+
+TEST(provision_complete_implies_joinable) {
+    // The containment that lets the boot path gate on joinable() and the fetch
+    // path gate on complete() without the two ever contradicting each other.
+    Record r = makeComplete();
+    ASSERT_TRUE(complete(r));
+    ASSERT_TRUE(joinable(r));
+
+    // Sweep the field combinations: whenever complete() holds, joinable() must.
+    const char* ssids[]  = {"", "test-ssid"};
+    const char* hosts[]  = {"", "usaged.local"};
+    const char* tokens[] = {"", "test-token"};
+    for (int a = 0; a < 2; ++a) {
+        for (int b = 0; b < 2; ++b) {
+            for (int c = 0; c < 2; ++c) {
+                Record x;
+                clear(x);
+                setField(x.ssid, kMaxSsid, ssids[a]);
+                setField(x.host, kMaxHost, hosts[b]);
+                setField(x.token, kMaxToken, tokens[c]);
+                if (complete(x)) {
+                    ASSERT_TRUE(joinable(x));
+                }
+                ASSERT_EQ(a == 1, joinable(x));
+            }
+        }
+    }
+}
+
+TEST(provision_joinable_false_after_sanitize_empties_the_ssid) {
+    // A corrupt blob whose ssid starts with a control character is cut to
+    // nothing, and nothing is not joinable — the device goes to the portal
+    // rather than to the radio.
+    Record r = makeComplete();
+    r.ssid[0] = 0x03;
+
+    ASSERT_TRUE(sanitize(r));
+    ASSERT_FALSE(joinable(r));
+}
+
+TEST(provision_ssid_only_record_boots_to_joining_not_portal) {
+    // The behaviour change task 79 rests on: a device with a network and no
+    // token must JOIN and then pair, not sit in the portal asking for a token
+    // nobody can type.
+    Record r;
+    clear(r);
+    setField(r.ssid, kMaxSsid, "test-ssid");
+    setField(r.pass, kMaxPass, "test-passphrase");
+
+    Machine m;
+    ASSERT_EQ(State::Joining, m.onBoot(joinable(r)));
+    // The same record under the old rule would have gone to the portal.
+    ASSERT_FALSE(complete(r));
+}
+
+TEST(provision_portal_saved_ssid_only_starts_a_join) {
+    Machine m;
+    m.onBoot(false);
+    ASSERT_EQ(State::Portal, m.state());
+
+    Record r;
+    clear(r);
+    setField(r.ssid, kMaxSsid, "test-ssid");
+
+    ASSERT_EQ(State::Joining, m.onPortalSaved(joinable(r)));
+    ASSERT_EQ(0u, (unsigned)m.consecutiveFailures());
+}
+
+TEST(provision_portal_saved_without_an_ssid_keeps_the_portal_up) {
+    Machine m;
+    m.onBoot(false);
+
+    Record r;
+    clear(r);
+    ASSERT_EQ(State::Portal, m.onPortalSaved(joinable(r)));
 }
 
 // --- complete: the rule the ledger calls out ---------------------------------
@@ -160,15 +286,18 @@ TEST(provision_partial_record_never_counts_as_provisioned) {
     ASSERT_FALSE(complete(r));  // ssid still missing
 }
 
-TEST(provision_partial_record_boots_to_portal) {
-    // The rule end to end: an incomplete record must raise the portal, not a
-    // join attempt that can never succeed.
+TEST(provision_record_without_an_ssid_boots_to_portal) {
+    // The rule end to end, under the predicate the boot path actually uses: a
+    // record with no network name has nothing to attempt, so it must raise the
+    // portal.  (A record WITH an ssid and no token boots to Joining instead —
+    // see provision_ssid_only_record_boots_to_joining_not_portal.)
     Record r;
     clear(r);
-    setField(r.ssid, kMaxSsid, "test-ssid");
+    setField(r.host, kMaxHost, "usaged.local");
+    setField(r.token, kMaxToken, "test-token");
 
     Machine m;
-    ASSERT_EQ(State::Portal, m.onBoot(complete(r)));
+    ASSERT_EQ(State::Portal, m.onBoot(joinable(r)));
 }
 
 // --- sanitize ----------------------------------------------------------------

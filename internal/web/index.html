@@ -1181,7 +1181,7 @@ function renderWifi(js) {
       ? "The device has collected this change and is joining "
       : "Waiting for the device to pick this up: ";
     setWifiStatus(head + pending.ssid + " \u2014 expires in " +
-                  fmtCountdown(pending.expires_in_sec) + ".", true);
+                  fmtExpiry(pending.expires_in_sec) + ".", true);
     startWifiPolling();
   } else {
     setWifiStatus(wifiOutcomeText(js.last), wifiOutcomeOk(js.last));
@@ -1242,6 +1242,18 @@ function wifiOutcomeText(last) {
   if (s === "cancelled")  return "The change for " + net + " was cancelled.";
   if (s === "superseded") return "The change for " + net + " was replaced by a newer one.";
   return "No change pending.";
+}
+
+// fmtExpiry is coarse on purpose. The change TTL is two hours, and the mm:ss
+// countdown the pairing window uses would render that as "119:59".
+function fmtExpiry(sec) {
+  sec = Math.max(0, parseInt(sec || 0, 10));
+  if (sec >= 3600) {
+    var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+    return m ? h + "h " + m + "m" : h + "h";
+  }
+  if (sec >= 60) return Math.floor(sec / 60) + " min";
+  return sec + "s";
 }
 
 function wifiOutcomeOk(last) {

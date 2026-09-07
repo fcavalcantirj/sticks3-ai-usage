@@ -688,12 +688,34 @@ void setup() {
     // When secrets.h IS present (a developer build) it is used ONCE, as a
     // first-boot seed for an empty store, and never as a runtime source.  The
     // production build compiles with no secrets.h at all and starts unprovisioned.
+#ifdef USAGED_FACTORY_RESET
+    // Build-flag-only factory reset, for testing the unprovisioned path on a
+    // device that is already configured:
+    //     PLATFORMIO_BUILD_FLAGS=-DUSAGED_FACTORY_RESET=1 pio run
+    // It clears ONLY the six credential keys (credsClear removes them
+    // individually rather than wiping the namespace, so rotation and
+    // brightness survive).  Never defined in a normal build.
+    //
+    // NOTE: after this runs the device has no Wi-Fi, so OTA is gone until the
+    // portal provisions it again.  Flash a reset build over the air only with
+    // the USB cable attached as the recovery path.
+    credsClear();
+    serialLine("[CREDS] FACTORY RESET — stored credentials cleared");
+#endif
+
     usage::provision::Record creds;
     bool provisioned = credsLoad(creds);
+    // The seed is suppressed under USAGED_FACTORY_RESET.  Without this the flag
+    // is useless in exactly the builds it is usable in: a developer build wipes
+    // the store and then immediately re-seeds it from secrets.h on the very
+    // next line, so the device never comes up unprovisioned and the portal is
+    // never exercised.  Observed on hardware before it was guarded.
+#ifndef USAGED_FACTORY_RESET
     if (!provisioned && credsSeedFromSecretsIfEmpty()) {
         provisioned = credsLoad(creds);
         serialLine("[CREDS] seeded from secrets.h (developer build)");
     }
+#endif
 
     // Log the SHAPE of the record, never its contents.
     std::snprintf(buf, sizeof(buf),

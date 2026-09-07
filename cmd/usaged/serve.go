@@ -15,6 +15,7 @@ import (
 	"usaged/internal/api"
 	"usaged/internal/config"
 	"usaged/internal/creds"
+	"usaged/internal/mdns"
 	"usaged/internal/sched"
 	"usaged/internal/snapshot"
 	"usaged/internal/stats"
@@ -106,6 +107,15 @@ func runServe(args []string, stdout io.Writer) int {
 		cancel()
 		return 2
 	}
+
+	// Publish this agent on the LAN over mDNS, so the device can DISCOVER the
+	// address and port instead of a human typing them into a setup form. It
+	// advertises cfg.Listen's real port, never a constant, and it is never
+	// fatal: a network that filters multicast disables discovery and nothing
+	// else. The deferred Close sends the goodbye that stops listeners pointing
+	// at a dead port.
+	discovery := mdns.Start(cfg.Listen, logger)
+	defer discovery.Close()
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)

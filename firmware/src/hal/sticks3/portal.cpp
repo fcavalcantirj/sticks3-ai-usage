@@ -357,6 +357,8 @@ void onWifiEvent(arduino_event_id_t event, arduino_event_info_t info) {
 
 // --- the scan cycle -----------------------------------------------------------
 
+uint32_t g_scanStartedMs = 0;   // for the elapsed-time diagnostic
+
 void updateScan(uint32_t nowMs) {
     if (g_scanRunning) {
         int16_t n = WiFi.scanComplete();
@@ -365,6 +367,7 @@ void updateScan(uint32_t nowMs) {
         }
         g_scanRunning = false;
 
+        const uint32_t tookMs = nowMs - g_scanStartedMs;
         if (n < 0) {
             // WIFI_SCAN_FAILED (-2) means "the radio refused, retry" and is NOT
             // an empty result.  Both happen (5.6% and 1.1% in the spike), and
@@ -372,7 +375,10 @@ void updateScan(uint32_t nowMs) {
             // 5 GHz problem that is not there.
             g_scanState = usage::portal::ScanState::Failed;
             g_nextScanMs = nowMs + kScanRetryMs;
-            serialLine("[SCAN] failed");
+            char fb[56];
+            std::snprintf(fb, sizeof(fb), "[SCAN] failed rc=%d ms=%u",
+                          (int)n, (unsigned)tookMs);
+            serialLine(fb);
         } else {
             g_netCount = 0;
             for (int16_t i = 0; i < n; ++i) {
@@ -385,8 +391,8 @@ void updateScan(uint32_t nowMs) {
             g_scanState = usage::portal::ScanState::Ok;
             g_nextScanMs = nowMs + kScanPeriodMs;
             char buf[48];
-            std::snprintf(buf, sizeof(buf), "[SCAN] n=%d shown=%d",
-                          (int)n, (int)g_netCount);
+            std::snprintf(buf, sizeof(buf), "[SCAN] n=%d shown=%d ms=%u",
+                          (int)n, (int)g_netCount, (unsigned)tookMs);
             serialLine(buf);
         }
         // Free the driver's result array now that the list is copied.
@@ -403,7 +409,21 @@ void updateScan(uint32_t nowMs) {
     // (WiFiScan.cpp) regardless of max_ms_per_chan — most of a battery wake
     // window, during which DNS goes unanswered and the phone concludes there is
     // no portal.
-    int16_t r = WiFi.scanNetworks(true, false, false, 300);
+    // max_ms_per_chan is 500, NOT the 300 this started with, and the reason is
+    // not "more time to find networks" — it is the DEADLINE.  scanComplete()
+    // fails a scan once millis()-_scanStarted exceeds _scanTimeout, and
+    // WiFiScan.cpp sets _scanTimeout = max_ms_per_chan * 20.  So the budget
+    // grows 20x per unit while the scan itself grows ~14x (one dwell per
+    // channel): 300 gave a 6 s deadline for a ~4.2 s sweep, and with a SoftAP
+    // beaconing between dwells that sweep overran every single time.
+    //
+    // MEASURED on hardware 2026-09-06: with the station CONNECTED (the task 75
+    // spike) 300 was fine — 50 scans, 21-33 networks each.  With the station
+    // idle, which is exactly the portal's situation, 100% of scans hit the
+    // deadline. The station's state changes how long a scan takes, so the
+    // spike's numbers did not transfer.
+    g_scanStartedMs = nowMs;
+    int16_t r = WiFi.scanNetworks(true, false, false, 500);
     if (r == WIFI_SCAN_FAILED) {
         g_scanState = usage::portal::ScanState::Failed;
         g_nextScanMs = nowMs + kScanRetryMs;

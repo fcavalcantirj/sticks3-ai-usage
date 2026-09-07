@@ -12,11 +12,23 @@
 // move to NVS; secrets.h becomes a DEVELOPER CONVENIENCE ONLY, a first-boot
 // seed, never a runtime source.
 //
-// THE COMPLETENESS RULE IS THE POINT.  A record counts as provisioned only
-// when ssid, host and token are ALL present.  Anything less means the device
-// is unprovisioned and must enter the portal rather than silently retrying a
-// half-configuration forever — which is exactly the failure that would strand
-// a device with no screen and no cable.
+// TWO RULES, NOT ONE, AND THE DIFFERENCE IS THE WHOLE POINT.
+//
+//   joinable(r)  — an SSID is present, so a join is worth ATTEMPTING.
+//   complete(r)  — ssid + host + token, so the agent can also be REACHED and
+//                  AUTHENTICATED to.
+//
+// complete() implies joinable(); the reverse does not hold, and the gap
+// between them is where a freshly-set-up device lives.  A stranger types a
+// Wi-Fi password and nothing else: the device joins on joinable(), discovers
+// the agent over mDNS, shows a pairing code on its screen, is handed a token,
+// and only THEN becomes complete().  Requiring complete() before a join would
+// put an agent address and a 32-character token back in front of that stranger,
+// which is exactly the failure this work exists to remove.
+//
+// What has not changed: an SSID-less record is still unprovisioned and must
+// enter the portal rather than silently retrying a half-configuration forever
+// — the failure that strands a device with no screen and no cable.
 #pragma once
 
 #include <cstddef>
@@ -66,7 +78,21 @@ void clear(Record& r);
 // Returns true if anything had to be corrected, so the caller can log it.
 bool sanitize(Record& r);
 
-// The completeness rule: ssid, host and token must ALL be non-empty.
+// JOINABLE: the ssid is present, so a join attempt makes sense.  Nothing else
+// is required — not the agent address, which the device DISCOVERS over mDNS,
+// and not the token, which it is GIVEN by pairing.  This is the bar the setup
+// PORTAL clears, and it is deliberately the lowest bar that can still lead
+// somewhere: with an SSID the device can get onto the network, and everything
+// after that is negotiated at runtime.
+//
+// Like complete(), it does not require pass — an open network is legal.
+bool joinable(const Record& r);
+
+// COMPLETE: ssid, host and token are ALL non-empty, so the device can reach
+// AND authenticate to the agent.  This is the bar the FETCH path clears, not
+// the bar the portal clears; a joinable-but-incomplete record is the normal
+// state of a device that has joined and is waiting to be paired.
+//
 // Deliberately does NOT require pass (open networks are legal) or otaPass
 // (a device that cannot be OTA-flashed is degraded, not unprovisioned).
 bool complete(const Record& r);
@@ -79,7 +105,7 @@ bool passphraseUnusable(const Record& r);
 // --- the state machine ------------------------------------------------------
 //
 //   Unprovisioned ──────────────────────────────► Portal
-//   Provisioned ────────────────────────────────► Joining
+//   Joinable ───────────────────────────────────► Joining
 //   Joining ──(ok)──────────────────────────────► Online
 //   Joining ──(fail)────────────────────────────► Retry (with backoff)
 //   Retry ──(backoff elapsed)───────────────────► Joining
@@ -111,9 +137,12 @@ public:
     // dead router backs off instead of hammering the radio flat.
     uint32_t backoffMs() const;
 
-    // Cold boot, or a return from the portal.  recordComplete is the result of
-    // complete() on the stored record.
-    State onBoot(bool recordComplete);
+    // Cold boot, or a return from the portal.  recordUsable is the verdict on
+    // the stored record: pass joinable(), because an SSID is all a join needs
+    // and the rest arrives once the device is on the network.  (complete() is
+    // the wrong predicate here — it would send a device that has an SSID but
+    // no token yet to the portal instead of letting it join and pair.)
+    State onBoot(bool recordUsable);
 
     // The outcome of a join attempt.  Success clears the failure counter.
     State onJoinResult(bool ok);
@@ -121,9 +150,11 @@ public:
     // The backoff has elapsed; try again.  No-op unless in Retry.
     State onRetryElapsed();
 
-    // The portal wrote a record.  An incomplete save keeps the portal up
-    // rather than dropping the user into a join that cannot succeed.
-    State onPortalSaved(bool recordComplete);
+    // The portal wrote a record.  recordUsable is joinable() on what was
+    // saved: an SSID-less save keeps the portal up rather than dropping the
+    // user into a join that cannot succeed.  A save with an SSID and no token
+    // is NOT such a case — that device joins and then pairs.
+    State onPortalSaved(bool recordUsable);
 
     // An established connection dropped.  Returns to Joining WITHOUT counting
     // a failure: losing a working network is not evidence the credentials are

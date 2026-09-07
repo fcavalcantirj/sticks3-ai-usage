@@ -278,7 +278,16 @@ void renderPage(const PageInput& in, Sink sink, void* ctx) {
          ".msg{padding:9px 11px;border-radius:6px;font-size:13px;line-height:1.45}"
          ".warn{background:#2b2410;border-left:3px solid #d99a20}"
          ".err{background:#2d1414;border-left:3px solid #d94040}"
-         ".hint{color:#8a8a8a;font-size:12px;margin:4px 0 0}"
+         ".hint{color:#8a8a8a;font-size:12px;margin:4px 0 0;line-height:1.45}"
+         ".next{color:#7fc8a0;font-size:12.5px;margin:16px 0 0;line-height:1.5}"
+         // A plain <details> folds the escape hatch away with no script and no
+         // second request — the only mechanism available on a server that
+         // takes one client at a time.
+         "details{margin-top:18px;border:1px solid #333;border-radius:6px;"
+         "padding:0 11px 12px}"
+         "summary{cursor:pointer;margin:0 -11px;padding:11px;font-size:13px;"
+         "color:#9a9a9a}"
+         "details[open] summary{border-bottom:1px solid #333;margin-bottom:2px}"
          "</style></head><body><h1>usaged setup</h1><p class=\"id\">device ");
     emitEscaped(sink, ctx, in.apSsid);
     emit(sink, ctx, "</p>");
@@ -355,12 +364,39 @@ void renderPage(const PageInput& in, Sink sink, void* ctx) {
          "scan. Leave it empty to use the list.</p>");
 
     // Never prefilled, never echoed back: the page has no way to learn what was
-    // typed here, by construction (PageInput carries no passphrase).
+    // typed here, by construction (PageInput carries no passphrase).  This is
+    // the LAST thing the default form asks for — everything after it is folded
+    // away.
     emit(sink, ctx,
          "<label for=\"pass\">Wi-Fi password</label>"
          "<input id=\"pass\" name=\"pass\" type=\"password\" maxlength=\"63\" "
          "autocapitalize=\"off\" autocorrect=\"off\" spellcheck=\"false\">"
          "<p class=\"hint\">Leave empty only for an open network.</p>");
+
+    // Say what happens next, because the next two steps happen somewhere this
+    // page cannot follow: the AP hops channel on the join and this browser
+    // session is gone.  A user who has been told to expect the code on the
+    // device screen is not a user who thinks the thing broke.
+    emit(sink, ctx,
+         "<p class=\"next\">That is everything. The device joins this network, "
+         "finds the usaged agent on it by itself, then shows a pairing code on "
+         "its own screen. Type that code into the usaged dashboard and setup "
+         "is done.</p>");
+
+    // --- the escape hatch, folded away ---------------------------------------
+    //
+    // A plain <details>: no script, no second request, and closed by default on
+    // every browser.  These four fields are here because mDNS discovery can be
+    // blocked outright on guest and corporate networks and a screenless device
+    // with no manual route is stranded — not because anyone is expected to use
+    // them.  The copy inside says so.
+    emit(sink, ctx,
+         "<details><summary>Advanced (not usually needed)</summary>"
+         "<p class=\"hint\">Leave every field below empty. The device finds the "
+         "agent on the network by itself, and gets its own token from the "
+         "pairing code it shows on its screen &mdash; nothing here has to be "
+         "typed. Fill these in only if that discovery cannot work, which "
+         "happens on networks that block multicast.</p>");
 
     emit(sink, ctx,
          "<label for=\"host\">Agent address</label>"
@@ -368,8 +404,8 @@ void renderPage(const PageInput& in, Sink sink, void* ctx) {
          "autocapitalize=\"off\" autocorrect=\"off\" spellcheck=\"false\" value=\"");
     emitEscaped(sink, ctx, in.host);
     emit(sink, ctx,
-         "\"><p class=\"hint\">The computer running usaged &mdash; a name like "
-         "usaged.local, or an address like 192.168.0.10.</p>"
+         "\"><p class=\"hint\">The computer running usaged. Empty means "
+         "&ldquo;find it&rdquo;.</p>"
          "<label for=\"port\">Agent port</label>"
          "<input id=\"port\" name=\"port\" type=\"number\" inputmode=\"numeric\" "
          "min=\"1\" max=\"65535\" value=\"");
@@ -382,15 +418,15 @@ void renderPage(const PageInput& in, Sink sink, void* ctx) {
          "<label for=\"token\">Device token</label>"
          "<input id=\"token\" name=\"token\" type=\"password\" maxlength=\"64\" "
          "autocapitalize=\"off\" autocorrect=\"off\" spellcheck=\"false\">"
-         "<p class=\"hint\">From the usaged dashboard. Required &mdash; without it "
-         "the device joins but every request is refused.</p>");
+         "<p class=\"hint\">Only if you are pasting a token by hand instead of "
+         "pairing. Empty is the normal answer.</p>");
 
     emit(sink, ctx,
-         "<label for=\"ota\">Update password (optional)</label>"
+         "<label for=\"ota\">Update password</label>"
          "<input id=\"ota\" name=\"ota\" type=\"password\" maxlength=\"63\" "
          "autocapitalize=\"off\" autocorrect=\"off\" spellcheck=\"false\">"
-         "<p class=\"hint\">Leave empty to keep over-the-air updates switched "
-         "off.</p>");
+         "<p class=\"hint\">Empty keeps over-the-air updates switched off.</p>"
+         "</details>");
 
     emit(sink, ctx,
          "<button type=\"submit\">Save and join</button></form></body></html>");
@@ -437,11 +473,11 @@ Reject validate(const Submission& in, provision::Record& out) {
         return Reject::PassTooShort;
     }
 
+    // OPTIONAL from here down.  An empty agent address is not a mistake: it is
+    // the instruction "find it", and the device answers it with mDNS.  Refusing
+    // an empty one would be refusing the whole point of this page.
     size_t hostLen = 0;
     const char* host = trimSpan(in.host, hostLen);
-    if (hostLen == 0) {
-        return Reject::NoHost;
-    }
     if (hostLen > provision::kMaxHost) {
         return Reject::HostTooLong;
     }
@@ -451,11 +487,11 @@ Reject validate(const Submission& in, provision::Record& out) {
         return Reject::BadPort;
     }
 
+    // Also optional: an empty token means "pair for one".  A token that IS
+    // pasted still has to fit, because a truncated one authenticates nothing
+    // and fails invisibly.
     size_t tokenLen = 0;
     const char* token = trimSpan(in.token, tokenLen);
-    if (tokenLen == 0) {
-        return Reject::NoToken;
-    }
     if (tokenLen > provision::kMaxToken) {
         return Reject::TokenTooLong;
     }
@@ -470,13 +506,18 @@ Reject validate(const Submission& in, provision::Record& out) {
     }
     copyN(out.otaPass, provision::kMaxOtaPass, ota, otaLen);
 
-    // The rule that decides this is provision::complete(), not the branches
+    // The rule that decides this is provision::joinable(), not the branches
     // above — and sanitize() can still empty a field, because it cuts at the
     // first control character.  A crafted POST is the realistic way that
     // happens.  Refuse rather than store something the boot path would read
-    // back as unprovisioned and bounce straight back to this page.
+    // back as having nothing to try and bounce straight back to this page.
+    //
+    // Note the asymmetry, which is intentional: sanitize() emptying the SSID
+    // is fatal, while sanitize() emptying the host or the token is not — those
+    // two simply fall back to discovery and pairing, which is where a default
+    // submission starts anyway.
     provision::sanitize(out);
-    if (!provision::complete(out)) {
+    if (!provision::joinable(out)) {
         provision::clear(out);
         return Reject::Unstorable;
     }
@@ -499,14 +540,11 @@ const char* rejectText(Reject r) {
                    "empty only if the network is open.";
         case Reject::PassTooLong:
             return "That Wi-Fi password is too long (63 characters maximum).";
-        case Reject::NoHost:
-            return "Enter the address of the computer running usaged.";
         case Reject::HostTooLong:
-            return "That address is too long (63 characters maximum).";
+            return "That address is too long (63 characters maximum). Leaving "
+                   "it empty lets the device find the agent by itself.";
         case Reject::BadPort:
             return "The port must be a whole number between 1 and 65535.";
-        case Reject::NoToken:
-            return "Enter the device token from the usaged dashboard.";
         case Reject::TokenTooLong:
             return "That device token is too long (64 characters maximum).";
         case Reject::OtaPassTooLong:

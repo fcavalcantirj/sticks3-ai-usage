@@ -86,10 +86,19 @@ bool sanitize(Record& r) {
     return fixed;
 }
 
+// An SSID and nothing else is enough to TRY: the agent is discovered over mDNS
+// and the token arrives by pairing, so demanding either one here would put
+// both back in front of the stranger this work exists to spare.
+bool joinable(const Record& r) {
+    return r.ssid[0] != '\0';
+}
+
 // The completeness rule.  Only the first byte matters: an empty field is a
-// missing field, whatever sanitize() left behind it.
+// missing field, whatever sanitize() left behind it.  Note the containment —
+// every complete record is joinable, which is what lets the boot path gate on
+// joinable() and the fetch path gate on complete() without contradiction.
 bool complete(const Record& r) {
-    return r.ssid[0] != '\0' && r.host[0] != '\0' && r.token[0] != '\0';
+    return joinable(r) && r.host[0] != '\0' && r.token[0] != '\0';
 }
 
 // Empty means an OPEN network and is legal; 1..7 characters is a passphrase the
@@ -123,9 +132,9 @@ uint32_t Machine::backoffMs() const {
 // Cold boot, or a return from the portal.  A boot always gets a fresh budget of
 // attempts; on a cold boot the counter is already 0, and after the portal the
 // credentials are new, so the old failures say nothing about them.
-State Machine::onBoot(bool recordComplete) {
+State Machine::onBoot(bool recordUsable) {
     failures_ = 0;
-    state_ = recordComplete ? State::Joining : State::Portal;
+    state_ = recordUsable ? State::Joining : State::Portal;
     return state_;
 }
 
@@ -158,10 +167,11 @@ State Machine::onRetryElapsed() {
     return state_;
 }
 
-State Machine::onPortalSaved(bool recordComplete) {
-    if (!recordComplete) {
-        // Half a configuration is worse than none: keep the portal up so the
-        // user finishes, rather than dropping into a join that cannot succeed.
+State Machine::onPortalSaved(bool recordUsable) {
+    if (!recordUsable) {
+        // A save with no network at all is worse than none: keep the portal up
+        // so the user finishes, rather than dropping into a join that cannot
+        // succeed.  A save with a network and no token is NOT this case.
         state_ = State::Portal;
         return state_;
     }
