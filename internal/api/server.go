@@ -25,17 +25,19 @@ import (
 
 // Server hosts the usage HTTP API backed by a scheduler.
 type Server struct {
-	sched      *sched.Scheduler
-	cfg        config.Config
-	configPath string // path to the YAML config file (for interval persistence)
-	keystore   creds.KeyStore
-	getenv     func(string) string // defaults to os.Getenv; injectable for tests
-	rateLimit  *rateLimiter        // guards the /v1/keys endpoints (ORDER #52 task 57)
-	pairing    *pairing            // device pairing window + issued tokens (task 78)
-	netcfg     *netcfg             // device-directed Wi-Fi changes (task 79)
-	logger     *slog.Logger
-	start      time.Time
-	tracker    *clientTracker // per-client /v1/usage access log (ORDER #58 task 61)
+	sched       *sched.Scheduler
+	cfg         config.Config
+	configPath  string // path to the YAML config file (for interval persistence)
+	keystore    creds.KeyStore
+	getenv      func(string) string // defaults to os.Getenv; injectable for tests
+	rateLimit   *rateLimiter        // guards the /v1/keys endpoints (ORDER #52 task 57)
+	pairing     *pairing            // device pairing window + issued tokens (task 78)
+	netcfg      *netcfg             // device-directed Wi-Fi changes (task 79)
+	setup       *setup              // one-click BLE device setup (setup.go)
+	provisioner Provisioner         // BLE central for device setup; nil disables it
+	logger      *slog.Logger
+	start       time.Time
+	tracker     *clientTracker // per-client /v1/usage access log (ORDER #58 task 61)
 }
 
 // Option configures a Server built by New.
@@ -115,6 +117,13 @@ func New(s *sched.Scheduler, cfg config.Config, configPath string, logger *slog.
 	// config there would churn rev and force redraws. See netcfg.go.
 	srv.netcfg = newNetcfg(time.Now, logger)
 	srv.netcfg.routes(mux)
+
+	// One-click device setup over BLE (setup.go). The Provisioner is injected
+	// by cmd/usaged (internal/bleprov) through WithProvisioner; with none wired
+	// the routes answer "not available" instead of 404, so the dashboard can
+	// explain itself rather than showing a dead button.
+	srv.setup = newSetup(srv.provisioner, srv.providerReadiness, time.Now, logger)
+	srv.setup.routes(mux)
 
 	mux.HandleFunc("/", srv.handleNotFound)
 
