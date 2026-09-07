@@ -14,3 +14,4 @@ firmware/include/secrets.h
 .DS_Store
 *.log
 state.json
+dist/

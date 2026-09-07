@@ -1,9 +1,75 @@
-# usaged
+# usaged — AI usage on a tiny screen
 
-`usaged` is a lean Go service that polls AI-usage APIs (Claude, Codex, OpenRouter,
-Groq), persists a canonical snapshot, and serves it to a local web page and an
-M5StickS3 status monitor. The founder owns all credentials; the code reads them
-from the macOS Keychain and `~/.codex/auth.json` and never refreshes or copies them.
+Your Claude Code and Codex quotas on an M5StickS3, and in a local dashboard.
+A small Go daemon runs on your Mac, reads the usage numbers, and the stick
+mirrors them.
+
+![status](https://img.shields.io/badge/platform-macOS-lightgrey) ![license](https://img.shields.io/badge/license-MIT-blue)
+
+## Install (macOS)
+
+1. Download the latest `usaged-*-darwin-universal.tar.gz` from
+   [Releases](https://github.com/fcavalcantirj/sticks3-ai-usage/releases).
+2. Unpack it and run the installer:
+
+```sh
+tar -xzf usaged-*-darwin-universal.tar.gz
+cd usaged-*-darwin-universal
+./install.sh
+```
+
+3. Open <http://127.0.0.1:8765>.
+
+There is nothing to configure and no key to paste.
+
+**Why macOS asks whether you trust it.** The binary is not notarized —
+notarizing needs a paid Apple Developer Program certificate this project does
+not have — so a browser download is quarantined and Gatekeeper blocks it. The
+installer clears that flag on a file you chose to download. If you would rather
+not take that on faith, read `install.sh` first (it is short), or build from
+source with `make build`.
+
+## Where the numbers come from
+
+`usaged` does not ask you for a password and cannot log in on your behalf. It
+**reads credentials that other tools already store**:
+
+| Provider | Source | You need |
+|---|---|---|
+| Claude | macOS Keychain item `Claude Code-credentials` | [Claude Code](https://claude.com/claude-code) installed and logged in |
+| ChatGPT / Codex | `~/.codex/auth.json` | Codex CLI installed and logged in |
+| OpenRouter, Groq | API keys you add in Settings | an account (optional) |
+
+A provider you do not use simply says so. It never refreshes, rotates or copies
+a token — when one expires the page shows a "run claude" badge and nothing else.
+
+## Setting up the stick
+
+Flash the firmware from **M5Burner** (search for `usaged`), then:
+
+1. Power the StickS3 on. It shows a setup screen and advertises over Bluetooth.
+2. In the dashboard, open **Settings** and click **Look for a device**.
+3. Click **Set it up**. If macOS asks for six digits, they are on the stick's
+   own screen.
+
+That is the whole setup. The daemon sends the Wi-Fi name, the Wi-Fi password,
+its own address, its port and a token it mints for that device — you type
+nothing but those six digits.
+
+**No Bluetooth?** After two minutes the stick raises its own Wi-Fi network
+instead. Join `usaged-XXXX` from a phone, and a setup page opens by itself.
+
+**The firmware carries no credentials.** Wi-Fi details live only in the stick's
+own storage, written during setup — never compiled into the published image.
+
+## Requirements
+
+- macOS (the daemon reads the macOS Keychain and drives CoreBluetooth)
+- An M5StickS3, if you want the screen. The dashboard works without one.
+
+---
+
+# Developer documentation
 
 ## Architecture
 

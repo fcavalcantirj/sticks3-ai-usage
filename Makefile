@@ -1,12 +1,17 @@
 VERSION ?= dev
 PIO_ENV ?= m5stack-sticks3
 
-.PHONY: build fmt vet lint test verify clean smoke install uninstall fw-test fw-build fw-check-secrets verify-all fw-ota fw-build-ota fw-upload-ota
+.PHONY: build dist fmt vet lint test verify clean smoke install uninstall fw-test fw-build fw-check-secrets verify-all fw-ota fw-build-ota fw-upload-ota
 
 build:
 	@commit=$$(git rev-parse --short HEAD 2>/dev/null || echo none); \
 	mkdir -p bin; \
 	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$$commit" -o bin/usaged ./cmd/usaged
+
+dist:
+	@# Distributable macOS release: universal binary + installer + checksums.
+	@# Tag first, so VERSION comes from git describe: make dist VERSION=v0.1.0
+	@bash scripts/dist.sh
 
 fmt:
 	@if [ -n "$$(gofmt -l .)" ]; then \
