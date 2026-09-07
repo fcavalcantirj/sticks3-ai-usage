@@ -160,7 +160,11 @@ for _ in $(seq 1 60); do
         echo "        sent over Bluetooth — if macOS asks for six digits, they are on"
         echo "        the stick's own screen."
         echo
-        echo "   The dashboard is also on your LAN at http://$(ipconfig getifaddr en0 2>/dev/null || echo '<this-mac>'):${PORT}"
+        # The interface that actually routes, not a guess at "en0" — Wi-Fi is
+        # not en0 on every Mac.
+        LAN_IF="$(route -n get default 2>/dev/null | awk '/interface:/{print $2}')"
+        LAN_IP="$(ipconfig getifaddr "${LAN_IF:-en0}" 2>/dev/null || echo '<this-mac>')"
+        echo "   The dashboard is also on your LAN at http://${LAN_IP}:${PORT}"
         echo "   — that is how the stick reaches it. Anything other than this Mac"
         echo "   needs the token in ${TOKEN_FILE}."
         echo

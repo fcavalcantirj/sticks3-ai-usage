@@ -31,14 +31,18 @@ rm -rf "$OUT"
 mkdir -p "$STAGE"
 
 LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT}"
+# -trimpath so the binary carries no absolute paths from the build machine.
+# Cosmetic, but a public binary should not name someone's home directory in
+# every panic trace.
+BUILDFLAGS="-trimpath"
 
 # CGO is REQUIRED on darwin: the BLE central binds CoreBluetooth through cgo
 # (tinygo-org/cbgo). A CGO_ENABLED=0 build compiles and then cannot see a
 # single device, which is the worst kind of broken — silent.
 echo "-- building arm64"
-GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build -ldflags "$LDFLAGS" -o "${OUT}/usaged-arm64" ./cmd/usaged
+GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build $BUILDFLAGS -ldflags "$LDFLAGS" -o "${OUT}/usaged-arm64" ./cmd/usaged
 echo "-- building amd64"
-GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 go build -ldflags "$LDFLAGS" -o "${OUT}/usaged-amd64" ./cmd/usaged
+GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 go build $BUILDFLAGS -ldflags "$LDFLAGS" -o "${OUT}/usaged-amd64" ./cmd/usaged
 
 if command -v lipo >/dev/null 2>&1; then
     echo "-- lipo -> universal"
