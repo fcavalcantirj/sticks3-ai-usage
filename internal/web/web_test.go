@@ -1,6 +1,9 @@
 package web
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -345,5 +348,46 @@ func TestIndexHTMLSetupNeverRendersACredential(t *testing.T) {
 		if strings.Contains(html, banned) {
 			t.Errorf("index.html setup card renders or accepts a credential: %q", banned)
 		}
+	}
+}
+
+// TestIndexHTMLJavaScriptParses actually PARSES the page's script instead of
+// grepping it for strings.
+//
+// Every other test in this file checks that some id or endpoint appears
+// somewhere in the file. None of them would notice that the script does not
+// run at all — and on 2026-09-07 one shipped that way: a regex-driven removal
+// of a dead card left an orphaned block behind, and the whole dashboard died on
+//
+//	Uncaught SyntaxError: Unexpected token ')'
+//
+// with every string assertion still passing. Presence is not validity.
+//
+// The check is skipped where node is unavailable rather than failing, so this
+// never blocks a machine without it; the point is that it fails loudly where it
+// can run, which includes here.
+func TestIndexHTMLJavaScriptParses(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("node not installed; cannot parse-check the dashboard script")
+	}
+
+	html := string(IndexHTML)
+	start := strings.Index(html, "<script>")
+	end := strings.LastIndex(html, "</script>")
+	if start < 0 || end < 0 || end <= start {
+		t.Fatal("index.html has no <script> block to check")
+	}
+	js := html[start+len("<script>") : end]
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "dashboard.js")
+	if err := os.WriteFile(path, []byte(js), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	out, err := exec.Command(node, "--check", path).CombinedOutput()
+	if err != nil {
+		t.Fatalf("the dashboard script does not parse — the page would be dead:\n%s", out)
 	}
 }

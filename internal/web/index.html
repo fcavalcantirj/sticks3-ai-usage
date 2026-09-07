@@ -1833,10 +1833,6 @@ function init() {
   document.getElementById("pair-code-field").addEventListener("keydown", function(e) {
     if (e.key === "Enter") confirmPairCode();
   });
-    passEl.disabled = this.checked;
-    if (this.checked) passEl.value = "";
-  });
-  });
   // Polling intervals are derived from currentInterval so the
   // interval selector applies without a page reload.
   reloadIntervals();
