@@ -6,6 +6,15 @@ mirrors them.
 
 ![status](https://img.shields.io/badge/platform-macOS-lightgrey) ![license](https://img.shields.io/badge/license-MIT-blue)
 
+<p align="center">
+  <img src="docs/img/plans.jpeg" width="46%" alt="Plans page: Claude 5h and 7d, Fable 7d, GPT 5h and 7d, each with a bar, a percentage and a reset time">
+  &nbsp;
+  <img src="docs/img/credits.jpeg" width="46%" alt="Credits page: OpenRouter main and fallback balances and today's spend">
+</p>
+
+<p align="center"><em>Left: subscription quotas and when each resets. Right: pay-as-you-go
+balances. BtnA cycles pages; the bar across the bottom is an alert.</em></p>
+
 ## Install (macOS)
 
 1. Download the latest `usaged-*-darwin-universal.tar.gz` from
