@@ -101,28 +101,30 @@ func (a *Auth) middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// ONE-CLICK SETUP ON LOOPBACK: exempt, and it has to be.
+		// THE DASHBOARD ON LOOPBACK NEEDS NO TOKEN. This supersedes ORDER #54,
+		// which required one for every mutating route even from this Mac.
 		//
-		// This flow's entire job is to GIVE a device its token. Requiring one
-		// to start it is the same circularity the pairing claim above avoids:
-		// on a fresh install USAGED_DEVICE_TOKEN is unset, validToken fails an
-		// empty want, and the "Set up" button returns 401 — so the zero-config
-		// path a stranger flashes from M5Burner cannot begin at all. Measured
-		// 2026-09-07: GET /v1/setup 200, POST /v1/setup/scan 401.
+		// That rule made the product unusable on a fresh install. The installer
+		// generates a device token into a file the owner never opens, and the page
+		// has no way to learn it — so setting an API key, changing a setting, or
+		// opening a pairing window all answered 401 on the user's own machine.
+		// Reported from a real first run, 2026-09-07: "could not set openrouter
+		// keys, tried a lot". The same circularity had already been fixed for
+		// /v1/setup; it was never only about setup.
 		//
-		// WHAT AUTHORISES A RUN IS NOT A HEADER. It is the BLE bond: LE Secure
-		// Connections with MITM protection and a six-digit passkey the owner
-		// reads off the DEVICE'S OWN SCREEN and types into the macOS dialog.
-		// The device refuses every unpaired write — verified on hardware, the
-		// controller logs GATT_INSUF_AUTHENTICATION. A caller on loopback is
-		// already running on the machine that holds the Wi-Fi password; the
-		// passkey is what stops it reaching any device.
+		// WHAT STILL PROTECTS THESE ROUTES, and why a token was not the thing
+		// doing it: the JSON content-type requirement below. A cross-origin
+		// request carrying application/json triggers a CORS preflight, and this
+		// server sends no CORS headers at all, so the browser refuses it. The one
+		// shape that needs no preflight — a form-encoded POST — is rejected as an
+		// unsupported media type. A malicious page therefore cannot reach these
+		// routes, with or without a token.
 		//
-		// LOOPBACK ONLY. A LAN peer still needs the token, so a machine on the
-		// same Wi-Fi cannot make this Mac hand its password to a device of the
-		// attacker's choosing. The JSON content-type check below still bounces
-		// a form-encoded cross-site POST.
-		if isSetupPath(r.URL.Path) && isLoopbackAddr(r.RemoteAddr) {
+		// THE LAN IS UNCHANGED and still requires the token. That is the boundary
+		// that matters: the token exists so a device, or anything else on the
+		// network, must authenticate — not to lock the owner out of a dashboard
+		// served to their own loopback interface.
+		if isLoopbackAddr(r.RemoteAddr) {
 			if r.ContentLength > 0 && !isJSONContentType(r.Header.Get("Content-Type")) {
 				writeJSON(w, http.StatusUnsupportedMediaType, map[string]string{
 					"ok": "false", "error": "Content-Type must be application/json",

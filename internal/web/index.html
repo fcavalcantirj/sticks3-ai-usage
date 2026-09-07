@@ -1215,7 +1215,12 @@ function renderPairDevices(devices) {
     return;
   }
   var parts = devices.map(function(d) {
-    return esc(d.name ? d.name + " (" + d.id + ")" : d.id) + " \u00b7 paired " + fmtTime(d.issued_at);
+    // Prefer the advertised name. The id is a CoreBluetooth UUID for anything
+    // set up over Bluetooth and means nothing to a person, so it is shown only
+    // when there is no name to show instead.
+    var label = d.name || d.id;
+    var how = d.peer === "ble" ? " over Bluetooth" : "";
+    return esc(label) + " \u00b7 paired" + how + " " + fmtTime(d.issued_at);
   });
   el.innerHTML = "Paired: " + parts.join(" \u00b7 ");
 }
@@ -1295,7 +1300,15 @@ function renderSetup(js) {
   // final message lands.
   var active = running || scanning;
   setupPolling(active);
-  if (!active && setupPrevRun === "running") refreshSetup();
+  if (!active && setupPrevRun === "running") {
+    refreshSetup();
+    // A finished run changes the OTHER cards too: the device now holds a token
+    // this agent issued, so "Pair a device" is out of date the moment setup
+    // succeeds. Without this the page keeps saying "No device has been paired
+    // yet" about a device it just set up.
+    refreshPairStatus();
+    loadWifi();
+  }
   setupPrevRun = run ? run.state : null;
 }
 

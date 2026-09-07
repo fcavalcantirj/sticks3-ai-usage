@@ -71,6 +71,10 @@ type bleProvisioner struct {
 
 	mu    sync.RWMutex
 	issue func(deviceID, name string) (string, error)
+	// names remembers what each address advertised, so a provisioned device is
+	// recorded under "ai-usage-68B8" rather than a raw CoreBluetooth UUID that
+	// means nothing to the owner. ProvisionProgress is handed only an address.
+	names map[string]string
 }
 
 // newBLEProvisioner builds the adapter. It does NOT touch the radio: powering
@@ -125,6 +129,17 @@ func (p *bleProvisioner) Scan(ctx context.Context) ([]api.FoundDevice, error) {
 			RSSI: int(f.RSSI),
 		})
 	}
+	p.mu.Lock()
+	if p.names == nil {
+		p.names = map[string]string{}
+	}
+	for _, f := range found {
+		if f.Name != "" {
+			p.names[f.Address] = f.Name
+		}
+	}
+	p.mu.Unlock()
+
 	p.logger.Info("ble setup: scan complete", "devices", len(out))
 	return out, nil
 }
@@ -184,7 +199,7 @@ func (p *bleProvisioner) ProvisionProgress(ctx context.Context, addr string, rep
 	// is keyed by the identity it advertises, which is the same "usaged-XXXX"
 	// name the captive portal AP uses — one device, one name, however it is set
 	// up.
-	deviceID, deviceName := bleDeviceIdentity(addr, report)
+	deviceID, deviceName := p.deviceIdentity(addr)
 	if issue := p.tokenIssuer(); issue != nil {
 		token, err := issue(deviceID, deviceName)
 		if err != nil {
@@ -212,12 +227,14 @@ func (p *bleProvisioner) ProvisionProgress(ctx context.Context, addr string, rep
 	return nil
 }
 
-// bleDeviceIdentity derives the paired-device key. The scan already learned the
-// advertised name, but ProvisionProgress is handed only an address, so the
-// address is the fallback key — stable for the life of the bond on macOS, which
-// is what the paired-device store needs.
-func bleDeviceIdentity(addr string, _ func(string)) (id, name string) {
-	return addr, ""
+// deviceIdentity derives the paired-device key and its human label. The address
+// is the key — stable for the life of the bond on macOS, which is what the
+// paired-device store needs. The name comes from the last scan, so the
+// dashboard shows "ai-usage-68B8" instead of a CoreBluetooth UUID.
+func (p *bleProvisioner) deviceIdentity(addr string) (id, name string) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return addr, p.names[addr]
 }
 
 // bleStepFor maps the central's own phases onto the fixed step vocabulary

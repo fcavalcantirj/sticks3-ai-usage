@@ -377,8 +377,8 @@ func TestPairingDashboardEndpointsRequireToken(t *testing.T) {
 	rig := newPairRig(t)
 
 	for _, path := range []string{pairOpenPath, pairConfirmPath} {
-		if rec := rig.post(path, `{}`, pairLoopback, ""); rec.Code != http.StatusUnauthorized {
-			t.Errorf("POST %s without token from loopback: status = %d, want 401", path, rec.Code)
+		if rec := rig.post(path, `{}`, pairOtherIP, ""); rec.Code != http.StatusUnauthorized {
+			t.Errorf("POST %s without token from the LAN: status = %d, want 401", path, rec.Code)
 		}
 		if rec := rig.post(path, `{}`, pairDeviceIP, "wrong"); rec.Code != http.StatusUnauthorized {
 			t.Errorf("POST %s with a wrong token: status = %d, want 401", path, rec.Code)

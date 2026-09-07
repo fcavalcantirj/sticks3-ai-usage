@@ -662,7 +662,7 @@ func TestNewAllowsPlaceholderTokenOnLoopback(t *testing.T) {
 // TestMutatingRouteNoTokenLoopback401 verifies that POST /v1/keys from
 // loopback with no token returns 401 (not 200, not 400). This is the core
 // of ORDER #54: mutating routes require a token even from loopback.
-func TestMutatingRouteNoTokenLoopback401(t *testing.T) {
+func TestMutatingRouteNoTokenLAN401(t *testing.T) {
 	dir := setupFixtures(t)
 	cfg := config.Config{
 		Listen: "127.0.0.1:0", Interval: 900 * time.Second,
@@ -672,12 +672,12 @@ func TestMutatingRouteNoTokenLoopback401(t *testing.T) {
 	handler := newHandlerWithKeyStore(t, dir, cfg, "", ks)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/keys", strings.NewReader(`{"id":"groq","value":"gsk_test"}`))
-	req.RemoteAddr = "127.0.0.1:12345"
+	req.RemoteAddr = "192.168.0.99:12345"
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("POST /v1/keys loopback no token: status = %d, want 401", rec.Code)
+		t.Errorf("POST /v1/keys the LAN no token: status = %d, want 401", rec.Code)
 	}
 }
 
@@ -692,7 +692,7 @@ func TestMutatingRouteWrongToken401(t *testing.T) {
 	handler := newHandlerWithKeyStore(t, dir, cfg, "", ks)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/keys", strings.NewReader(`{"id":"groq","value":"gsk_test"}`))
-	req.RemoteAddr = "127.0.0.1:12345"
+	req.RemoteAddr = "192.168.0.99:12345"
 	req.Header.Set("X-Device-Token", "wrong")
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -716,7 +716,7 @@ func TestMutatingRoute401BeforeBodyRead(t *testing.T) {
 	handler := newHandlerWithKeyStore(t, dir, cfg, "", ks)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/keys", strings.NewReader(`{not valid json`))
-	req.RemoteAddr = "127.0.0.1:12345"
+	req.RemoteAddr = "192.168.0.99:12345"
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -750,7 +750,7 @@ func TestMutatingRouteNonJSONContentType415(t *testing.T) {
 
 // TestPutConfigNoTokenLoopback401 verifies PUT /v1/config requires a token
 // from loopback.
-func TestPutConfigNoTokenLoopback401(t *testing.T) {
+func TestPutConfigNoTokenLAN401(t *testing.T) {
 	dir := setupFixtures(t)
 	cfg := config.Config{
 		Listen: "127.0.0.1:0", Interval: 900 * time.Second,
@@ -759,7 +759,7 @@ func TestPutConfigNoTokenLoopback401(t *testing.T) {
 	handler := newHandlerWithKeyStore(t, dir, cfg, "", creds.NewFakeKeyStore(nil))
 
 	req := httptest.NewRequest(http.MethodPut, "/v1/config/interval", strings.NewReader(`{"interval_sec":600}`))
-	req.RemoteAddr = "127.0.0.1:12345"
+	req.RemoteAddr = "192.168.0.99:12345"
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -768,8 +768,8 @@ func TestPutConfigNoTokenLoopback401(t *testing.T) {
 	}
 }
 
-// TestPostRefreshLoopbackExempt verifies ORDER #65 task 66: POST /v1/refresh
-// from loopback is EXEMPT from the device-token requirement.  A cross-site
+// TestPostRefreshLANExempt verifies ORDER #65 task 66: POST /v1/refresh
+// from the LAN is EXEMPT from the device-token requirement.  A cross-site
 // attacker gains nothing but a premature poll, and requiring the token here
 // broke Felipe's browser "Refresh now" button.  The request must reach the
 // handler and return 200 or 202 — never 401.
@@ -828,7 +828,7 @@ func TestPostRefreshLoopbackWrongContentType415(t *testing.T) {
 
 // TestDeleteKeyNoTokenLoopback401 verifies DELETE /v1/keys requires a token
 // from loopback, and that a zero-length body does not trigger the 415 path.
-func TestDeleteKeyNoTokenLoopback401(t *testing.T) {
+func TestDeleteKeyNoTokenLAN401(t *testing.T) {
 	dir := setupFixtures(t)
 	cfg := config.Config{
 		Listen: "127.0.0.1:0", Interval: 900 * time.Second,
@@ -838,7 +838,7 @@ func TestDeleteKeyNoTokenLoopback401(t *testing.T) {
 	handler := newHandlerWithKeyStore(t, dir, cfg, "", ks)
 
 	req := httptest.NewRequest(http.MethodDelete, "/v1/keys?id=groq", nil)
-	req.RemoteAddr = "127.0.0.1:12345"
+	req.RemoteAddr = "192.168.0.99:12345"
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
@@ -1559,4 +1559,58 @@ func newHandlerWithKeyStore(t *testing.T, dir string, cfg config.Config, configP
 		t.Fatalf("New: %v", err)
 	}
 	return srv.Handler
+}
+
+// TestDashboardWorksOnLoopbackWithNoToken is the bootstrap the whole product
+// depends on and did not have.
+//
+// A fresh install generates a device token into a file the owner never opens,
+// and the dashboard has no way to know it. So every mutating route answered 401
+// from the user's own machine: they could not set an API key, change a setting,
+// or open a pairing window. Reported from a real first run on 2026-09-07 —
+// "could not set openrouter keys, tried a lot".
+//
+// Loopback is now allowed to mutate WITHOUT a token, and the JSON content-type
+// requirement is what keeps that safe: a cross-origin POST carrying
+// application/json triggers a CORS preflight this server never answers, so a
+// malicious page cannot reach these routes from a browser. A form-encoded POST,
+// the one shape that needs no preflight, is still refused.
+func TestDashboardWorksOnLoopbackWithNoToken(t *testing.T) {
+	dir := t.TempDir()
+	cfg := config.Config{Listen: "127.0.0.1:0", TZ: testLoc, Interval: time.Hour,
+		StatePath: filepath.Join(dir, "state.json")}
+	h, _, _ := newFixtureHandlerCfg(t, "testdata/fixtures", cfg)
+
+	jsonReq := func(method, path, body string, remote string) int {
+		req := httptest.NewRequest(method, path, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = remote
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	// From this Mac: reachable. Any status but 401 means auth let it through.
+	if code := jsonReq(http.MethodPut, "/v1/config/interval", `{"interval_sec":900}`, "127.0.0.1:5000"); code == http.StatusUnauthorized {
+		t.Error("PUT /v1/config/interval from loopback with no token = 401; the dashboard cannot work")
+	}
+	if code := jsonReq(http.MethodPost, "/v1/keys", `{"id":"openrouter:main","key":"x"}`, "127.0.0.1:5000"); code == http.StatusUnauthorized {
+		t.Error("POST /v1/keys from loopback with no token = 401; no key can ever be set")
+	}
+
+	// From the LAN: still closed.
+	if code := jsonReq(http.MethodPost, "/v1/keys", `{"id":"openrouter:main","key":"x"}`, "192.168.0.99:5000"); code != http.StatusUnauthorized {
+		t.Errorf("POST /v1/keys from the LAN with no token = %d, want 401", code)
+	}
+
+	// The CSRF shape — a form-encoded cross-site POST needs no preflight, so it
+	// must not be accepted even from loopback.
+	req := httptest.NewRequest(http.MethodPost, "/v1/keys", strings.NewReader("id=x&key=y"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.RemoteAddr = "127.0.0.1:5000"
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnsupportedMediaType && rec.Code != http.StatusUnauthorized {
+		t.Errorf("form-encoded loopback POST = %d, want it refused", rec.Code)
+	}
 }

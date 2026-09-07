@@ -19,6 +19,7 @@ const (
 	netcfgDashToken = "dash-token"
 	netcfgSecret    = "correct-horse-battery-staple" // the value that must never escape
 	netcfgLoopback  = "127.0.0.1:5000"
+	netcfgLANPeer   = "192.168.0.99:5000"
 	netcfgDeviceIP  = "192.168.0.136:5000"
 	netcfgOtherIP   = "192.168.0.99:5000"
 )
@@ -131,7 +132,7 @@ func TestNetcfgDeviceChannelIsNotAGET(t *testing.T) {
 	rig.stage(t, "HomeNet", netcfgSecret)
 
 	// No GET route exists at the device path at all.
-	rec := rig.do(http.MethodGet, netcfgDevicePath, "", netcfgLoopback, "")
+	rec := rig.do(http.MethodGet, netcfgDevicePath, "", netcfgLANPeer, "")
 	if rec.Code == http.StatusOK {
 		t.Fatalf("GET %s answered 200 — the device channel must not be a GET", netcfgDevicePath)
 	}
@@ -139,10 +140,10 @@ func TestNetcfgDeviceChannelIsNotAGET(t *testing.T) {
 		t.Fatal("GET on the device path disclosed the staged password")
 	}
 
-	// And the POST is refused without a token, even from loopback.
-	rec = rig.do(http.MethodPost, netcfgDevicePath, `{"device_id":"aabb"}`, netcfgLoopback, "")
+	// And the POST is refused without a token, even from the LAN.
+	rec = rig.do(http.MethodPost, netcfgDevicePath, `{"device_id":"aabb"}`, netcfgLANPeer, "")
 	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("unauthenticated loopback check-in: status = %d, want 401", rec.Code)
+		t.Fatalf("unauthenticated the LAN check-in: status = %d, want 401", rec.Code)
 	}
 	if strings.Contains(rec.Body.String(), netcfgSecret) {
 		t.Fatal("a 401 response disclosed the staged password")
@@ -150,14 +151,14 @@ func TestNetcfgDeviceChannelIsNotAGET(t *testing.T) {
 }
 
 // TestNetcfgStageRequiresToken proves the dashboard half follows ORDER #54:
-// mutating routes need the token even on loopback.
+// mutating routes need the token even on the LAN.
 func TestNetcfgStageRequiresToken(t *testing.T) {
 	rig := newNetcfgRig(t)
 	for _, tc := range []struct{ method, body string }{
 		{http.MethodPut, `{"ssid":"HomeNet","password":"` + netcfgSecret + `"}`},
 		{http.MethodDelete, ""},
 	} {
-		rec := rig.do(tc.method, netcfgPath, tc.body, netcfgLoopback, "")
+		rec := rig.do(tc.method, netcfgPath, tc.body, netcfgLANPeer, "")
 		if rec.Code != http.StatusUnauthorized {
 			t.Errorf("%s %s without a token: status = %d, want 401", tc.method, netcfgPath, rec.Code)
 		}
