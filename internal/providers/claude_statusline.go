@@ -15,9 +15,6 @@ import (
 // claudeStatuslineTTL is how long a statusline file is considered fresh.
 const claudeStatuslineTTL = 10 * time.Minute
 
-// statuslineFile is the default path written by scripts/statusline-tee.sh.
-const statuslineFile = ".local/state/usaged/claude-statusline.json"
-
 // claudeStatuslineProvider reads Claude rate-limit data from the
 // statusline-tee file (written by scripts/statusline-tee.sh on every Claude
 // Code statusline invocation). When the file is missing, stale, or parse

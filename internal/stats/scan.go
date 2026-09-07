@@ -759,11 +759,6 @@ func dayKeyFromTimestamp(ts string, tz *time.Location) string {
 	return t.In(tz).Format("2006-01-02")
 }
 
-// dateKeyFromTimestamp is an alias for dayKeyFromTimestamp.
-func dateKeyFromTimestamp(ts string, tz *time.Location) string {
-	return dayKeyFromTimestamp(ts, tz)
-}
-
 // dayBoundary returns unix seconds for midnight of the given time's day in tz.
 func dayBoundary(t time.Time, tz *time.Location) int64 {
 	if tz == nil {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net"
 	"os"
 	"os/user"
 	"strconv"
@@ -33,6 +32,7 @@ type Config struct {
 	Listen         string            // HTTP listen address
 	Interval       time.Duration     // poll interval (must be >= 300s)
 	DeviceToken    string            // token for non-loopback clients
+	DeviceOTAPass  string            // device's ArduinoOTA password, sent over BLE; "" leaves OTA disarmed
 	StatePath      string            // on-disk state file (with $HOME expanded)
 	TZ             *time.Location    // display timezone for reset text
 	OpenRouterKeys map[string]string // "main", "fallback"
@@ -166,6 +166,13 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 	if v := getenv("USAGED_DEVICE_TOKEN"); v != "" {
 		cfg.DeviceToken = v
 	}
+	// The device's own ArduinoOTA password, handed to it over BLE during
+	// zero-config provisioning. Unset leaves OTA disarmed on the device, which
+	// is the correct default: arming remote flashing is the owner's deliberate
+	// act, not something a first boot should assume.
+	if v := getenv("USAGED_DEVICE_OTA_PASS"); v != "" {
+		cfg.DeviceOTAPass = v
+	}
 	if v := getenv("USAGED_STATE"); v != "" {
 		cfg.StatePath = v
 	}
@@ -295,21 +302,6 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 	return cfg, nil
 }
 
-// isLoopback reports whether a listen address binds only to the local host.
-func isLoopback(listen string) bool {
-	host, _, err := net.SplitHostPort(listen)
-	if err != nil {
-		host = listen
-	}
-	if host == "" || host == "localhost" {
-		return true
-	}
-	if ip := net.ParseIP(host); ip != nil {
-		return ip.IsLoopback()
-	}
-	return false
-}
-
 // applyFileConfig copies values from the parsed FileConfig into the Config.
 // Only non-zero/non-empty values from the file are applied; env vars and
 // flags (applied later by the caller) will override these.
@@ -345,16 +337,17 @@ func applyFileConfig(cfg *Config, fc *FileConfig, home string) {
 // replaced with "set(len=N)" where N is the secret's length.
 func (c Config) Redacted() map[string]any {
 	m := map[string]any{
-		"listen":       c.Listen,
-		"interval_sec": int(c.Interval.Seconds()),
-		"device_token": fmt.Sprintf("set(len=%d)", len(c.DeviceToken)),
-		"state_path":   c.StatePath,
-		"stats_path":   c.StatsPath,
-		"tz":           c.TZ.String(),
-		"groq_probe":   c.GroqProbe,
-		"log_level":    c.LogLevel.String(),
-		"fixtures_dir": c.FixturesDir,
-		"scenario":     c.Scenario,
+		"listen":          c.Listen,
+		"interval_sec":    int(c.Interval.Seconds()),
+		"device_token":    fmt.Sprintf("set(len=%d)", len(c.DeviceToken)),
+		"device_ota_pass": fmt.Sprintf("set(len=%d)", len(c.DeviceOTAPass)),
+		"state_path":      c.StatePath,
+		"stats_path":      c.StatsPath,
+		"tz":              c.TZ.String(),
+		"groq_probe":      c.GroqProbe,
+		"log_level":       c.LogLevel.String(),
+		"fixtures_dir":    c.FixturesDir,
+		"scenario":        c.Scenario,
 		"alerts": map[string]any{
 			"openrouter_low_usd": c.AlertOpenRouterLowUSD,
 			"quota_warn_pct":     c.AlertQuotaWarnPct,

@@ -213,15 +213,6 @@ func isDeviceUserAgent(ua string) bool {
 	return strings.HasPrefix(ua, "sticks3-usage/")
 }
 
-// isLoopbackHost reports whether a bare IP address string (without port, as
-// produced by peerIP) is a loopback address. Unlike isLoopbackAddr in auth.go,
-// this works on host-only strings — SplitHostPort("127.0.0.1") would fail and
-// incorrectly classify the browser as non-loopback, marking it as a device.
-func isLoopbackHost(host string) bool {
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
-}
-
 // logAccess logs a /v1/usage access entry to slog. It logs timestamp (via
 // slog's built-in time field), peer IP, method, User-Agent, status, and the
 // If-None-Match header value — but NEVER the device token or any header
