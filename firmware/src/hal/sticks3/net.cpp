@@ -4,15 +4,12 @@
 #include "hal/sticks3/board.h"   // serialLine
 #include "usage/serial_proto.h"   // fmtNet, fmtOta
 
-#include "secrets.h"  // WIFI_SSID, WIFI_PASS, OTA_PASS — must exist (git-ignored)
-
-#ifndef WIFI_SSID
-#error "copy include/secrets.h.example to include/secrets.h"
-#endif
-
-#ifndef OTA_PASS
-#error "OTA_PASS undefined — copy the OTA_PASS #define from firmware/include/secrets.h.example into firmware/include/secrets.h"
-#endif
+// NOTE (task 76): secrets.h is deliberately NOT included here any more, and the
+// two #error guards that required it are gone.  Credentials now arrive from NVS
+// via netBegin(), because a compile-time header put the SSID, the Wi-Fi
+// password and the OTA password into firmware.bin as plaintext strings and made
+// the binary impossible to publish.  The production build compiles with no
+// secrets.h at all.
 
 #include <ArduinoOTA.h>
 #include <WiFi.h>
@@ -33,6 +30,13 @@ enum : uint8_t {
 static uint8_t g_state = NET_DISCONNECTED;
 static uint32_t g_lastBegin = 0;
 
+// Credentials copied out of the NVS record at netBegin().  Owned here so a
+// reconnect (which re-issues WiFi.begin) never depends on the caller keeping
+// the record alive.  NEVER logged — only lengths or "set"/"unset" ever are.
+static char g_ssid[usage::provision::kMaxSsid + 1] = {0};
+static char g_pass[usage::provision::kMaxPass + 1] = {0};
+static char g_otaPass[usage::provision::kMaxOtaPass + 1] = {0};
+
 static void emitNet(const char* state, const char* ip) {
     char buf[64];
     usage::fmtNet(buf, sizeof(buf), state, ip);
@@ -41,7 +45,16 @@ static void emitNet(const char* state, const char* ip) {
 
 // --- public API -------------------------------------------------------------
 
-void netBegin() {
+void netBegin(const usage::provision::Record& rec) {
+    std::snprintf(g_ssid, sizeof(g_ssid), "%s", rec.ssid);
+    std::snprintf(g_pass, sizeof(g_pass), "%s", rec.pass);
+    std::snprintf(g_otaPass, sizeof(g_otaPass), "%s", rec.otaPass);
+
+    // Must precede the first radio call: _persistent is read exactly once, by
+    // wifiLowLevelInit behind a one-shot guard, and only there does the core
+    // call esp_wifi_set_storage(WIFI_STORAGE_RAM).  Called later it silently
+    // does nothing and esp_wifi_set_config writes the credentials to NVS
+    // anyway — which would put them back in flash under the core's own keys.
     WiFi.persistent(false);
     // setHostname() MUST precede mode(): it only writes a file-static buffer
     // (WiFiGeneric.cpp:901-905), and the ONLY place that buffer is pushed to
@@ -57,7 +70,7 @@ void netBegin() {
     WiFi.mode(WIFI_STA);
     WiFi.setAutoReconnect(true);
     WiFi.setSleep(true);
-    WiFi.begin(WIFI_SSID, WIFI_PASS);
+    WiFi.begin(g_ssid, g_pass);
 
     g_lastBegin = millis();
     g_state = NET_CONNECTING;
@@ -89,7 +102,7 @@ void netUpdate(uint32_t nowMs) {
 
     // Re-begin every 30 s while not connected.
     if ((int32_t)(nowMs - g_lastBegin) >= 30000) {
-        WiFi.begin(WIFI_SSID, WIFI_PASS);
+        WiFi.begin(g_ssid, g_pass);
         g_lastBegin = nowMs;
         if (g_state == NET_LOST) {
             emitNet("connecting", nullptr);
@@ -132,8 +145,17 @@ void otaBegin() {
     // sleep — see ORDER #22 lineage notes).
     ArduinoOTA.end();
 
+    // No stored OTA password means OTA stays DISARMED.  Arming it unauthenticated
+    // would let anyone on the LAN reflash the device, which is a strictly worse
+    // outcome than losing over-the-air updates until one is provisioned.
+    if (g_otaPass[0] == '\0') {
+        serialLine("[OTA] disarmed (no ota_pass stored)");
+        g_otaStarted = false;
+        return;
+    }
+
     ArduinoOTA.setHostname("sticks3-usage");
-    ArduinoOTA.setPassword(OTA_PASS);
+    ArduinoOTA.setPassword(g_otaPass);
 
     ArduinoOTA.onStart([]() {
         g_otaInProgress = true;

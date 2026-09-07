@@ -4,11 +4,10 @@
 #include "hal/sticks3/board.h"   // nowMs, serialLine
 #include "usage/serial_proto.h"   // fmtFetch
 
-#include "secrets.h"              // USAGED_HOST, USAGED_PORT, USAGED_DEVICE_TOKEN
-
-#ifndef USAGED_HOST
-#error "copy include/secrets.h.example to include/secrets.h"
-#endif
+// NOTE (task 76): secrets.h is deliberately NOT included here any more, and the
+// #error guard that required it is gone.  The agent address and the device
+// token arrive from NVS via fetchConfigure(); as compile-time macros they were
+// plaintext strings inside firmware.bin.
 
 #include <HTTPClient.h>
 #include <WiFi.h>
@@ -17,6 +16,13 @@
 namespace sticks3 {
 
 namespace {
+
+// Agent address and credential, copied from the NVS record by fetchConfigure().
+// The token is NEVER logged — the access-log and serial paths deliberately
+// carry only status codes and rev values.
+char     g_host[usage::provision::kMaxHost + 1]   = {0};
+uint16_t g_port                                    = 0;
+char     g_token[usage::provision::kMaxToken + 1] = {0};
 
 // Copy the rev portion out of an ETag header value, stripping a leading
 // W/" (weak validator) or bare " (strong validator) prefix and any
@@ -41,6 +47,16 @@ void extractRev(char* out, size_t n, const char* etag) {
 
 } // namespace
 
+void fetchConfigure(const usage::provision::Record& rec) {
+    std::snprintf(g_host, sizeof(g_host), "%s", rec.host);
+    std::snprintf(g_token, sizeof(g_token), "%s", rec.token);
+    g_port = rec.port != 0 ? rec.port : usage::provision::kDefaultPort;
+}
+
+bool fetchConfigured() {
+    return g_host[0] != '\0' && g_token[0] != '\0';
+}
+
 bool fetchUsage(const char* lastRev, FetchResult& out, uint32_t ageS) {
     out.code = 0;
     out.rev[0] = '\0';
@@ -55,10 +71,10 @@ bool fetchUsage(const char* lastRev, FetchResult& out, uint32_t ageS) {
     char url[128];
     if (ageS > 0) {
         std::snprintf(url, sizeof(url), "http://%s:%d/v1/usage?age_s=%u",
-                      USAGED_HOST, (int)USAGED_PORT, ageS);
+                      g_host, (int)g_port, ageS);
     } else {
         std::snprintf(url, sizeof(url), "http://%s:%d/v1/usage",
-                      USAGED_HOST, (int)USAGED_PORT);
+                      g_host, (int)g_port);
     }
     http.begin(client, url);
 
@@ -75,7 +91,7 @@ bool fetchUsage(const char* lastRev, FetchResult& out, uint32_t ageS) {
     http.collectHeaders(keys, 1);
 
     // Device-token header (always sent to the usaged server).
-    http.addHeader("X-Device-Token", USAGED_DEVICE_TOKEN);
+    http.addHeader("X-Device-Token", g_token);
 
     // Conditional request: If-None-Match with quoted lastRev.
     if (lastRev != nullptr && lastRev[0] != '\0') {
@@ -159,7 +175,7 @@ bool refreshUpstream(FetchResult& out) {
 
     char url[128];
     std::snprintf(url, sizeof(url), "http://%s:%d/v1/refresh",
-                  USAGED_HOST, (int)USAGED_PORT);
+                  g_host, (int)g_port);
     http.begin(client, url);
 
     // User-Agent so the server classifies this HTTP client as the StickS3
@@ -169,7 +185,7 @@ bool refreshUpstream(FetchResult& out) {
     http.setUserAgent(ua);
 
     // Device-token header (always sent to the usaged server).
-    http.addHeader("X-Device-Token", USAGED_DEVICE_TOKEN);
+    http.addHeader("X-Device-Token", g_token);
     http.addHeader("Content-Type", "application/json");
 
     uint32_t startMs = nowMs();

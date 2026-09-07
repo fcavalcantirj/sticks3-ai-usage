@@ -8,11 +8,19 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "usage/provision.h"   // usage::provision::Record (pure, no Arduino headers)
+
 namespace sticks3 {
 
 // Initialise Wi-Fi: STA mode, hostname "sticks3-usage", auto-reconnect,
-// then WiFi.begin(WIFI_SSID, WIFI_PASS).  Emits "[NET] state=connecting".
-void netBegin();
+// then WiFi.begin() with the credentials from the record.  Emits
+// "[NET] state=connecting".
+//
+// The record comes from NVS (task 76), NOT from secrets.h.  Compile-time
+// credentials are what made firmware.bin unpublishable; the ssid, passphrase
+// and OTA password are copied into file-static buffers here so a later
+// re-provision cannot leave this module pointing at freed storage.
+void netBegin(const usage::provision::Record& rec);
 
 // Poll the connection state.  Call once per loop with nowMs().
 void netUpdate(uint32_t nowMs);
@@ -27,7 +35,9 @@ const char* netIp(char* buf, size_t n);
 // --- OTA -------------------------------------------------------------------
 //
 // Armed after the first Wi-Fi connection in setup.  The hostname is
-// "sticks3-usage" and the password comes from OTA_PASS in secrets.h.
+// "sticks3-usage" and the password comes from the NVS record passed to
+// netBegin().  When no OTA password is stored, OTA is NOT armed at all: an
+// unauthenticated OTA listener would let anyone on the LAN reflash the device.
 //
 // otaBegin() must be called once Wi-Fi is up (netUpdate calls it on the
 // first transition to NET_CONNECTED).  otaHandle() drives the transfer and

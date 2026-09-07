@@ -4,7 +4,23 @@
 #include <Arduino.h>  // String
 #include <cstdint>
 
+#include "usage/provision.h"   // usage::provision::Record (pure, no Arduino headers)
+
 namespace sticks3 {
+
+// Point the fetcher at the agent named by the NVS record (task 76).  Must be
+// called before the first fetchUsage()/refreshUpstream().  The host, port and
+// device token are copied into file-static buffers, so the caller need not keep
+// the record alive.
+//
+// Before task 76 these came from USAGED_HOST / USAGED_PORT /
+// USAGED_DEVICE_TOKEN in secrets.h, which is exactly why the compiled binary
+// carried a LAN address and a live device token as plaintext strings.
+void fetchConfigure(const usage::provision::Record& rec);
+
+// True once fetchConfigure() has supplied a non-empty host and token.  A fetch
+// attempted before that would issue an unauthenticated request to port 0.
+bool fetchConfigured();
 
 // Result of fetchUsage: code is the HTTP status (negative = error);
 // rev holds the stripped ETag; body holds the response (only on 200).

@@ -19,6 +19,7 @@
 #include <M5Unified.h>
 
 #include "hal/sticks3/board.h"
+#include "hal/sticks3/creds.h"
 #include "hal/sticks3/fetch.h"
 #include "hal/sticks3/net.h"
 #include "hal/sticks3/power.h"
@@ -32,6 +33,7 @@
 #include "usage/battery.h"
 #include "usage/freshness.h"
 #include "usage/brightness.h"
+#include "usage/provision.h"
 
 #include <cstdio>
 #include <cstring>
@@ -668,7 +670,41 @@ void setup() {
     // fetches, refreshes the cached snapshot if stale, then re-sleeps after the
     // 20 s grace window. The 12 h backstop (ORDER #60) re-arms after grace.
 
-    netBegin();
+    // --- credentials (task 76) ----------------------------------------------
+    // Credentials come from NVS, never from the compiled binary.  secrets.h was
+    // a compile-time header, so the SSID, the Wi-Fi password, the agent address,
+    // the device token and the OTA password were all plaintext strings inside
+    // firmware.bin — verified with `strings` — which is why the binary could not
+    // be published anywhere.
+    //
+    // When secrets.h IS present (a developer build) it is used ONCE, as a
+    // first-boot seed for an empty store, and never as a runtime source.  The
+    // production build compiles with no secrets.h at all and starts unprovisioned.
+    usage::provision::Record creds;
+    bool provisioned = credsLoad(creds);
+    if (!provisioned && credsSeedFromSecretsIfEmpty()) {
+        provisioned = credsLoad(creds);
+        serialLine("[CREDS] seeded from secrets.h (developer build)");
+    }
+
+    // Log the SHAPE of the record, never its contents.
+    std::snprintf(buf, sizeof(buf),
+                  "[CREDS] provisioned=%d ssid=%d pass=%d host=%d token=%d ota=%d port=%u",
+                  provisioned ? 1 : 0, (int)std::strlen(creds.ssid),
+                  (int)std::strlen(creds.pass), (int)std::strlen(creds.host),
+                  (int)std::strlen(creds.token), (int)std::strlen(creds.otaPass),
+                  (unsigned)creds.port);
+    serialLine(buf);
+
+    if (provisioned) {
+        fetchConfigure(creds);
+        netBegin(creds);
+    } else {
+        // Task 77 raises the SoftAP captive portal here.  Until then the device
+        // simply says so rather than retrying a half-configuration forever —
+        // which is exactly the failure the completeness rule exists to prevent.
+        serialLine("[CREDS] unprovisioned — portal required (task 77)");
+    }
 
     // Initialise activity timers so the 30-min dim and 60-s heap watchdog
     // fire relative to boot, not relative to the zero millis().

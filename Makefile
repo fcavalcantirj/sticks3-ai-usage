@@ -1,7 +1,7 @@
 VERSION ?= dev
 PIO_ENV ?= m5stack-sticks3
 
-.PHONY: build fmt vet lint test verify clean smoke install uninstall fw-test fw-build verify-all fw-ota fw-build-ota fw-upload-ota
+.PHONY: build fmt vet lint test verify clean smoke install uninstall fw-test fw-build fw-check-secrets verify-all fw-ota fw-build-ota fw-upload-ota
 
 build:
 	@commit=$$(git rev-parse --short HEAD 2>/dev/null || echo none); \
@@ -46,6 +46,18 @@ fw-test:
 
 fw-build:
 	cd firmware && pio run
+
+fw-publish-check:
+	@# The gate that matters: build with NO secrets.h, then prove the image
+	@# carries none of the five values.  A developer build legitimately
+	@# contains them (secrets.h is the first-boot NVS seed), so checking THAT
+	@# build always fails and tells you nothing.
+	@bash firmware/scripts/publish_check.sh
+
+fw-check-secrets:
+	@# Fails if any secrets.h credential value is still inside the binary.
+	@# Optional: make fw-check-secrets BIN=path/to/firmware.bin
+	@sh firmware/scripts/check_no_secrets.sh "$(BIN)"
 
 fw-ota:
 	@# Combined build+upload for cable sessions (device stays powered on USB).
