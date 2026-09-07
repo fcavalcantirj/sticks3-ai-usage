@@ -81,6 +81,11 @@ var (
 	// ErrDeviceVersion means the device speaks a format this agent does not.
 	ErrDeviceVersion = errors.New("bleprov: this device's firmware speaks a different provisioning format — update it")
 
+	// ErrPanicked is a RECOVERED panic from the Bluetooth library, reported as
+	// a failed run rather than being allowed to end the process. See the
+	// recover in Provision for the day that mattered.
+	ErrPanicked = errors.New("bleprov: the Bluetooth layer failed unexpectedly — try the setup again")
+
 	// ErrBusy means another provisioning run holds the radio. One at a time:
 	// the device refuses a second central while a transfer is in flight, and
 	// so does this.
@@ -315,6 +320,20 @@ type Result struct {
 func (c *Central) Provision(ctx context.Context, address string, rec Record, onProgress func(Progress)) (res *Result, err error) {
 	defer rec.Wipe()
 
+	// A PANIC HERE MUST NOT KILL THE AGENT. Everything below this line calls
+	// into CoreBluetooth through cgo via a third-party library, and that
+	// library panics on values it hands back itself (see the zero-Device note
+	// under Connect). A failed setup should cost the owner a retry, never the
+	// whole daemon and every quota reading with it.
+	defer func() {
+		if r := recover(); r != nil {
+			c.logger.Error("bleprov: recovered from a panic during provisioning",
+				"recovered", fmt.Sprint(r))
+			res = nil
+			err = ErrPanicked
+		}
+	}()
+
 	stream, err := Encode(rec)
 	if err != nil {
 		return nil, err
@@ -350,7 +369,33 @@ func (c *Central) Provision(ctx context.Context, address string, rec Record, onP
 	if err != nil {
 		return nil, fmt.Errorf("bleprov: connect: %w", err)
 	}
+	// CONNECT CAN RETURN A ZERO DEVICE WITH A NIL ERROR. Observed 2026-09-07
+	// against a device that had just been reflashed, so the bond macOS still
+	// held no longer matched it: Connect reported success, handed back
+	// bluetooth.Device{}, and the next call panicked inside the library —
+	//
+	//   panic: tinygo.org/x/bluetooth.Device.DiscoverServices(gattc_darwin.go:38)
+	//
+	// which then re-panicked in the deferred Disconnect and took the WHOLE
+	// DAEMON down. launchd restarted it, so the dashboard simply showed the
+	// run vanishing with no error.
+	if dev == (bluetooth.Device{}) {
+		// Stage, not a device code: the device never answered, so blaming its
+		// Wi-Fi would be a lie. In practice this is a bond this Mac still holds
+		// for a device that has been reflashed since — the pairing no longer
+		// matches, and CoreBluetooth reports success while handing back
+		// nothing.
+		return nil, ErrBondLost
+	}
 	defer func() {
+		// The library panics on a zero or already-torn-down device, and a
+		// panic in a deferred call during another failure is unrecoverable at
+		// the call site. Cleanup must never be the thing that kills us.
+		defer func() {
+			if r := recover(); r != nil {
+				c.logger.Warn("bleprov: disconnect panicked", "recovered", fmt.Sprint(r))
+			}
+		}()
 		if derr := dev.Disconnect(); derr != nil {
 			c.logger.Warn("bleprov: disconnect", "err", derr)
 		}

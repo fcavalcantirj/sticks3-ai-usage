@@ -34,6 +34,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 	"time"
@@ -204,7 +205,7 @@ func (p *bleProvisioner) ProvisionProgress(ctx context.Context, addr string, rep
 		}
 	})
 	if err != nil {
-		return err
+		return bleStageFor(err)
 	}
 	p.logger.Info("ble setup: device applied the record",
 		"chunks", res.Chunks, "stream_bytes", res.Stream, "elapsed", res.Elapsed)
@@ -263,4 +264,28 @@ func (p *bleProvisioner) CurrentNetwork(ctx context.Context) (string, bool) {
 		return "", false
 	}
 	return ssid, err == nil
+}
+
+// bleStageFor tags a transport failure with the STAGE it happened at, so the
+// dashboard can say something true instead of the generic sentence.
+//
+// Device errors are left alone: *bleprov.DeviceError implements
+// api.ProvisionCoded and carries the device's own error number, which
+// internal/api renders far better than a stage could. This maps only the
+// failures that happen on THIS side, before or instead of the device ever
+// answering — where a stage is all there is to say.
+func bleStageFor(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, bleprov.ErrAdapterUnavailable), errors.Is(err, bleprov.ErrNoDevice):
+		return &api.ProvisionFailure{Stage: api.StageScan}
+	case errors.Is(err, bleprov.ErrBondLost), errors.Is(err, bleprov.ErrPairingTimeout):
+		return &api.ProvisionFailure{Stage: api.StagePair}
+	case errors.Is(err, bleprov.ErrPanicked):
+		return &api.ProvisionFailure{Stage: api.StageConnect}
+	default:
+		// Includes *bleprov.DeviceError, which api classifies by its own code.
+		return err
+	}
 }

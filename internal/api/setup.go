@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -550,12 +551,7 @@ func (s *setup) runProvision(ctx context.Context, cancel context.CancelFunc, gen
 	defer s.wg.Done()
 	defer cancel()
 
-	var err error
-	if p, ok := s.prov.(ProgressProvisioner); ok {
-		err = p.ProvisionProgress(ctx, addr, func(step string) { s.recordStep(gen, step) })
-	} else {
-		err = s.prov.Provision(ctx, addr)
-	}
+	err := s.callProvisioner(ctx, gen, addr)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -586,6 +582,32 @@ func (s *setup) runProvision(ctx context.Context, cancel context.CancelFunc, gen
 	// Provisioner logs its own detail under its own rules.
 	s.logger.Warn("setup: provisioning failed",
 		"name", s.run.Name, "stage", fail.Stage, "device_code", fail.DeviceCode)
+}
+
+// callProvisioner runs the Provisioner and turns a PANIC INTO AN ERROR.
+//
+// A PROVISIONER MUST NOT BE ABLE TO KILL THE AGENT. runProvision runs in its
+// own goroutine, where an unrecovered panic takes the whole process down — and
+// on 2026-09-07 one did: the BLE library panicked on a zero device it had
+// itself handed back, launchd restarted the daemon, and the dashboard showed
+// the run simply vanish with no error at all. Every quota reading went with it.
+//
+// Returning an error rather than recovering at the call site keeps the outcome
+// on the one path that records it, so a panic reaches the owner exactly like
+// any other failed run. internal/bleprov recovers too; this is the belt to that
+// brace, because Provisioner is a public interface and the next implementation
+// will not remember.
+func (s *setup) callProvisioner(ctx context.Context, gen int64, addr string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Error("setup: provisioner panicked", "recovered", fmt.Sprint(r))
+			err = &ProvisionFailure{Stage: StageApply}
+		}
+	}()
+	if p, ok := s.prov.(ProgressProvisioner); ok {
+		return p.ProvisionProgress(ctx, addr, func(step string) { s.recordStep(gen, step) })
+	}
+	return s.prov.Provision(ctx, addr)
 }
 
 // recordStep honours a progress report from the Provisioner. An unrecognised

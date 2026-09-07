@@ -949,3 +949,52 @@ func TestSetupRoutesStillRefuseTheLAN(t *testing.T) {
 		t.Errorf("POST %s from the LAN with no token = %d, want 401", setupScanPath, rec.Code)
 	}
 }
+
+// panickingProvisioner is what the real BLE library did on 2026-09-07: it
+// panicked from inside a provisioning run.
+type panickingProvisioner struct{ fakeProvisioner }
+
+func (p *panickingProvisioner) Provision(context.Context, string) error {
+	panic("bluetooth: nil device")
+}
+
+// TestAPanickingProvisionerDoesNotKillTheAgent.
+//
+// runProvision runs in its own goroutine, so an unrecovered panic there ends
+// the PROCESS. That is not theoretical: tinygo's bluetooth library returned a
+// zero Device with a nil error, panicked on the next call, panicked again in
+// the deferred Disconnect, and took the whole daemon down. launchd restarted
+// it, so from the dashboard the run just vanished — no error, no failure, every
+// quota reading gone with it.
+//
+// A failed setup must cost a retry, never the agent.
+func TestAPanickingProvisionerDoesNotKillTheAgent(t *testing.T) {
+	fake := &panickingProvisioner{fakeProvisioner{found: []FoundDevice{
+		{Addr: setupDeviceOne, Name: "ai-usage-D534", RSSI: -40},
+	}}}
+	rig := newSetupRig(t, fake, &fake.fakeProvisioner)
+	rig.scan(t)
+
+	rec := rig.do(http.MethodPost, setupProvisionPath, `{"addr":"`+setupDeviceOne+`"}`, setupLoopback, setupDashToken)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("provision: status = %d, want 202", rec.Code)
+	}
+	rig.setup.wg.Wait() // if the panic escaped, the test binary is already dead
+
+	// And it must be REPORTED, not silently swallowed.
+	var got map[string]any
+	body := rig.do(http.MethodGet, setupPath, "", setupLoopback, "").Body.Bytes()
+	if err := json.Unmarshal(body, &got); err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	run, _ := got["run"].(map[string]any)
+	if run == nil {
+		t.Fatal("no run recorded after the provisioner panicked")
+	}
+	if run["state"] != "failed" {
+		t.Errorf("run state = %v, want failed", run["state"])
+	}
+	if run["error"] == nil || run["error"] == "" {
+		t.Error("a panic produced no error sentence for the owner")
+	}
+}

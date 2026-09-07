@@ -105,6 +105,22 @@ THINGS THAT GO WRONG, AND WHAT THEY ACTUALLY MEAN
   power-cycle the stick, then scan again. Bluetooth does not come back without
   a restart: the firmware releases the radio's memory permanently to give it
   back to the rest of the system.
+- The device is advertising (its screen says so) but scans find nothing, and
+  forgetting the Bluetooth bond did not help — the Mac's Bluetooth session has
+  wedged. Restart the daemon: `launchctl kickstart -k
+  gui/$(id -u)/com.fcavalcanti.ai-usage`, wait ~15s, scan again. This is a real
+  CoreBluetooth behaviour, not a guess; it happened during development and a
+  restart fixed it immediately.
+- Pairing times out with "timeout on Write()" in the log, or the device never
+  appears in a scan after being REFLASHED — this Mac still holds a pairing for
+  it. Reflashing wipes the device's half of the bond, so the two no longer
+  agree, and a known-but-unpairable peripheral stops appearing in scans
+  entirely. Tell me to remove it: System Settings > Bluetooth > find the
+  ai-usage device > Forget This Device. No amount of retrying fixes this on its
+  own, and the "press the blue button and look again" message is misleading here.
+- The device's boot line says `vbus=0` — it is on battery, not USB power, and
+  will deep-sleep within about 19 seconds. It advertises briefly and then
+  vanishes, so scans miss it. Ask me to check the cable actually carries power.
 - Setup routes return 401 — you are not calling from this Mac. Requests from
   localhost need no token; anything else does.
 - The device joins Wi-Fi but never fetches — check that the daemon is bound to
