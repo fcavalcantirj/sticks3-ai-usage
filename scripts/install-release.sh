@@ -31,6 +31,7 @@ LOG_DIR="${HOME}/Library/Logs/usaged"
 CONFIG_DIR="${HOME}/.config/usaged"
 GID="$(id -u)"
 PORT="${USAGED_PORT:-8765}"
+TOKEN_FILE="${HOME}/.config/usaged/device-token"
 
 [ -f "$BIN_SRC" ] || { echo "FAIL: usaged binary not found next to this script"; exit 1; }
 
@@ -62,13 +63,37 @@ echo "-- installed ${BIN_DST}"
     [ -f "${HERE}/config.example.yaml" ] && cp "${HERE}/config.example.yaml" "${CONFIG_DIR}/config.example.yaml"
 }
 
-# 3. LaunchAgent, generated for THIS home directory.
+# 3. A device token, generated once and kept.
 #
-# It binds 127.0.0.1 and sets NO device token, which is deliberate and is what
-# makes a no-configuration install work: loopback GETs and the /v1/setup routes
-# need no token, and the agent REFUSES to start on a non-loopback address
-# without one. Someone who later wants the dashboard reachable from their phone
-# sets USAGED_LISTEN and USAGED_DEVICE_TOKEN in this file.
+# THE AGENT MUST BIND THE LAN, NOT LOOPBACK, OR THE STICK CANNOT REACH IT.
+# That is the whole point of the product: the device fetches over Wi-Fi. An
+# earlier version of this installer bound 127.0.0.1 and the setup flow failed
+# outright with "the agent listens on loopback only, so the device could never
+# reach it" (internal/bleprov/creds.go ErrLoopbackOnly).
+#
+# Binding the LAN requires a real token — api.New refuses a non-loopback listen
+# without one, deliberately, so nobody exposes their usage data to the network
+# by accident. So the installer MINTS one instead of asking the user for it.
+# They never need to see it: loopback GETs and the /v1/setup routes skip the
+# token, so the dashboard and device setup work untouched, and the device is
+# given its own token over Bluetooth.
+#
+# It is generated ONCE and reused on upgrade — regenerating would silently
+# orphan every device already provisioned against the old value.
+if [ -s "$TOKEN_FILE" ]; then
+    TOKEN="$(cat "$TOKEN_FILE")"
+    echo "-- reusing the existing device token"
+else
+    # 16 random bytes as 32 hex chars. NOT `tr -dc ... | head -c 32`: head
+    # closes the pipe, tr dies of SIGPIPE, and `set -e` then kills the whole
+    # installer after the binary is already copied — which is exactly how this
+    # went out broken the first time.
+    TOKEN="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+    ( umask 077; printf '%s' "$TOKEN" > "$TOKEN_FILE" )
+    echo "-- generated a device token (${TOKEN_FILE})"
+fi
+
+# 4. LaunchAgent, generated for THIS home directory.
 #
 # PATH is spelled out because launchd gives a process almost none, and both
 # `security` (the Keychain, for the Claude token) and the claude/codex CLIs must
@@ -104,14 +129,16 @@ cat > "$PLIST" <<PLIST_EOF
     <key>PATH</key>
     <string>${HOME}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>USAGED_LISTEN</key>
-    <string>127.0.0.1:${PORT}</string>
+    <string>0.0.0.0:${PORT}</string>
+    <key>USAGED_DEVICE_TOKEN</key>
+    <string>${TOKEN}</string>
   </dict>
 </dict>
 </plist>
 PLIST_EOF
 echo "-- wrote ${PLIST}"
 
-# 4. Start.
+# 5. Start.
 launchctl bootstrap "gui/${GID}" "$PLIST"
 launchctl kickstart -k "gui/${GID}/${LABEL}" 2>/dev/null || true
 
@@ -132,6 +159,10 @@ for _ in $(seq 1 60); do
         echo "        and click \"Look for a device\". Everything the stick needs is"
         echo "        sent over Bluetooth — if macOS asks for six digits, they are on"
         echo "        the stick's own screen."
+        echo
+        echo "   The dashboard is also on your LAN at http://$(ipconfig getifaddr en0 2>/dev/null || echo '<this-mac>'):${PORT}"
+        echo "   — that is how the stick reaches it. Anything other than this Mac"
+        echo "   needs the token in ${TOKEN_FILE}."
         echo
         echo "   Logs:      ${LOG_DIR}/usaged.err.log"
         echo "   Uninstall: launchctl bootout gui/${GID}/${LABEL} && rm -f \"${PLIST}\" \"${BIN_DST}\""
