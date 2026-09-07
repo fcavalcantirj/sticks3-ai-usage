@@ -55,12 +55,30 @@ func (k macOSKeyStore) Get(ctx context.Context, id string) (string, bool, error)
 	return strings.TrimSpace(string(out)), true, nil
 }
 
-// Set runs `security add-generic-password -U -s usaged -a <id> -w`, piping the
-// key on stdin so it never appears in the process table.
+// Set runs `security add-generic-password -U -s usaged -a <id> -w <key>`.
+//
+// THE KEY IS AN ARGUMENT, NOT STDIN, AND THAT IS NOT A STYLE CHOICE. This
+// previously piped the key on stdin to keep it out of the process table, which
+// reads well and does not work: `security` reads a bare -w from the TTY via
+// readpassphrase(), never from stdin. With no terminal it prompts, gets
+// nothing, and stores an EMPTY password while exiting 0 —
+//
+//	$ printf 'VALUE' | security add-generic-password -U -s probe -a x -w
+//	password data for new item: retype password for new item: passwords don't match
+//	$ security find-generic-password -s probe -a x -w
+//	(empty)
+//
+// So every key ever set through the dashboard was silently discarded: the API
+// answered ok, the page said "Key stored in Keychain", and key_state stayed
+// not_set forever. Nothing caught it because every test used FakeKeyStore.
+//
+// THE TRADEOFF, STATED: an argument is visible in `ps` for the lifetime of the
+// call. On a single-user Mac, for a few milliseconds, that is a far smaller
+// problem than a credential store that does not store. TestMacOSKeyStoreRoundTrip
+// exercises the real thing so this cannot regress into looking correct again.
 func (k macOSKeyStore) Set(ctx context.Context, id, key string) error {
 	cmd := exec.CommandContext(ctx, "security", "add-generic-password",
-		"-U", "-s", keychainService, "-a", id, "-w")
-	cmd.Stdin = strings.NewReader(key)
+		"-U", "-s", keychainService, "-a", id, "-w", key)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("keychain set %s: %w: %s", id, err, strings.TrimSpace(string(out)))
 	}
