@@ -386,3 +386,56 @@ Every claim labelled, with its evidence inline:
 - `[TEST]` — passed in `make verify` / `make fw-test` only. Never sufficient on
   its own for anything crossing a process boundary.
 - `[UNVERIFIED]` — reasoned but not executed, and said so.
+
+---
+
+## Amendment 2026-09-07 — after approval
+
+Three corrections, found while folding this plan into the task ledger. The body
+above is left as delivered; these supersede it where they conflict.
+
+**1. The tasks live in `spec.json`, not a separate file.** They were first
+written to a new `tasks.json` at the repo root, which nothing in the repo
+pointed at — `AGENTS.md:106` says "One task at a time, in `spec.json` ledger
+order" and `CLAUDE.md:3` said "Start at `spec.json` task 75". An agent obeying
+the house rules would never have seen them. Felipe's call: fold them into
+`spec.json` as **tasks 85-92** and delete `tasks.json`. Two ledgers holding the
+same task list is the same second-spelling defect this round exists to kill.
+Step 1 of the plan is now spec task 85, step 2 is 86, step 3 splits into 87
+(dashboard + API) and 88 (firmware), step 4 is 89, step 5 is 90, step 6 is 91,
+and a closing verification task is 92.
+
+**2. Corrected spec citation.** The plan and the first draft of the tasks cited
+"spec task 46" for the `enabled: false` rule. Wrong. The rule is in **task 47**
+(array index 46), whose Verify step reads verbatim: "`enabled: false` drops the
+provider from the snapshot and changes the rev." `AUDIT.md` said "task index 46"
+and was right; the misreading was mine. Task 47 is `passes: true` on a criterion
+the code has never honoured — completing task 85 makes it honestly true, and 47
+is not flipped by anything in this round.
+
+Related, and not in the plan body: spec task 47 also documents the `alerts:`
+schema with the single `quota_warn_pct: 95` key, and requires that schema to
+appear "in the file's own header comment and in README". So the two-threshold
+change must update **`README.md` as well as `config.example.yaml`**, or task
+47's own criterion starts describing a schema that no longer exists.
+
+**3. The alerts change makes the dashboard QUIETER at 95-99%.** Step 2 of the
+plan replaces the page's own `maxPct >= 80` / `>= 95` thresholds with a render
+of `p.severity`. What the plan did not record is the consequence: today
+`index.html:1723-1724` labels ≥95% **"Critical"** while `format.Severity`
+classes 95-99 as **warn** — so the dashboard and the StickS3 currently disagree
+about the same number, the page shouting where the device shows only an amber
+label. After the change, 96% renders "Watch" on the page, matching the device.
+That is a unification, not a regression, and the page still becomes much louder
+below it (warn moves from 95 down to 70 for 5h and 60 for weekly).
+
+If the red banner should fire before 100%, that needs a **third** knob — a crit
+percentage — which is not in this plan and must not be invented while
+implementing task 86. `bannerTier` is `0 none, 2 crit` by construction
+(`firmware/src/usage/render_plan.h:52`, `render_plan.cpp:313-314`), so warn has
+never drawn a banner and this round does not change that.
+
+**Correction to a claim made in review:** spec task 77 (SoftAP captive portal)
+was described as covering the `portal.cpp` copy that task 88 edits. Its steps
+name no such criterion — only the shared "WHY THIS EXISTS" block and the
+2026-09-06 spike amendment. The overlap is the same file, not a named criterion.

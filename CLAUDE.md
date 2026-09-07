@@ -1,12 +1,21 @@
 # usaged — AI usage monitor (M5StickS3 + Mac agent)
 
-**Status: ACTIVE. Start at `spec.json` task 75 — the provisioning spike.**
+**Status: ACTIVE. Start at `spec.json` task 85 — the prod-readiness group.**
 
-84 tasks, 78 passing. Everything the device does today is built and confirmed on
-hardware. The open work is one group: Wi-Fi provisioning (tasks 75-79), so a
-stranger can set up a StickS3 without a cable, a build step, or an edited file —
-and so the firmware stops carrying credentials (see "Do not publish a firmware
-build" below). Task 83 (task-hub rows) is deferred by decision; leave it.
+92 tasks, 80 passing. `spec.json` is both the acceptance ledger and the
+executable build order: take the first entry with `passes: false`.
+
+The device works. A stranger can flash from M5Burner, run one curl command and
+click once to set it up — proven end to end on hardware, 2026-09-07. What is not
+ready is everything around it: an audit found twenty confirmed findings and the
+dashboard still renders controls wired to nothing. **The open work is tasks
+85-92: fix those until nothing on the page lies.** Every one of them comes from
+`docs/handovers/2026-09-07-prod-readiness/` — read `AUDIT.md` there for the
+reproduction command behind each.
+
+Outside that group: task 77 (SoftAP captive portal) is still open, and task 83
+(task-hub rows) is deferred by decision — leave it. Tasks 78 and 79 are being
+WITHDRAWN by 87, 90 and 91 rather than built, on Felipe's 2026-09-07 call.
 
 ### You are both planner and builder
 
@@ -25,16 +34,22 @@ defects:
 - **A task whose verify step names Felipe does not flip to `passes: true` until
   he says so.** Not when the tests pass, not when it looks right on your screen.
 
-### Do task 75 before writing any of 76-79
+### The one thing to understand about tasks 85-92
 
-Tasks 76-79 are fully specced but rest on five assumptions that are documented
-rather than measured — can the portal stack fit, can it scan while the AP is up,
-does the captive sheet actually pop, does M5Burner already inject credentials we
-could read, is a reboot needed to leave AP mode. **Four separate defects on
-2026-09-06 had exactly that shape** (see the facts below): documented behaviour
-that was wrong on the hardware. Task 75 measures all five and then amends 76-79
-to match. Q4 is the one that could delete work rather than add it — answer it
-early.
+Every bug shipped on 2026-09-07 had the same root cause:
+
+> **Anything that crossed a boundary out of the process was replaced by a fake
+> in tests, so the real path was never executed once.**
+
+The keychain had a `FakeKeyStore` and never stored a key. The dashboard was
+grepped for id strings and never parsed, so a blank page shipped. The Device
+Wi-Fi card was tested on the Go side while **no firmware side existed at all**.
+Nine of them, in one day.
+
+So a fix is not done until the REAL thing has run: the binary, the endpoint, the
+log, the wire. Not a fake, not a unit test, not a green build. Every task in
+85-92 carries a `Verify:` step naming the live command and its expected output
+for exactly that reason — a green `make verify` never satisfies one on its own.
 
 ## Read these first, in this order
 

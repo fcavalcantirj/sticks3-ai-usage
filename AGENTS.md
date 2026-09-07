@@ -103,10 +103,10 @@ dependency fails the task.
 
 ## Loop rules
 
-One task at a time, in `spec.json` ledger order. Each task ends by running its own Verify steps.
+One task at a time, in `spec.json` ledger order: take the first entry with `passes: false` whose description is NOT prefixed `[WITHDRAWN]`, `[DEFERRED]` or `[BLOCKED`. Those three are not yours to run. Each task ends by running its own Verify steps.
 `passes` is flipped to true only on real evidence. `progress.txt` is append-only.
 Every firmware task: fresh-clone build check (`git clone . /tmp/c && make verify-all`).
-Every task: read the last 20 room messages before starting.
+There is no Solvr room and no relay — you report to Felipe directly.
 
 ## Status
 
