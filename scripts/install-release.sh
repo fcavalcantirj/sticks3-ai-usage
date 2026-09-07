@@ -31,7 +31,7 @@ LOG_DIR="${HOME}/Library/Logs/ai-usage"
 CONFIG_DIR="${HOME}/.config/ai-usage"
 GID="$(id -u)"
 PORT="${USAGED_PORT:-8765}"
-TOKEN_FILE="${HOME}/.config/usaged/device-token"
+TOKEN_FILE="${CONFIG_DIR}/device-token"   # derived, never a second copy of the path
 
 [ -f "$BIN_SRC" ] || { echo "FAIL: ai-usage binary not found next to this script"; exit 1; }
 
