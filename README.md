@@ -17,9 +17,23 @@ balances. BtnA cycles pages; the bar across the bottom is an alert.</em></p>
 
 ## Install (macOS)
 
-1. Download the latest `usaged-*-darwin-universal.tar.gz` from
-   [Releases](https://github.com/fcavalcantirj/sticks3-ai-usage/releases).
-2. Unpack it and run the installer:
+```sh
+curl -fsSL https://raw.githubusercontent.com/fcavalcantirj/sticks3-ai-usage/main/install.sh | bash
+```
+
+Then open <http://127.0.0.1:8765>. Nothing to configure, no key to paste.
+
+It downloads the latest release, checks it against the published `SHA256SUMS`,
+and installs a LaunchAgent that starts at login. [Read the script first][inst]
+if you would rather not pipe something to a shell unread — it is short, and so
+is the installer it unpacks.
+
+[inst]: install.sh
+
+<details>
+<summary>Prefer to download it by hand?</summary>
+
+Grab the tarball from [Releases](https://github.com/fcavalcantirj/sticks3-ai-usage/releases), then:
 
 ```sh
 tar -xzf usaged-*-darwin-universal.tar.gz
@@ -27,16 +41,21 @@ cd usaged-*-darwin-universal
 ./install.sh
 ```
 
-3. Open <http://127.0.0.1:8765>.
+**A browser download trips Gatekeeper.** The binary is not notarized — that
+needs a paid Apple Developer Program certificate this project does not have —
+so macOS marks it quarantined and refuses to run it. The installer clears that
+flag on a file you chose to download. The one-liner above avoids this entirely:
+`curl` never sets the quarantine attribute. Or build from source with
+`make build`.
 
-There is nothing to configure and no key to paste.
+</details>
 
-**Why macOS asks whether you trust it.** The binary is not notarized —
-notarizing needs a paid Apple Developer Program certificate this project does
-not have — so a browser download is quarantined and Gatekeeper blocks it. The
-installer clears that flag on a file you chose to download. If you would rather
-not take that on faith, read `install.sh` first (it is short), or build from
-source with `make build`.
+**Uninstall:**
+
+```sh
+launchctl bootout gui/$(id -u)/com.fcavalcanti.usaged
+rm -f ~/Library/LaunchAgents/com.fcavalcanti.usaged.plist ~/.local/bin/usaged
+```
 
 ## Where the numbers come from
 
