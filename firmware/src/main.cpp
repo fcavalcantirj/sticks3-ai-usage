@@ -22,6 +22,7 @@
 #include "hal/sticks3/creds.h"
 #include "hal/sticks3/fetch.h"
 #include "hal/sticks3/net.h"
+#include "hal/sticks3/portal.h"
 #include "hal/sticks3/power.h"
 #include "hal/sticks3/screen.h"
 #include "usage/model.h"
@@ -138,6 +139,13 @@ static uint32_t g_lastFetchMs = 0;      // millis() at last 200 fetch
 RTC_DATA_ATTR uint32_t g_effectiveAgeAtSleep = 0; // full effective age at last powerSleep()
 RTC_DATA_ATTR uint32_t g_rtcSleepStartSec = 0;    // RTC epoch sec at powerSleep entry (task 65)
 RTC_DATA_ATTR bool g_justSlept = false;           // true after powerSleep(), consumed on wake
+
+// --- provisioning (tasks 76/77) ----------------------------------------------
+// The single place the portal-vs-join decision is made.  The rule lives in the
+// pure core (usage/provision.h) and is host-tested, so a device that is half
+// configured raises the setup portal instead of retrying a configuration that
+// cannot work — the failure that would otherwise need a USB cable to escape.
+static usage::provision::Machine g_provision;
 
 // --- helpers ----------------------------------------------------------------
 
@@ -696,14 +704,28 @@ void setup() {
                   (unsigned)creds.port);
     serialLine(buf);
 
-    if (provisioned) {
+    // The machine, not this function, decides between joining and the portal —
+    // the same edge that will send a device back to the portal after N failed
+    // joins has to agree with the one a cold boot takes.
+    if (g_provision.onBoot(provisioned) == usage::provision::State::Joining) {
         fetchConfigure(creds);
         netBegin(creds);
     } else {
-        // Task 77 raises the SoftAP captive portal here.  Until then the device
-        // simply says so rather than retrying a half-configuration forever —
-        // which is exactly the failure the completeness rule exists to prevent.
-        serialLine("[CREDS] unprovisioned — portal required (task 77)");
+        // Task 77: no usable record, so the device raises its own access point
+        // and asks.  A portal on a dark screen is useless and a timer wake on
+        // battery deliberately leaves the backlight off (ORDER #60) — but an
+        // unprovisioned device has nothing to save power for, so light it.
+        if (!lightScreen) {
+            g_brightCtrl.setLevel(sticks3::loadBrightness());
+            setBrightness(g_brightCtrl.rawLevel());
+            g_currentBrightness = g_brightCtrl.rawLevel();
+        }
+        serialLine("[CREDS] unprovisioned — raising the setup portal");
+        if (!portalBegin(creds)) {
+            char err[64];
+            usage::fmtErr(err, sizeof(err), "portal failed to start");
+            serialLine(err);
+        }
     }
 
     // Initialise activity timers so the 30-min dim and 60-s heap watchdog
@@ -719,6 +741,34 @@ void setup() {
 void loop() {
     M5.update();
     uint32_t now = nowMs();
+
+    // Task 77: while the portal is up it owns the radio and the whole pass —
+    // the same shape the OTA branch below uses.  It must come BEFORE
+    // netUpdate(), which would otherwise re-issue WiFi.begin() with the empty
+    // credentials every 30 s and tear the access point out from under the
+    // phone; and it must skip the sleep decision, because a device being set
+    // up by hand cannot deep-sleep mid-conversation.
+    if (portalActive()) {
+        portalUpdate(now);
+        if (portalOutcome() == PortalOutcome::Joined) {
+            // DECISION (task 77 asks for it explicitly): the AP-to-station
+            // transition is a REBOOT, not a live mode switch.  Both work — the
+            // spike measured WiFi.mode(WIFI_STA) from AP_STA returning true
+            // with the station connection untouched — but a restart lands the
+            // device on the ordinary provisioned boot path (credsLoad,
+            // fetchConfigure, netBegin, OTA armed) with no second wiring to
+            // keep correct, and cold boot to fully operational was measured at
+            // 3 s.  The NVS write happened before the join, and a write
+            // immediately before a restart was measured to survive it.
+            serialLine("[PORTAL] provisioned — restarting");
+            portalEnd();
+            ESP.restart();
+        }
+        heapWatchdog(now);
+        delay(1);
+        return;
+    }
+
     netUpdate(now);
 
     // Drive OTA — may block for the duration of a chunk.  While an OTA

@@ -31,6 +31,8 @@ type Server struct {
 	keystore   creds.KeyStore
 	getenv     func(string) string // defaults to os.Getenv; injectable for tests
 	rateLimit  *rateLimiter        // guards the /v1/keys endpoints (ORDER #52 task 57)
+	pairing    *pairing            // device pairing window + issued tokens (task 78)
+	netcfg     *netcfg             // device-directed Wi-Fi changes (task 79)
 	logger     *slog.Logger
 	start      time.Time
 	tracker    *clientTracker // per-client /v1/usage access log (ORDER #58 task 61)
@@ -101,9 +103,22 @@ func New(s *sched.Scheduler, cfg config.Config, configPath string, logger *slog.
 	mux.HandleFunc("PUT /v1/config/interval", srv.handleSetInterval)
 	mux.HandleFunc("POST /v1/keys", srv.handleSetKey)
 	mux.HandleFunc("DELETE /v1/keys", srv.handleDeleteKey)
+
+	// Device pairing (task 78). The routes and their two deliberately
+	// different auth models live in pairing.go; /v1/pair/claim is the one
+	// endpoint auth.go exempts from the token requirement.
+	srv.pairing = newPairing(pairedDevicesPath(cfg.StatePath), time.Now, logger)
+	srv.pairing.routes(mux)
+
+	// Device network configuration (task 79). A SEPARATE channel from the
+	// snapshot on purpose: /v1/usage is hashed into rev, so device-bound
+	// config there would churn rev and force redraws. See netcfg.go.
+	srv.netcfg = newNetcfg(time.Now, logger)
+	srv.netcfg.routes(mux)
+
 	mux.HandleFunc("/", srv.handleNotFound)
 
-	handler := newAuth(cfg, logger).middleware(mux)
+	handler := newAuth(cfg, srv.pairing, logger).middleware(mux)
 
 	return &http.Server{
 		Addr:              cfg.Listen,

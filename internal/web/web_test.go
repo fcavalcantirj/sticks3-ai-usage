@@ -1,6 +1,7 @@
 package web
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -252,5 +253,111 @@ func TestIndexHTMLCanProbe(t *testing.T) {
 	}
 	if !strings.Contains(html, "p.can_probe") {
 		t.Error(`index.html missing p.can_probe reference`)
+	}
+}
+
+// TestIndexHTMLPairingCard verifies the Settings tab carries the pairing
+// control (task 78): a button to open the window, a field for the code that
+// the DEVICE shows, and the three endpoints behind them.
+func TestIndexHTMLPairingCard(t *testing.T) {
+	html := string(IndexHTML)
+	for _, want := range []string{
+		`id="pair-card"`,
+		`id="pair-open-btn"`,
+		`id="pair-code-field"`,
+		`id="pair-confirm-btn"`,
+		`id="pair-status"`,
+		`id="pair-devices"`,
+		`"/v1/pair/open"`,
+		`"/v1/pair/confirm"`,
+		`"/v1/pair"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("index.html missing pairing element %q", want)
+		}
+	}
+}
+
+// TestIndexHTMLPairingNeverShowsTheCode is the page-side half of the rule the
+// API enforces: the pairing code lives on the DEVICE screen, which is what
+// makes typing it proof of physical possession. The dashboard must never
+// render a code or a token it received from the agent.
+func TestIndexHTMLPairingNeverShowsTheCode(t *testing.T) {
+	html := string(IndexHTML)
+	// code_len and token_len are fine — they are lengths. A bare .code or
+	// .token read off a pairing response is not.
+	leak := regexp.MustCompile(`\b(js|pair|status)\.(code|token)\b`)
+	if m := leak.FindString(html); m != "" {
+		t.Errorf("index.html reads %q from the pairing API — the code and token must never reach the page", m)
+	}
+}
+
+// TestIndexHTMLWifiCard verifies the Settings tab carries the Wi-Fi control
+// (task 79): where the device is now, fields to change it, the cancel escape
+// hatch, and the three endpoints behind them.
+func TestIndexHTMLWifiCard(t *testing.T) {
+	html := string(IndexHTML)
+	for _, want := range []string{
+		`id="wifi-card"`,
+		`id="wifi-current"`,
+		`id="wifi-ssid-field"`,
+		`id="wifi-pass-field"`,
+		`id="wifi-open-check"`,
+		`id="wifi-apply-btn"`,
+		`id="wifi-cancel-btn"`,
+		`id="wifi-status"`,
+		`id="wifi-notice"`,
+		`"/v1/netcfg"`,
+		`sendWifi`,
+		`cancelWifi`,
+		`loadWifi`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("index.html missing Wi-Fi element %q", want)
+		}
+	}
+	// The password field must be a password input, and must never be
+	// pre-filled from a server response.
+	if !strings.Contains(html, `type="password" id="wifi-pass-field"`) {
+		t.Error(`the Wi-Fi password field is not type="password"`)
+	}
+}
+
+// TestIndexHTMLWifiPasswordIsWriteOnly is the page-side half of the rule the
+// API enforces: the Wi-Fi password goes out with PUT /v1/netcfg and is never
+// read back. The page must not render one from any response body — writing it
+// INTO an outgoing payload (payload.password) is the one legitimate use.
+func TestIndexHTMLWifiPasswordIsWriteOnly(t *testing.T) {
+	html := string(IndexHTML)
+	leak := regexp.MustCompile(`\b(js|resp|cfg|status|change|pending|last|device)\.password\b`)
+	if m := leak.FindString(html); m != "" {
+		t.Errorf("index.html reads %q from a response — the Wi-Fi password is write-only", m)
+	}
+	// The value the page DOES render is the label pair, not the credential.
+	for _, want := range []string{"password_state", "password_source"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("index.html missing %q — the page must say whether a password is set and where it lives", want)
+		}
+	}
+}
+
+// TestIndexHTMLWifiSaysItIsNotInstant verifies the page tells the user the two
+// things this feature can surprise them with: the change lands on the device's
+// next check-in, and a bad password takes the device briefly offline with the
+// recovery shown on the DEVICE screen (the portal AP drops any phone on it the
+// moment the device retries the join — measured on hardware, 2026-09-06).
+func TestIndexHTMLWifiSaysItIsNotInstant(t *testing.T) {
+	html := string(IndexHTML)
+	for _, want := range []string{
+		"js.notice",
+		"js.recovery",
+		"wifi-notice",
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("index.html missing %q — the latency and recovery wording comes from the server", want)
+		}
+	}
+	if !strings.Contains(html, "Check the device screen") {
+		t.Error("index.html never points the user at the device screen when a join fails")
 	}
 }

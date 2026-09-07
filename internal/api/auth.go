@@ -26,17 +26,22 @@ import (
 // The token is checked before the handler reads or parses the body, so an
 // unauthenticated caller learns nothing about the payload shape. Requests
 // with a body must have Content-Type: application/json.
+//
+// A valid token is EITHER the configured USAGED_DEVICE_TOKEN or a per-device
+// token this agent issued through pairing (task 78, pairing.go).
 type Auth struct {
 	cfg    config.Config
+	paired *pairing // issued per-device tokens; nil disables that half
 	logger *slog.Logger
 }
 
-// newAuth creates an Auth middleware from config.
-func newAuth(cfg config.Config, logger *slog.Logger) *Auth {
+// newAuth creates an Auth middleware from config. paired may be nil, in which
+// case only the configured device token authenticates.
+func newAuth(cfg config.Config, paired *pairing, logger *slog.Logger) *Auth {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Auth{cfg: cfg, logger: logger}
+	return &Auth{cfg: cfg, paired: paired, logger: logger}
 }
 
 // middleware wraps next with device-token enforcement. Public paths are never
@@ -68,6 +73,34 @@ func (a *Auth) middleware(next http.Handler) http.Handler {
 			return
 		}
 
+		// PAIRING — TWO DELIBERATELY DIFFERENT AUTH MODELS (task 78). Do not
+		// "fix" this by requiring a token here: an unpaired device has no
+		// credential to send, so that would make pairing impossible.
+		//
+		//  (1) POST /v1/pair/claim is DEVICE-FACING and necessarily
+		//      UNAUTHENTICATED. Its authorisation is the PAIRING WINDOW, which
+		//      only Felipe can open from the token-protected dashboard — the
+		//      open window IS the human consent the token would otherwise
+		//      stand in for. pairing.go enforces the rest: LAN-only (private,
+		//      non-loopback peer), rate-limited, one device per window, single
+		//      use, closed on first success or on timeout.
+		//  (2) POST /v1/pair/open and POST /v1/pair/confirm are
+		//      DASHBOARD-FACING and mutating, so ORDER #54 applies unchanged
+		//      below: the device token is required even from loopback.
+		//
+		// The JSON content-type is still enforced, so a form-encoded
+		// cross-site POST bounces here rather than reaching the handler.
+		if r.Method == http.MethodPost && r.URL.Path == pairClaimPath {
+			if r.ContentLength > 0 && !isJSONContentType(r.Header.Get("Content-Type")) {
+				writeJSON(w, http.StatusUnsupportedMediaType, map[string]string{
+					"ok": "false", "error": "Content-Type must be application/json",
+				})
+				return
+			}
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		// Mutating methods require the token even on loopback (ORDER #54).
 		isMutating := r.Method == http.MethodPost ||
 			r.Method == http.MethodPut ||
@@ -85,7 +118,7 @@ func (a *Auth) middleware(next http.Handler) http.Handler {
 		if token == "" {
 			token = r.URL.Query().Get("token")
 		}
-		if !validToken(token, a.cfg.DeviceToken) {
+		if !a.validAnyToken(token) {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"ok": "false", "error": "unauthorized"})
 			return
 		}
@@ -126,6 +159,17 @@ func isJSONContentType(ct string) bool {
 	}
 	mediaType := strings.TrimSpace(strings.Split(ct, ";")[0])
 	return mediaType == "application/json"
+}
+
+// validAnyToken accepts the configured device token OR any per-device token
+// issued through pairing (task 78). Both halves are constant-time, and both
+// are evaluated so the answer does not depend on which one matched.
+func (a *Auth) validAnyToken(got string) bool {
+	ok := validToken(got, a.cfg.DeviceToken)
+	if a.paired != nil && a.paired.matchToken(got) {
+		ok = true
+	}
+	return ok
 }
 
 // validToken compares the provided token against the expected one using

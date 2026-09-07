@@ -251,6 +251,23 @@
     }
     .settings-card select { width: 160px; }
     .settings-card input[type="number"] { width: 120px; }
+    #pair-code-field {
+      padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); font-size: 14px;
+      width: 210px; text-transform: uppercase; letter-spacing: 3px;
+    }
+    #pair-code-field:disabled { opacity: 0.5; }
+    #pair-status { display: block; }
+    #pair-devices { display: block; font-size: 11px; }
+    #wifi-card input[type="text"],
+    #wifi-card input[type="password"] {
+      padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); font-size: 13px; width: 200px;
+    }
+    #wifi-card input:disabled { opacity: 0.5; }
+    #wifi-card .toggle-label { min-width: 0; font-size: 12px; color: var(--muted); }
+    #wifi-current, #wifi-status, #wifi-notice { display: block; }
+    #wifi-notice { font-size: 11px; line-height: 1.5; }
 
     /* --- Mobile --- */
     @media (max-width: 959px) {
@@ -354,6 +371,60 @@
       <div class="row">
         <button id="save-config-btn">Save settings</button>
         <span id="settings-status" class="info" style="margin-left:10px;"></span>
+      </div>
+
+      <!-- Pair a device (task 78). The device token is ISSUED here instead of
+           being compiled into the firmware. The 6-character code appears on the
+           DEVICE SCREEN and nowhere else: this page never receives it, which is
+           what makes typing it proof that you are holding the device. -->
+      <div class="settings-card" id="pair-card">
+        <div class="card-header"><span class="card-title">Pair a device</span></div>
+        <div class="row">
+          <span id="pair-status" class="info">Checking&hellip;</span>
+        </div>
+        <div class="row row-inner">
+          <button id="pair-open-btn">Open pairing window</button>
+          <input type="text" id="pair-code-field" maxlength="8" autocomplete="off"
+                 spellcheck="false" placeholder="Code on the device" disabled>
+          <button id="pair-confirm-btn" disabled>Confirm code</button>
+        </div>
+        <div class="row">
+          <span id="pair-devices" class="info"></span>
+        </div>
+      </div>
+
+      <!-- Device Wi-Fi (task 79). The everyday case: move an already-reachable
+           device to a different network. The captive portal on the device
+           bootstraps one that has never joined anything; this maintains one
+           that has.
+
+           THE PASSWORD FIELD IS ALWAYS BLANK ON LOAD, AND THAT IS CORRECT. The
+           password is write-only through this page: it is sent once with
+           PUT /v1/netcfg and never read back, exactly like a provider key.
+           GET /v1/netcfg reports only whether one is set and WHERE the value
+           lives (the key_state / key_source convention). -->
+      <div class="settings-card" id="wifi-card">
+        <div class="card-header"><span class="card-title">Device Wi-Fi</span></div>
+        <div class="row">
+          <span id="wifi-current" class="info">Checking&hellip;</span>
+        </div>
+        <div class="row row-inner">
+          <input type="text" id="wifi-ssid-field" maxlength="32" autocomplete="off"
+                 spellcheck="false" placeholder="Network name (SSID)">
+          <input type="password" id="wifi-pass-field" maxlength="64"
+                 autocomplete="new-password" placeholder="Password">
+          <label class="toggle-label" for="wifi-open-check">
+            <input type="checkbox" id="wifi-open-check"> open network
+          </label>
+        </div>
+        <div class="row row-inner">
+          <button id="wifi-apply-btn">Send to device</button>
+          <button id="wifi-cancel-btn" class="btn-small" style="display:none;">Cancel pending change</button>
+          <span id="wifi-status" class="info"></span>
+        </div>
+        <div class="row">
+          <span id="wifi-notice" class="info"></span>
+        </div>
       </div>
     </div>
   </div>
@@ -903,6 +974,8 @@ function loadSettings() {
   fetch("/v1/config", { headers: authHeaders() })
     .then(function(r) { if (r.status === 401) { showTokenInput(); return null; } return r.ok ? r.json() : null; })
     .then(function(cfg) { if (cfg) renderSettings(cfg); });
+  refreshPairStatus();
+  loadWifi();
 }
 
 // ---- Key management ----
@@ -937,6 +1010,299 @@ function removeKey(pid) {
     alert("Key removed for " + pid);
     loadSettings();
   });
+}
+
+// ---- Device pairing (task 78) ----
+//
+// A publishable firmware binary carries no credentials, so the device is GIVEN
+// its token: open a short-lived window here, the device shows a 6-character
+// code on its own screen, type that code, and the agent hands the device a
+// token of its own.
+//
+// This page never sees the code and never sees the token. GET /v1/pair reports
+// the state of the window only — the code lives on the device screen (that is
+// what makes typing it proof of physical possession) and the token goes
+// straight to the device.
+
+var pairTimer = 0;
+var pairPrevState = "";   // so the "paired" moment can be reported once
+
+function openPairWindow() {
+  var headers = authHeaders();
+  headers["Content-Type"] = "application/json";
+  fetch("/v1/pair/open", { method: "POST", headers: headers, body: "{}" })
+    .then(function(r) { if (r.status === 401) { showTokenInput(); return null; } return r.json(); })
+    .then(function(js) {
+      if (!js) return;
+      renderPairStatus(js);
+      startPairPolling();
+    });
+}
+
+function confirmPairCode() {
+  var field = document.getElementById("pair-code-field");
+  var code = (field.value || "").trim();
+  if (!code) return;
+  var headers = authHeaders();
+  headers["Content-Type"] = "application/json";
+  fetch("/v1/pair/confirm", { method: "POST", headers: headers, body: JSON.stringify({ code: code }) })
+    .then(function(r) { if (r.status === 401) { showTokenInput(); return null; } return r.json(); })
+    .then(function(js) {
+      if (!js) return;
+      if (js.ok) {
+        field.value = "";
+        setPairMessage("Code accepted. Waiting for the device to collect its token\u2026", true);
+      } else {
+        setPairMessage(js.error || "That code was not accepted.", false);
+      }
+      startPairPolling();
+    });
+}
+
+function refreshPairStatus() {
+  fetch("/v1/pair", { headers: authHeaders() })
+    .then(function(r) { if (r.status === 401) { showTokenInput(); return null; } return r.ok ? r.json() : null; })
+    .then(function(js) { if (js) renderPairStatus(js); });
+}
+
+function renderPairStatus(js) {
+  var field = document.getElementById("pair-code-field");
+  var confirmBtn = document.getElementById("pair-confirm-btn");
+  var openBtn = document.getElementById("pair-open-btn");
+  var waiting = js.state === "claimed";
+  var wasDisabled = field.disabled;
+  var msg;
+
+  if (js.state === "idle" && pairPrevState === "approved") {
+    // The window closes the instant the device collects its token, so this is
+    // the only moment the page can report success.
+    msg = "Paired. The device has a token of its own and will start fetching.";
+  } else if (js.state === "open") {
+    msg = "Window open, " + fmtCountdown(js.expires_in_sec) +
+          " left. Power on the device and wait for its code to appear.";
+  } else if (js.state === "claimed") {
+    msg = "A device at " + ((js.device && js.device.peer) || "the LAN") + " is showing a " +
+          (js.code_len || 6) + "-character code. Type it here \u2014 " +
+          fmtCountdown(js.expires_in_sec) + " left.";
+  } else if (js.state === "approved") {
+    msg = "Code accepted. Waiting for the device to collect its token\u2026";
+  } else {
+    msg = "No pairing window is open. Open one, then power on the device \u2014 " +
+          "the window closes after " + fmtCountdown(js.window_ttl_sec || 180) + ".";
+  }
+  setPairMessage(msg, true);
+
+  field.disabled = !waiting;
+  confirmBtn.disabled = !waiting;
+  openBtn.textContent = js.state === "idle" ? "Open pairing window" : "Restart pairing window";
+  // Focus only on the transition into "type the code now", never on every
+  // poll — otherwise the cursor is yanked back every two seconds.
+  if (waiting && wasDisabled) field.focus();
+
+  renderPairDevices(js.devices);
+  pairPrevState = js.state;
+  if (js.state === "idle") stopPairPolling();
+}
+
+function renderPairDevices(devices) {
+  var el = document.getElementById("pair-devices");
+  if (!devices || !devices.length) {
+    el.textContent = "No device has been paired yet.";
+    return;
+  }
+  var parts = devices.map(function(d) {
+    return esc(d.name ? d.name + " (" + d.id + ")" : d.id) + " \u00b7 paired " + fmtTime(d.issued_at);
+  });
+  el.innerHTML = "Paired: " + parts.join(" \u00b7 ");
+}
+
+function setPairMessage(msg, ok) {
+  var el = document.getElementById("pair-status");
+  el.textContent = msg;
+  el.style.color = ok ? "var(--muted)" : "var(--crit)";
+}
+
+function fmtCountdown(sec) {
+  sec = Math.max(0, parseInt(sec || 0, 10));
+  var m = Math.floor(sec / 60), s = sec % 60;
+  return m + ":" + (s < 10 ? "0" : "") + s;
+}
+
+// The window is short-lived, so poll while one is in flight and stop as soon
+// as it closes — no timer runs when there is nothing to watch.
+function startPairPolling() {
+  stopPairPolling();
+  pairTimer = setInterval(refreshPairStatus, 2000);
+}
+
+function stopPairPolling() {
+  if (pairTimer) { clearInterval(pairTimer); pairTimer = 0; }
+}
+
+// ---- Device Wi-Fi (task 79) ----
+//
+// The everyday case: move an already-reachable device to a different network.
+// The captive portal on the device bootstraps one that has never joined
+// anything; this page maintains one that has.
+//
+// THE PASSWORD IS WRITE-ONLY THROUGH THIS PAGE. It goes out once with
+// PUT /v1/netcfg and is never read back — GET /v1/netcfg reports only whether
+// one is set and WHERE the value lives, so the field is blank on every load by
+// design. Nothing here ever renders a credential it received from the agent.
+//
+// The change lands on the device's NEXT check-in, not instantly, and the
+// wording for that (and for the recovery path) comes from the server: a curl of
+// the endpoint gets the same answer this page shows.
+
+var wifiTimer = 0;
+
+// loadWifi refreshes the card. msg, when given, replaces the status line after
+// the render — that is how a one-off note from a DELETE survives the reload.
+function loadWifi(msg) {
+  fetch("/v1/netcfg", { headers: authHeaders() })
+    .then(function(r) { if (r.status === 401) { showTokenInput(); return null; } return r.ok ? r.json() : null; })
+    .then(function(js) {
+      if (!js) return;
+      renderWifi(js);
+      if (msg) setWifiStatus(msg, false);
+    });
+}
+
+function renderWifi(js) {
+  document.getElementById("wifi-current").innerHTML = wifiCurrentHtml(js);
+  document.getElementById("wifi-notice").textContent =
+    (js.notice || "") + " " + (js.recovery || "");
+
+  var pending = js.pending;
+  document.getElementById("wifi-cancel-btn").style.display = pending ? "inline-block" : "none";
+
+  if (pending) {
+    var head = pending.delivered > 0
+      ? "The device has collected this change and is joining "
+      : "Waiting for the device to pick this up: ";
+    setWifiStatus(head + pending.ssid + " \u2014 expires in " +
+                  fmtCountdown(pending.expires_in_sec) + ".", true);
+    startWifiPolling();
+  } else {
+    setWifiStatus(wifiOutcomeText(js.last), wifiOutcomeOk(js.last));
+    stopWifiPolling();
+  }
+}
+
+// wifiCurrentHtml names the network the DEVICE says it is on — the agent only
+// ever sees an IP, so this is the device's own report, not an observation.
+function wifiCurrentHtml(js) {
+  var d = js.device;
+  var where;
+  if (d && d.ssid) {
+    where = "Device is on <span class=\"env-name\">" + esc(d.ssid) + "</span>";
+    if (d.state && d.state !== "connected") where += " (" + esc(d.state) + ")";
+    where += " \u00b7 reported " + (d.seconds_since || 0) + "s ago";
+  } else if (d) {
+    where = "The device checked in but did not name its network";
+  } else {
+    where = "No device has reported its network yet";
+  }
+  return where + " \u00b7 " + wifiPasswordLabel(js);
+}
+
+// wifiPasswordLabel follows the key_state / key_source convention the provider
+// cards use: whether a password is set, and WHERE the value actually lives.
+// It never implies this page holds one.
+function wifiPasswordLabel(js) {
+  var st = js.password_state || "not_set";
+  var src = js.password_source || "none";
+  if (src === "pending-change") {
+    return st === "set"
+      ? "<span class=\"key-state-set\">Password set</span> in the pending change \u2014 held in memory here until the device collects it"
+      : "Open network staged \u2014 no password";
+  }
+  if (src === "device") {
+    return st === "set"
+      ? "<span class=\"key-state-set\">Password set</span> on the device (NVS) \u2014 never sent to this page"
+      : "Open network \u2014 no password";
+  }
+  return "Password unknown until the device reports in";
+}
+
+// wifiOutcomeText explains what became of the last change. A change that
+// simply vanished from the page would read as a broken feature, and the
+// failure cases are the ones a user most needs spelled out.
+function wifiOutcomeText(last) {
+  if (!last) return "No change pending.";
+  var s = last.state;
+  var net = last.ssid || "that network";
+  if (s === "applied")    return "Applied \u2014 the device joined " + net + ".";
+  if (s === "failed")     return "The device could not join " + net + " and fell back" +
+                                 (last.error ? " (" + last.error + ")" : "") +
+                                 ". Check the device screen if it did not come back.";
+  if (s === "stalled")    return "The device collected the change for " + net +
+                                 " but never confirmed it, so nothing further was sent. Check the device screen.";
+  if (s === "expired")    return "The change for " + net + " expired before the device collected it.";
+  if (s === "cancelled")  return "The change for " + net + " was cancelled.";
+  if (s === "superseded") return "The change for " + net + " was replaced by a newer one.";
+  return "No change pending.";
+}
+
+function wifiOutcomeOk(last) {
+  return !last || (last.state !== "failed" && last.state !== "stalled");
+}
+
+function sendWifi() {
+  var ssidEl = document.getElementById("wifi-ssid-field");
+  var passEl = document.getElementById("wifi-pass-field");
+  var openEl = document.getElementById("wifi-open-check");
+  var ssid = (ssidEl.value || "").trim();
+  if (!ssid) { setWifiStatus("Enter the network name.", false); return; }
+
+  // The agent validates (GOLDEN_RULES #3) — this only avoids a pointless round
+  // trip on an obviously empty form.
+  var payload = { ssid: ssid, open: openEl.checked };
+  if (!openEl.checked) payload.password = passEl.value;
+
+  var headers = authHeaders();
+  headers["Content-Type"] = "application/json";
+  var btn = document.getElementById("wifi-apply-btn");
+  btn.disabled = true;
+  fetch("/v1/netcfg", { method: "PUT", headers: headers, body: JSON.stringify(payload) })
+    .then(function(r) { if (r.status === 401) { showTokenInput(); return null; } return r.json(); })
+    .then(function(js) {
+      if (!js) return;
+      if (!js.ok) { setWifiStatus(js.error || "The change was refused.", false); return; }
+      // The credential does not stay in the DOM once it has been sent.
+      passEl.value = "";
+      loadWifi();
+    })
+    .catch(function(err) { setWifiStatus("Send failed: " + err.message, false); })
+    .finally(function() { btn.disabled = false; });
+}
+
+function cancelWifi() {
+  fetch("/v1/netcfg", { method: "DELETE", headers: authHeaders() })
+    .then(function(r) { if (r.status === 401) { showTokenInput(); return null; } return r.json(); })
+    .then(function(js) {
+      if (!js) return;
+      if (!js.ok) { setWifiStatus(js.error || "Nothing to cancel.", false); return; }
+      // js.note appears when the device already had it: cancelling cannot
+      // recall a change the device is acting on right now.
+      loadWifi(js.note || "");
+    });
+}
+
+function setWifiStatus(msg, ok) {
+  var el = document.getElementById("wifi-status");
+  el.textContent = msg;
+  el.style.color = ok ? "var(--muted)" : "var(--crit)";
+}
+
+// Poll only while a change is in flight, so no timer runs with nothing to watch.
+function startWifiPolling() {
+  if (wifiTimer) return;
+  wifiTimer = setInterval(function() { loadWifi(); }, 5000);
+}
+
+function stopWifiPolling() {
+  if (wifiTimer) { clearInterval(wifiTimer); wifiTimer = 0; }
 }
 
 // ---- Tab handling ----
@@ -1406,6 +1772,23 @@ function init() {
   document.getElementById("token-save").addEventListener("click", saveToken);
   document.getElementById("interval-select").addEventListener("change", saveInterval);
   document.getElementById("save-config-btn").addEventListener("click", saveSettings);
+  document.getElementById("pair-open-btn").addEventListener("click", openPairWindow);
+  document.getElementById("pair-confirm-btn").addEventListener("click", confirmPairCode);
+  document.getElementById("pair-code-field").addEventListener("keydown", function(e) {
+    if (e.key === "Enter") confirmPairCode();
+  });
+  document.getElementById("wifi-apply-btn").addEventListener("click", sendWifi);
+  document.getElementById("wifi-cancel-btn").addEventListener("click", cancelWifi);
+  document.getElementById("wifi-open-check").addEventListener("change", function() {
+    var passEl = document.getElementById("wifi-pass-field");
+    passEl.disabled = this.checked;
+    if (this.checked) passEl.value = "";
+  });
+  ["wifi-ssid-field", "wifi-pass-field"].forEach(function(id) {
+    document.getElementById(id).addEventListener("keydown", function(e) {
+      if (e.key === "Enter") sendWifi();
+    });
+  });
   // Polling intervals are derived from currentInterval so the
   // interval selector applies without a page reload.
   reloadIntervals();

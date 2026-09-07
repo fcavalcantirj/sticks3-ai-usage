@@ -162,7 +162,11 @@ for _ in $(seq 1 20); do
     sleep 0.25
 done
 STATS_BODY=$(curl -s "${SCENARIO_BASE}/")
-if ! echo "$STATS_BODY" | grep -q 'heatmap-codex'; then
+# Match in-shell rather than through a pipe. The dashboard passed 64 KiB when
+# the Wi-Fi card landed (task 79), and `echo … | grep -q` then races the pipe
+# buffer: grep matches at offset ~16 KB and exits, echo dies with EPIPE, and
+# `set -o pipefail` reports that as a missing element. Reproduced 2 runs in 5.
+if [[ "$STATS_BODY" != *heatmap-codex* ]]; then
     echo "FAIL: stats-demo dashboard missing heatmap-codex id"
     kill "$STATS_PID" 2>/dev/null || true
     wait "$STATS_PID" 2>/dev/null || true
