@@ -911,7 +911,7 @@
       "Q5 — REBOOT OR RUNTIME SWITCH? Determine whether going from AP to station mode needs a reboot or can be done live, and whether NVS writes survive it cleanly. A reboot is perfectly acceptable during setup and much simpler; confirm it rather than assume it, and confirm the credentials written just before the reboot are actually there after it.",
       "Verify: this task produces a WRITTEN ANSWER to each of Q1-Q5 posted in the room and appended to docs/DEVICES.md, with measured numbers rather than expectations — flash and RAM delta, scan success rate, per-platform captive behaviour, the M5Burner finding, and the transition result. Then AMEND tasks 76-79 to match what was learned, and say explicitly which assumptions survived and which did not. The spike branch or scratch sketch is then deleted. Nothing in 76-79 starts until these answers exist — that is the entire point."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "firmware",
