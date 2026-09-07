@@ -157,7 +157,14 @@ bool credsSeedFromSecretsIfEmpty() {
 
     usage::provision::Record seed;
     usage::provision::clear(seed);
-#ifdef WIFI_SSID
+#if defined(USAGED_BAD_SSID)
+    // TEST ONLY, never in a normal build. Seeds an SSID that cannot exist so
+    // the join keeps failing, which is the only way to exercise the
+    // five-failures-to-portal edge in main.cpp without waiting for someone's
+    // real network to change. Build with:
+    //   PLATFORMIO_BUILD_FLAGS=-DUSAGED_BAD_SSID=1 pio run
+    copyField(seed.ssid, usage::provision::kMaxSsid, "ai-usage-no-such-net");
+#elif defined(WIFI_SSID)
     copyField(seed.ssid, usage::provision::kMaxSsid, WIFI_SSID);
 #endif
 #ifdef WIFI_PASS

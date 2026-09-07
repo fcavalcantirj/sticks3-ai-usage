@@ -148,6 +148,29 @@ RTC_DATA_ATTR bool g_justSlept = false;           // true after powerSleep(), co
 // cannot work — the failure that would otherwise need a USB cable to escape.
 static usage::provision::Machine g_provision;
 
+// --- join failure -> portal, the edge that makes a changed password survivable
+//
+// THE MACHINE EXISTED FOR THIS AND WAS NEVER ASKED. g_provision.onBoot() was
+// its only call site, so the N-failures-to-Portal edge its own header calls
+// "the entire reason this machine exists" never fired. A device whose network
+// moved or whose password changed retried WiFi.begin() every 30 s forever: BLE
+// does not advertise once provisioned, the portal never came up, and the only
+// way back was a USB cable and a factory reset — precisely the failure this
+// whole group of work set out to remove.
+//
+// A DROP IS NOT A FAILURE. Losing a network that was working is not evidence
+// the credentials are wrong, so it goes to onConnectionLost() and counts
+// nothing; only attempts that have never succeeded count. That distinction is
+// the machine's, not this file's — see provision.h.
+//
+// The cadence matches net.cpp, which re-issues WiFi.begin() every 30 s, so one
+// evaluation is one real attempt. Five of them is about two and a half minutes
+// before the setup AP appears.
+static const uint32_t kJoinAttemptMs = 30000;
+
+static bool     g_everConnected = false;  // a join has succeeded this boot
+static uint32_t g_lastJoinEval  = 0;      // when a failed attempt was last counted
+
 // --- BLE zero-config setup ---------------------------------------------------
 // BLE FIRST, THE PORTAL AS A TIMED FALLBACK — never both at once.  Both radios
 // share one 2.4 GHz front end, and the portal is the most timing-fragile code
@@ -215,6 +238,10 @@ static bool     g_bleEngaged      = false;  // a central has connected at least 
 // record alive in a file-static for the rest of the boot would be a habit worth
 // not forming.
 static void raiseSetupPortal() {
+    // Stop the station FIRST. A join still in flight starves the scan the
+    // portal depends on — see netStop() for the measurement.
+    netStop();
+
     usage::provision::Record rec;
     credsLoad(rec);
     serialLine("[CREDS] raising the setup portal");
@@ -222,6 +249,43 @@ static void raiseSetupPortal() {
         char err[64];
         usage::fmtErr(err, sizeof(err), "portal failed to start");
         serialLine(err);
+    }
+}
+
+// joinWatch feeds join outcomes to g_provision and raises the portal when the
+// machine says a record has stopped being usable. See kJoinAttemptMs above for
+// why this exists and why a dropped connection is treated differently from a
+// join that never worked.
+static void joinWatch(uint32_t now) {
+    if (portalActive() || g_bleSetupRunning) {
+        return;  // setup owns the radio; nothing to judge
+    }
+
+    if (netUp()) {
+        if (!g_everConnected) {
+            g_provision.onJoinResult(true);
+            g_everConnected = true;
+        }
+        g_lastJoinEval = now;
+        return;
+    }
+
+    if (g_everConnected) {
+        // Was working and dropped. Not a credential problem — do not count it.
+        g_provision.onConnectionLost();
+        g_everConnected = false;
+        g_lastJoinEval = now;
+        return;
+    }
+
+    if ((int32_t)(now - g_lastJoinEval) < (int32_t)kJoinAttemptMs) {
+        return;
+    }
+    g_lastJoinEval = now;
+
+    if (g_provision.onJoinResult(false) == usage::provision::State::Portal) {
+        serialLine("[NET] joins keep failing - raising the setup portal");
+        raiseSetupPortal();
     }
 }
 
@@ -808,6 +872,9 @@ void setup() {
     if (g_provision.onBoot(provisioned) == usage::provision::State::Joining) {
         fetchConfigure(creds);
         netBegin(creds);
+        // Start the join clock now, so the first failed attempt is counted a
+        // full interval from the moment we actually began trying.
+        g_lastJoinEval = nowMs();
     } else {
         // Task 77: no usable record, so the device raises its own access point
         // and asks.  A portal on a dark screen is useless and a timer wake on
@@ -940,6 +1007,7 @@ void loop() {
     }
 
     netUpdate(now);
+    joinWatch(now);
 
     // Drive OTA — may block for the duration of a chunk.  While an OTA
     // transfer is in flight, skip fetch/render/sleep entirely and paint

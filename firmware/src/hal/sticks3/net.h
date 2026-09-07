@@ -28,6 +28,20 @@ void netUpdate(uint32_t nowMs);
 // True if Wi-Fi is currently connected (WL_CONNECTED).
 bool netUp();
 
+// Stop the station: cancel any join in flight and the driver's own reconnect,
+// WITHOUT clearing the stored credentials.
+//
+// THE PORTAL CANNOT SCAN WHILE THE STATION IS CHASING A NETWORK THAT IS NOT
+// THERE. AP_STA shares one radio, and a station stuck retrying starves
+// scanNetworks() — every scan comes back failed, so the setup page lists
+// nothing and the recovery path leads somewhere unusable. Observed on hardware
+// 2026-09-07: 17 consecutive "[SCAN] failed" immediately after the portal was
+// raised by repeated join failures.
+//
+// docs/DEVICES.md records the measurement behind this: scanning in AP_STA was
+// proven fine, but only ever with the station CONNECTED.
+void netStop();
+
 // Writes the current local IP into buf (dotted-quad), returns buf.
 // Always NUL-terminated within n bytes.
 const char* netIp(char* buf, size_t n);

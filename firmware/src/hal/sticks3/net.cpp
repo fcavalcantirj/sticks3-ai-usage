@@ -115,6 +115,15 @@ bool netUp() {
     return WiFi.status() == WL_CONNECTED;
 }
 
+void netStop() {
+    // false: leave the radio powered — the portal still needs AP mode.
+    // false: keep the stored credentials, this is not a factory reset.
+    WiFi.disconnect(false, false);
+    g_state = NET_DISCONNECTED;
+    g_lastBegin = 0;
+    emitNet("stopped", nullptr);
+}
+
 const char* netIp(char* buf, size_t n) {
     IPAddress ip = WiFi.localIP();
     std::snprintf(buf, n, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);

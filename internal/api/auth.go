@@ -267,10 +267,3 @@ func refuseStartError(listen string) error {
 		listen,
 	)
 }
-
-// isSetupPath reports whether the path belongs to the one-click BLE setup
-// flow. Exact matches only — no prefix test, so a future /v1/setup-something
-// cannot inherit the loopback exemption by accident.
-func isSetupPath(p string) bool {
-	return p == setupPath || p == setupScanPath || p == setupProvisionPath
-}
