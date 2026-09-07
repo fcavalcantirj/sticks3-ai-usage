@@ -863,10 +863,25 @@ func (s *Server) handleDeleteKey(w http.ResponseWriter, r *http.Request) {
 
 // persistInterval updates interval_sec in the YAML config file in-place.
 func (s *Server) persistInterval(sec int) {
+	if s.configPath == "" {
+		s.logger.Warn("persist interval: no config path; the change will not survive a restart")
+		return
+	}
+	// A MISSING FILE IS THE NORMAL FIRST CASE, NOT AN ERROR. This used to read
+	// before writing and give up when the read failed, so on any install that
+	// had never written a config — which is every fresh install — the interval
+	// was accepted, answered ok, and silently lost on the next restart.
 	text, err := os.ReadFile(s.configPath)
 	if err != nil {
-		s.logger.Warn("persist interval: read config file", "path", s.configPath, "err", err)
-		return
+		if !os.IsNotExist(err) {
+			s.logger.Warn("persist interval: read config file", "path", s.configPath, "err", err)
+			return
+		}
+		text = nil
+		if mkErr := os.MkdirAll(filepathDir(s.configPath), 0o700); mkErr != nil {
+			s.logger.Warn("persist interval: create config dir", "path", s.configPath, "err", mkErr)
+			return
+		}
 	}
 	re := regexp.MustCompile(`(?m)^interval_sec:\s*\d+\s*$`)
 	newLine := fmt.Sprintf("interval_sec: %d", sec)

@@ -71,7 +71,7 @@ type Config struct {
 }
 
 // DefaultConfigFile is the default path for the optional YAML config.
-const DefaultConfigFile = "$HOME/.config/usaged/config.yaml"
+const DefaultConfigFile = "$HOME/.config/ai-usage/config.yaml"
 
 // Load reads configuration in precedence order: defaults, then an optional
 // YAML file (--config or the default path), then environment variables,
@@ -129,17 +129,28 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 	})
 
 	// --- File config (below env, below flags in precedence) ---
+	// Two separate questions, and conflating them was a bug: WHERE the config
+	// file lives, and whether one exists YET.
+	//
+	// ConfigPath is recorded either way, because a settings change has to have
+	// somewhere to go. Previously it was left empty when no file existed, and
+	// internal/api gates every persist on `s.configPath != ""` — so on a fresh
+	// install, where no file exists by definition, every Save answered ok:true
+	// and wrote nothing. That is how "Saved" came to mean nothing.
 	configPath := ""
 	if setFlags["config"] {
 		configPath = *flagConfig
 	} else {
-		defaultConfigPath := strings.ReplaceAll(DefaultConfigFile, "$HOME", home)
-		if _, statErr := os.Stat(defaultConfigPath); statErr == nil {
-			configPath = defaultConfigPath
-		}
+		configPath = strings.ReplaceAll(DefaultConfigFile, "$HOME", home)
 	}
+	cfg.ConfigPath = configPath
 
-	if configPath != "" {
+	// Only READ it if it is actually there. An absent default config is the
+	// normal state, not an error; an absent --config the user named IS one.
+	_, statErr := os.Stat(configPath)
+	readIt := statErr == nil || setFlags["config"]
+
+	if readIt {
 		text, readErr := os.ReadFile(configPath)
 		if readErr != nil {
 			return cfg, fmt.Errorf("config file %s: %w", configPath, readErr)
