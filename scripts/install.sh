@@ -15,17 +15,27 @@ GID=$(id -u)
 # --- Build ---
 make build
 
-# --- Validate config before installing ---
-if [ ! -f .env ]; then
-    echo "FAIL: .env not found."
-    echo "Fix: cp .env.example .env && edit USAGED_DEVICE_TOKEN and USAGED_LISTEN"
-    exit 1
+# --- Config ---
+#
+# A .env is OPTIONAL. Without one, this behaves like the released installer:
+# bind the LAN (the device has to reach us) and mint a device token, so
+# installing from source needs no hand-editing either. With one, it wins —
+# that is the developer lane, and it is how provider API keys get in.
+if [ -f .env ]; then
+    set -a
+    # shellcheck disable=SC1091
+    source .env
+    set +a
+else
+    TOKEN_FILE="$HOME/.config/ai-usage/device-token"
+    mkdir -p "$(dirname "$TOKEN_FILE")"
+    if [ ! -s "$TOKEN_FILE" ]; then
+        ( umask 077; od -An -N16 -tx1 /dev/urandom | tr -d ' \n' > "$TOKEN_FILE" )
+        echo "No .env — generated a device token at $TOKEN_FILE"
+    fi
+    export USAGED_DEVICE_TOKEN="$(cat "$TOKEN_FILE")"
+    export USAGED_LISTEN="${USAGED_LISTEN:-0.0.0.0:8765}"
 fi
-
-# Source .env to validate settings.
-set -a
-source .env
-set +a
 
 TOKEN="${USAGED_DEVICE_TOKEN:-}"
 LISTEN="${USAGED_LISTEN:-0.0.0.0:8765}"
@@ -59,7 +69,53 @@ rm -f "$USAGED_ONCE_PLIST"
 # --- Install LaunchAgent ---
 echo "Installing LaunchAgent..."
 launchctl bootout "gui/${GID}/${PLIST_NAME}" 2>/dev/null || true
-cp "$REPO_DIR/$PLIST_SRC" "$PLIST_DST"
+# Also clear the pre-rename agent, so an upgrade does not leave two running.
+launchctl bootout "gui/${GID}/com.fcavalcanti.usaged" 2>/dev/null || true
+rm -f "$HOME/Library/LaunchAgents/com.fcavalcanti.usaged.plist"
+
+# GENERATED, not copied. launchd needs absolute paths and the checked-in plist
+# cannot know where someone cloned this or who they are — a copied plist works
+# on exactly one machine, which is the bug this whole file exists to avoid.
+mkdir -p "$(dirname "$PLIST_DST")"
+cat > "$PLIST_DST" <<PLIST_EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>${PLIST_NAME}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>-lc</string>
+    <string>exec ${REPO_DIR}/scripts/run.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>${REPO_DIR}</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>${LOG_DIR}/ai-usage.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>${LOG_DIR}/ai-usage.err.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>${HOME}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>USAGED_LISTEN</key>
+    <string>${USAGED_LISTEN:-0.0.0.0:8765}</string>
+    <key>USAGED_DEVICE_TOKEN</key>
+    <string>${USAGED_DEVICE_TOKEN:-}</string>
+  </dict>
+</dict>
+</plist>
+PLIST_EOF
 launchctl bootstrap "gui/${GID}" "$PLIST_DST"
 launchctl kickstart -k "gui/${GID}/${PLIST_NAME}" 2>/dev/null || true
 

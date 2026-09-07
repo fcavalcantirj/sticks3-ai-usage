@@ -17,6 +17,13 @@ balances. BtnA cycles pages; the bar across the bottom is an alert.</em></p>
 
 ## Install (macOS)
 
+**Have an AI agent do it.** Paste [this prompt](docs/AGENT_PROMPT.md) into Claude
+Code, Codex CLI, Cursor — anything that can run shell commands. It installs the
+daemon, sets up the stick, walks you through the one moment you are needed, and
+checks its own work instead of trusting what a command printed.
+
+Or do it yourself:
+
 ```sh
 curl -fsSL https://raw.githubusercontent.com/fcavalcantirj/sticks3-ai-usage/main/install.sh | bash
 ```
@@ -29,6 +36,23 @@ if you would rather not pipe something to a shell unread — it is short, and so
 is the installer it unpacks.
 
 [inst]: install.sh
+
+<details>
+<summary>Build from source</summary>
+
+Needs Go 1.26+. No `.env` and no configuration:
+
+```sh
+git clone https://github.com/fcavalcantirj/sticks3-ai-usage
+cd sticks3-ai-usage
+make install
+```
+
+It builds, generates a device token, writes a LaunchAgent for your paths, and
+starts. A `.env` is optional and only for development — if one exists it wins,
+and it is how provider API keys get in.
+
+</details>
 
 <details>
 <summary>Prefer to download it by hand?</summary>
