@@ -67,7 +67,7 @@ var (
 // question is one entry of a message's question section. class is kept RAW,
 // QU bit included, because the responder has to look at that bit.
 type question struct {
-	name  string // fully qualified, with the trailing dot ("usaged.local.")
+	name  string // fully qualified, with the trailing dot ("ai-usage.local.")
 	qtype uint16
 	class uint16
 }

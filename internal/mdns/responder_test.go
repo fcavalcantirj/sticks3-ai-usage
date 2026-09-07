@@ -21,7 +21,7 @@ type fakePacket struct {
 
 // fakeConn stands in for a joined multicast socket. Nothing in this file
 // touches the network: AGENTS.md rule 3 applies to the mDNS group as much as
-// to an HTTP endpoint, and a test process that announced usaged.local. on the
+// to an HTTP endpoint, and a test process that announced ai-usage.local. on the
 // developer's LAN would be a real bug.
 type fakeConn struct {
 	mu       sync.Mutex
@@ -281,7 +281,7 @@ func TestReadLoopAnswersAQueryToTheGroup(t *testing.T) {
 	r.wg.Add(1)
 	go r.readLoop(r.conns[0])
 
-	buf, err := query("usaged.local.", typeA).pack()
+	buf, err := query("ai-usage.local.", typeA).pack()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -295,7 +295,7 @@ func TestReadLoopAnswersAQueryToTheGroup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unpack reply: %v", err)
 	}
-	a, ok := findRecord(reply.answers, "usaged.local.", typeA)
+	a, ok := findRecord(reply.answers, "ai-usage.local.", typeA)
 	if !ok {
 		t.Fatalf("no A record: %+v", reply.answers)
 	}
@@ -310,7 +310,7 @@ func TestReadLoopAnswersALegacyQueryByUnicast(t *testing.T) {
 	r.wg.Add(1)
 	go r.readLoop(r.conns[0])
 
-	q := query("_usaged._tcp.local.", typePTR)
+	q := query("_ai-usage._tcp.local.", typePTR)
 	q.id = 0x4242
 	buf, err := q.pack()
 	if err != nil {
@@ -349,7 +349,7 @@ func TestReadLoopIgnoresGarbage(t *testing.T) {
 	fc.reads <- fakePacket{payload: []byte("not a dns message"), addr: src}
 	fc.reads <- fakePacket{payload: []byte{}, addr: src}
 
-	good, err := query("usaged.local.", typeA).pack()
+	good, err := query("ai-usage.local.", typeA).pack()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -386,7 +386,7 @@ func TestAnnouncesOnStartAndSaysGoodbyeOnClose(t *testing.T) {
 		if m.flags&flagResponse == 0 || m.flags&flagAuthoritative == 0 {
 			t.Errorf("announcement %d flags = %#04x, want QR and AA", i, m.flags)
 		}
-		if a, ok := findRecord(m.answers, "usaged.local.", typeA); !ok || a.ttl == 0 {
+		if a, ok := findRecord(m.answers, "ai-usage.local.", typeA); !ok || a.ttl == 0 {
 			t.Errorf("announcement %d carries no live A record", i)
 		}
 	}
@@ -438,7 +438,7 @@ func TestSendFailureIsNotFatal(t *testing.T) {
 	r.wg.Add(1)
 	go r.readLoop(r.conns[0])
 
-	buf, err := query("usaged.local.", typeA).pack()
+	buf, err := query("ai-usage.local.", typeA).pack()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -457,11 +457,11 @@ func TestSendFailureIsNotFatal(t *testing.T) {
 
 func TestInstanceLabelFromHostname(t *testing.T) {
 	cases := map[string]string{
-		"test-mac.local":            "usaged-test-mac",
-		"Felipes MacBook Pro.local": "usaged-Felipes-MacBook-Pro",
-		"...":                       "usaged",
-		"":                          "usaged",
-		strings.Repeat("z", 200):    "usaged-" + strings.Repeat("z", maxLabel-len(HostLabel)-1),
+		"test-mac.local":            "ai-usage-test-mac",
+		"Felipes MacBook Pro.local": "ai-usage-Felipes-MacBook-Pro",
+		"...":                       "ai-usage",
+		"":                          "ai-usage",
+		strings.Repeat("z", 200):    "ai-usage-" + strings.Repeat("z", maxLabel-len(HostLabel)-1),
 	}
 	for host, want := range cases {
 		r := newResponder(slog.Default())
@@ -486,7 +486,7 @@ func TestInstanceLabelIsAlwaysAValidLabel(t *testing.T) {
 		if len(label) > maxLabel {
 			t.Errorf("instanceLabel(%q) is %d bytes, over the %d-byte DNS label limit", host, len(label), maxLabel)
 		}
-		if _, err := appendName(nil, label+"._usaged._tcp.local."); err != nil {
+		if _, err := appendName(nil, label+"._ai-usage._tcp.local."); err != nil {
 			t.Errorf("instanceLabel(%q) = %q does not encode: %v", host, label, err)
 		}
 	}

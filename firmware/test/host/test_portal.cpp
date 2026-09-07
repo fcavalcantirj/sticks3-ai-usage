@@ -81,7 +81,7 @@ PageInput basePage() {
     in.networks = nullptr;
     in.count = 0;
     in.scan = ScanState::Ok;
-    in.apSsid = "usaged-D534";
+    in.apSsid = "ai-usage-D534";
     in.host = "usaged.local";
     in.port = kDefaultPort;
     in.notice = nullptr;
@@ -126,7 +126,7 @@ Submission minimalSubmission() {
 TEST(portal_ap_ssid_is_usaged_plus_last_two_mac_bytes) {
     ApIdentity id;
     apIdentity(kUnit2Mac, id);
-    ASSERT_STREQ(id.ssid, "usaged-D534");
+    ASSERT_STREQ(id.ssid, "ai-usage-D534");
 }
 
 TEST(portal_ap_identity_is_deterministic) {
@@ -305,7 +305,7 @@ TEST(portal_page_carries_every_field_the_device_needs) {
     ASSERT_TRUE(has(page, "-45 dBm"));
     ASSERT_TRUE(has(page, "usaged.local"));   // agent host prefill
     ASSERT_TRUE(has(page, "value=\"8765\"")); // agent port prefill
-    ASSERT_TRUE(has(page, "usaged-D534"));    // which device this is
+    ASSERT_TRUE(has(page, "ai-usage-D534"));    // which device this is
 }
 
 // --- the default form asks for a password and nothing else ---------------------

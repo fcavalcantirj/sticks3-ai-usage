@@ -15,8 +15,8 @@ import (
 const (
 	DefaultListen      = "0.0.0.0:8765"
 	DefaultIntervalSec = 900
-	DefaultStatePath   = "$HOME/.local/state/usaged/state.json"
-	DefaultStatsPath   = "$HOME/.local/state/usaged/stats.json"
+	DefaultStatePath   = "$HOME/.local/state/ai-usage/state.json"
+	DefaultStatsPath   = "$HOME/.local/state/ai-usage/stats.json"
 	DefaultTZ          = "America/Sao_Paulo"
 	MinIntervalSec     = 300
 )
@@ -47,8 +47,8 @@ type Config struct {
 	CodexDir       string // Codex rollout dir (default ~/.codex/sessions/)
 	CodexSource    string // codex data source: "http" (wham/usage) or "cli" (app-server)
 	ClaudeSource   string // claude data source: "auto" (statusline+oauth fallback) or "oauth" or "statusline"
-	StatsIndexPath string // on-disk stats index file (default ~/.local/state/usaged/stats-index.json)
-	StatsPath      string // on-disk stats report (default ~/.local/state/usaged/stats.json)
+	StatsIndexPath string // on-disk stats index file (default ~/.local/state/ai-usage/stats-index.json)
+	StatsPath      string // on-disk stats report (default ~/.local/state/ai-usage/stats.json)
 
 	// Publish target (task 59): after every poll whose rev changed, PUT the
 	// snapshot JSON to PublishURL with Authorization: Bearer <token>. Both
@@ -282,7 +282,7 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 		cfg.CodexDir = expandHome(home, "~/.codex/sessions/")
 	}
 	if cfg.StatsIndexPath == "" {
-		cfg.StatsIndexPath = expandHome(home, "~/.local/state/usaged/stats-index.json")
+		cfg.StatsIndexPath = expandHome(home, "~/.local/state/ai-usage/stats-index.json")
 	}
 
 	// Validation

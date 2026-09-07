@@ -6,7 +6,7 @@ PIO_ENV ?= m5stack-sticks3
 build:
 	@commit=$$(git rev-parse --short HEAD 2>/dev/null || echo none); \
 	mkdir -p bin; \
-	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$$commit" -o bin/usaged ./cmd/usaged
+	go build -ldflags "-X main.version=$(VERSION) -X main.commit=$$commit" -o bin/ai-usage ./cmd/usaged
 
 dist:
 	@# Distributable macOS release: universal binary + installer + checksums.

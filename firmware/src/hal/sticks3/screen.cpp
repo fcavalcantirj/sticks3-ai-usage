@@ -493,6 +493,9 @@ void drawBleSetup(BleProvState state, const char* name, const char* passkey,
             bleCentered(26, 2, TFT_YELLOW, name);
             bleCentered(60, 1, TFT_DARKGREY, "on your Mac, open usaged");
             bleCentered(74, 1, TFT_DARKGREY, "and click Set up");
+            // Someone with no Mac would otherwise stare at this for ten
+            // minutes wondering whether it had hung.
+            bleCentered(96, 1, TFT_DARKGREY, "no Mac? wait for wi-fi setup");
             break;
 
         case BleProvState::Linked:

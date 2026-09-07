@@ -167,7 +167,19 @@ static usage::provision::Machine g_provision;
 // process cannot be reversed"), so BLE does not come back until a reboot.  That
 // is deliberate: the alternative, bleProvEnd(false), leaks the whole BLEServer
 // object graph every time it re-opens.
-static const uint32_t kBleWindowMs = 120000;  // 2 min, then the portal
+// TEN MINUTES, and that number is the whole UX.
+//
+// It was two, and two is useless: measured on a real first run 2026-09-07, the
+// owner has to flash the device, install the daemon, open a browser, find
+// Settings and click — the window had long expired, the stick had already
+// handed over to the captive portal, and three BLE scans from the Mac returned
+// zero devices. The daemon was working perfectly; there was simply nothing
+// left advertising.
+//
+// The cost of a long window falls on the owner who has NO Mac and is waiting
+// for the Wi-Fi portal instead. That wait is dull, but it is a wait — the
+// short window was an outright failure for the primary path.
+static const uint32_t kBleWindowMs = 600000;  // 10 min, then the portal
 
 static bool     g_bleSetupRunning = false;  // main.cpp owns the lifecycle flag
 static uint32_t g_bleDeadlineMs   = 0;      // when Advertising gives up

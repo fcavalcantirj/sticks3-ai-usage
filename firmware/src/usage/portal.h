@@ -67,7 +67,7 @@ namespace portal {
 // read the screen cannot reach the setup page by accident — and that is the
 // bar the task sets.  It is not a secret and must never be treated as one.
 
-// "usaged-" + 4 hex digits of the last two MAC bytes, e.g. "usaged-D534".
+// "ai-usage-" + 4 hex digits of the last two MAC bytes, e.g. "ai-usage-D534".
 // The SSID is PICKED from a list, never typed, so plain hex is fine here.
 inline constexpr size_t kApSsidCap = 15;
 

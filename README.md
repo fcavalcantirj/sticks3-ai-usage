@@ -1,4 +1,4 @@
-# usaged — AI usage on a tiny screen
+# ai-usage — AI usage on a tiny screen
 
 Your Claude Code and Codex quotas on an M5StickS3, and in a local dashboard.
 A small Go daemon runs on your Mac, reads the usage numbers, and the stick
@@ -36,8 +36,8 @@ is the installer it unpacks.
 Grab the tarball from [Releases](https://github.com/fcavalcantirj/sticks3-ai-usage/releases), then:
 
 ```sh
-tar -xzf usaged-*-darwin-universal.tar.gz
-cd usaged-*-darwin-universal
+tar -xzf ai-usage-*-darwin-universal.tar.gz
+cd ai-usage-*-darwin-universal
 ./install.sh
 ```
 
@@ -53,13 +53,13 @@ flag on a file you chose to download. The one-liner above avoids this entirely:
 **Uninstall:**
 
 ```sh
-launchctl bootout gui/$(id -u)/com.fcavalcanti.usaged
-rm -f ~/Library/LaunchAgents/com.fcavalcanti.usaged.plist ~/.local/bin/usaged
+launchctl bootout gui/$(id -u)/com.fcavalcanti.ai-usage
+rm -f ~/Library/LaunchAgents/com.fcavalcanti.ai-usage.plist ~/.local/bin/ai-usage
 ```
 
 ## Where the numbers come from
 
-`usaged` does not ask you for a password and cannot log in on your behalf. It
+`ai-usage` does not ask you for a password and cannot log in on your behalf. It
 **reads credentials that other tools already store**:
 
 | Provider | Source | You need |
@@ -73,7 +73,7 @@ a token — when one expires the page shows a "run claude" badge and nothing els
 
 ## Setting up the stick
 
-Flash the firmware from **M5Burner** (search for `usaged`), then:
+Flash the firmware from **M5Burner** (search for `ai-usage`), then:
 
 1. Power the StickS3 on. It shows a setup screen and advertises over Bluetooth.
 2. In the dashboard, open **Settings** and click **Look for a device**.
@@ -85,7 +85,7 @@ its own address, its port and a token it mints for that device — you type
 nothing but those six digits.
 
 **No Bluetooth?** After two minutes the stick raises its own Wi-Fi network
-instead. Join `usaged-XXXX` from a phone, and a setup page opens by itself.
+instead. Join `ai-usage-XXXX` from a phone, and a setup page opens by itself.
 
 **The firmware carries no credentials.** Wi-Fi details live only in the stick's
 own storage, written during setup — never compiled into the published image.
@@ -104,7 +104,7 @@ own storage, written during setup — never compiled into the published image.
 ```
           ┌────────────┐         ┌──────────┐          ┌──────────┐
           │  Claude    │  token  │          │  JSON v1  │          │
-          │  Code      │ from KC │  usaged  │────────│ snapshot │
+          │  Code      │ from KC │  ai-usage  │────────│ snapshot │
           └────────────┘         │  (Go)     │ ETag/304│  state   │
           ┌────────────┐  token  │           │          │          │
           │  Codex     │ from jc │          │          │  file    │
@@ -128,7 +128,7 @@ open http://127.0.0.1:8765/   # or LAN: http://<mac-ip>:8765/?token=<your-token>
 Or run without installing:
 
 ```sh
-make build && ./bin/usaged serve
+make build && ./bin/ai-usage serve
 # LAN clients: http://<mac-ip>:8765/?token=<your-token>
 ```
 
@@ -136,11 +136,11 @@ make build && ./bin/usaged serve
 
 | Command | Description |
 |---|---|
-| `usaged version` | Print version + commit. |
-| `usaged serve` | Start the poller (900 s) and HTTP API server. |
-| `usaged once [--json]` | Single fetch cycle; prints table or JSON. Exit 0 if all ok/stale, 3 if any auth/error/off. |
-| `usaged once --fixtures DIR` | Offline mode: serve from captured fixtures. |
-| `usaged once --scenario NAME` | Apply a scenario overlay from `testdata/scenarios/NAME/`. |
+| `ai-usage version` | Print version + commit. |
+| `ai-usage serve` | Start the poller (900 s) and HTTP API server. |
+| `ai-usage once [--json]` | Single fetch cycle; prints table or JSON. Exit 0 if all ok/stale, 3 if any auth/error/off. |
+| `ai-usage once --fixtures DIR` | Offline mode: serve from captured fixtures. |
+| `ai-usage once --scenario NAME` | Apply a scenario overlay from `testdata/scenarios/NAME/`. |
 
 ## API
 
@@ -148,7 +148,7 @@ make build && ./bin/usaged serve
 |---|---|---|---|
 | `/healthz` | GET | none (loopback) | `{ok, seq, rev, checked_at, uptime_sec}`. |
 | `/v1/usage` | GET | token (LAN only) | Snapshot JSON v1 with `ETag: "<rev>"`. `If-None-Match` match → `304` (empty body). |
-| `/v1/usage.txt` | GET | token (LAN only) | Human table (same as `usaged once`). |
+| `/v1/usage.txt` | GET | token (LAN only) | Human table (same as `ai-usage once`). |
 | `/v1/refresh` | POST | token (LAN only) | Trigger an immediate poll; `200` if refreshed, `202` if coalescing. |
 | `/` `/index.html` | GET | none (loopback) | Embedded dashboard. |
 

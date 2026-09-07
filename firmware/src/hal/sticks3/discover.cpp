@@ -1,4 +1,4 @@
-// firmware/src/hal/sticks3/discover.cpp — mDNS discovery of the usaged agent.
+// firmware/src/hal/sticks3/discover.cpp — mDNS discovery of the ai-usage agent.
 // See discover.h for the contract and for why MDNS.end() is never called here.
 #include "hal/sticks3/discover.h"
 
@@ -124,12 +124,12 @@ void takeEndpoint(const char* host, uint16_t port, bool fromService) {
     char buf[96];
     std::snprintf(buf, sizeof(buf), "[MDNS] agent=%s:%u src=%s attempt=%u",
                   g_host, (unsigned)g_port,
-                  fromService ? "_usaged._tcp" : "usaged.local",
+                  fromService ? "_ai-usage._tcp" : "ai-usage.local",
                   (unsigned)(g_attempts + 1));
     serialLine(buf);
 }
 
-// PHASE 1 — browse _usaged._tcp.  Blocks ~3 s (ESPmDNS hardcodes that timeout).
+// PHASE 1 — browse _ai-usage._tcp.  Blocks ~3 s (ESPmDNS hardcodes that timeout).
 // Returns true when an endpoint was taken.
 bool browseService() {
     int n = MDNS.queryService(kAgentService, kAgentProto);
@@ -163,7 +163,7 @@ bool browseService() {
     return false;
 }
 
-// PHASE 2 — resolve usaged.local.  Blocks up to kDiscoverHostQueryMs.
+// PHASE 2 — resolve ai-usage.local.  Blocks up to kDiscoverHostQueryMs.
 // Returns true when an endpoint was taken.
 bool resolveHost() {
     IPAddress ip = MDNS.queryHost(kAgentHostLabel, kDiscoverHostQueryMs);

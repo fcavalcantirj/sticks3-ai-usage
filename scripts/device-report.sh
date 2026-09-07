@@ -12,7 +12,7 @@
 # Usage: sh scripts/device-report.sh [rows] [log-path]
 set -eu
 rows=${1:-25}
-log=${2:-$HOME/Library/Logs/usaged/usaged.err.log}
+log=${2:-$HOME/Library/Logs/ai-usage/ai-usage.err.log}
 [ -f "$log" ] || { echo "no log at $log" >&2; exit 1; }
 ROWS="$rows" LOG="$log" python3 - <<'PY'
 import json, os, sys

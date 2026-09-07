@@ -278,7 +278,7 @@ func claudeStatuslinePath() string {
 			home = u.HomeDir
 		}
 	}
-	return expandHomePath(home, ".local/state/usaged/claude-statusline.json")
+	return expandHomePath(home, ".local/state/ai-usage/claude-statusline.json")
 }
 
 func expandHomePath(home, path string) string {

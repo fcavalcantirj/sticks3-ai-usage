@@ -2,7 +2,7 @@
 # scripts/dist.sh — build the distributable macOS release.
 #
 # Produces, in dist/:
-#   usaged-<version>-darwin-universal.tar.gz   binary + installer + examples
+#   ai-usage-<version>-darwin-universal.tar.gz   binary + installer + examples
 #   SHA256SUMS                                 so a download can be checked
 #
 # A UNIVERSAL binary because a StickS3 owner may be on an Intel Mac and there
@@ -21,11 +21,11 @@ ROOT="$(pwd)"
 
 VERSION="${VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo dev)}"
 COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo none)"
-NAME="usaged-${VERSION}-darwin-universal"
+NAME="ai-usage-${VERSION}-darwin-universal"
 OUT="${ROOT}/dist"
 STAGE="${OUT}/${NAME}"
 
-echo "== usaged ${VERSION} (${COMMIT}) =="
+echo "== ai-usage ${VERSION} (${COMMIT}) =="
 
 rm -rf "$OUT"
 mkdir -p "$STAGE"
@@ -40,19 +40,19 @@ BUILDFLAGS="-trimpath"
 # (tinygo-org/cbgo). A CGO_ENABLED=0 build compiles and then cannot see a
 # single device, which is the worst kind of broken — silent.
 echo "-- building arm64"
-GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build $BUILDFLAGS -ldflags "$LDFLAGS" -o "${OUT}/usaged-arm64" ./cmd/usaged
+GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build $BUILDFLAGS -ldflags "$LDFLAGS" -o "${OUT}/ai-usage-arm64" ./cmd/usaged
 echo "-- building amd64"
-GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 go build $BUILDFLAGS -ldflags "$LDFLAGS" -o "${OUT}/usaged-amd64" ./cmd/usaged
+GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 go build $BUILDFLAGS -ldflags "$LDFLAGS" -o "${OUT}/ai-usage-amd64" ./cmd/usaged
 
 if command -v lipo >/dev/null 2>&1; then
     echo "-- lipo -> universal"
-    lipo -create -output "${STAGE}/usaged" "${OUT}/usaged-arm64" "${OUT}/usaged-amd64"
+    lipo -create -output "${STAGE}/ai-usage" "${OUT}/ai-usage-arm64" "${OUT}/ai-usage-amd64"
 else
     echo "!! lipo not found — shipping the host architecture ONLY"
-    cp "${OUT}/usaged-$(go env GOARCH)" "${STAGE}/usaged"
+    cp "${OUT}/ai-usage-$(go env GOARCH)" "${STAGE}/ai-usage"
 fi
-chmod +x "${STAGE}/usaged"
-rm -f "${OUT}/usaged-arm64" "${OUT}/usaged-amd64"
+chmod +x "${STAGE}/ai-usage"
+rm -f "${OUT}/ai-usage-arm64" "${OUT}/ai-usage-amd64"
 
 # Ad-hoc signing buys NO Gatekeeper trust. It exists so the binary has a stable
 # code identity, which is what macOS keys per-app permission grants to —
@@ -60,7 +60,7 @@ rm -f "${OUT}/usaged-arm64" "${OUT}/usaged-amd64"
 # on every rebuild and the permission prompt can return after every update.
 if command -v codesign >/dev/null 2>&1; then
     echo "-- ad-hoc signing (identity only, NOT notarized)"
-    codesign --force --sign - "${STAGE}/usaged" 2>/dev/null \
+    codesign --force --sign - "${STAGE}/ai-usage" 2>/dev/null \
         || echo "!! ad-hoc signing failed; continuing unsigned"
 fi
 

@@ -17,11 +17,11 @@ REPO="fcavalcantirj/sticks3-ai-usage"
 API="https://api.github.com/repos/${REPO}/releases/latest"
 
 [ "$(uname -s)" = "Darwin" ] || {
-    echo "usaged is macOS only — it reads the macOS Keychain and drives CoreBluetooth." >&2
+    echo "ai-usage is macOS only — it reads the macOS Keychain and drives CoreBluetooth." >&2
     exit 1
 }
 
-echo "== usaged =="
+echo "== ai-usage =="
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -31,7 +31,7 @@ TAG="$(curl -fsSL "$API" | awk -F'"' '/"tag_name"/{print $4; exit}')"
 [ -n "$TAG" ] || { echo "FAIL: could not read the latest release tag" >&2; exit 1; }
 echo "   ${TAG}"
 
-TARBALL="usaged-${TAG}-darwin-universal.tar.gz"
+TARBALL="ai-usage-${TAG}-darwin-universal.tar.gz"
 BASE="https://github.com/${REPO}/releases/download/${TAG}"
 
 echo "-- downloading ${TARBALL}"
@@ -53,4 +53,4 @@ WANT="$(awk -v f="$TARBALL" '$2 ~ f {print $1; exit}' "${TMP}/SHA256SUMS")"
 echo "   ok"
 
 tar -xzf "${TMP}/${TARBALL}" -C "$TMP"
-exec bash "${TMP}/usaged-${TAG}-darwin-universal/install.sh"
+exec bash "${TMP}/ai-usage-${TAG}-darwin-universal/install.sh"

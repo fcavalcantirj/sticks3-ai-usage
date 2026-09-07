@@ -5,7 +5,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-PLIST_NAME="com.fcavalcanti.usaged"
+PLIST_NAME="com.fcavalcanti.ai-usage"
 PLIST_DST="$HOME/Library/LaunchAgents/${PLIST_NAME}.plist"
 GID=$(id -u)
 
@@ -17,5 +17,5 @@ launchctl unload -w "$PLIST_DST" 2>/dev/null || true
 rm -f "$PLIST_DST"
 
 echo "Removed ${PLIST_DST}"
-echo "Logs preserved at: $HOME/Library/Logs/usaged/"
+echo "Logs preserved at: $HOME/Library/Logs/ai-usage/"
 echo "State preserved at: $(grep USAGED_STATE .env 2>/dev/null || echo 'see .env')"

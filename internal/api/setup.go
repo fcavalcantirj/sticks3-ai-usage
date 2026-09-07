@@ -135,6 +135,22 @@ type TokenIssuerAware interface {
 	SetTokenIssuer(issue func(deviceID, name string) (string, error))
 }
 
+// NetworkNamer is OPTIONAL: an implementation that can say which Wi-Fi network
+// this Mac is on. The dashboard uses it to PRE-FILL the network name instead of
+// asking someone to type a name their own computer already knows.
+//
+// An SSID is not a credential — the access point broadcasts it continuously to
+// anyone listening — so unlike everything else the Provisioner handles, it is
+// safe to render. The password is not, and is never returned here.
+//
+// Confident is false when macOS refused to disclose the association and the
+// name is a best guess from the preferred-network list (macOS 14+ redacts the
+// SSID for a process without Location Services authorisation). The page says so
+// rather than presenting a guess as an observation.
+type NetworkNamer interface {
+	CurrentNetwork(ctx context.Context) (ssid string, confident bool)
+}
+
 // FoundDevice is one StickS3 seen in a scan. Every string in it was broadcast
 // by something in radio range, so it is treated as untrusted input and cleaned
 // before it is stored, logged or rendered.
@@ -366,12 +382,21 @@ func (s *setup) routes(mux *http.ServeMux) {
 // the feature is wired, what the prerequisites look like, what the last scan
 // found, and how the run is going. It discloses nothing — rule 1 leaves it
 // nothing to disclose.
-func (s *setup) handleStatus(w http.ResponseWriter, _ *http.Request) {
+func (s *setup) handleStatus(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	noStore(w)
-	writeJSON(w, http.StatusOK, s.statusViewLocked())
+	view := s.statusViewLocked()
+	// The Mac's own network name, so the dashboard can pre-fill it. Looked up
+	// per request rather than cached: someone moves between networks, and a
+	// stale name here would be sent to a device that then cannot join.
+	if namer, ok := s.prov.(NetworkNamer); ok && namer != nil {
+		if ssid, confident := namer.CurrentNetwork(r.Context()); ssid != "" {
+			view["network"] = map[string]any{"ssid": ssid, "confident": confident}
+		}
+	}
+	writeJSON(w, http.StatusOK, view)
 }
 
 // handleScan starts a scan. It returns immediately with the state: a scan takes

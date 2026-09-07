@@ -2,7 +2,7 @@
 # statusline-tee.sh — Claude Code statusline shim.
 #
 # Reads Claude Code's statusline stdin JSON, atomically writes the rate_limits
-# block to ~/.local/state/usaged/claude-statusline.json, then execs the
+# block to ~/.local/state/ai-usage/claude-statusline.json, then execs the
 # existing statusline hook so the real output is preserved.
 #
 # Configured in ~/.claude/settings.json by the founder:
@@ -20,7 +20,7 @@
 
 set -euo pipefail
 
-STATE_DIR="${HOME}/.local/state/usaged"
+STATE_DIR="${HOME}/.local/state/ai-usage"
 OUTPUT_FILE="${STATE_DIR}/claude-statusline.json"
 REAL_HOOK="${HOME}/.claude/hooks/gsd-statusline.js"
 

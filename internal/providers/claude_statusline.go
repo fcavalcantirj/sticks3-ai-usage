@@ -81,7 +81,7 @@ func (p *claudeStatuslineProvider) Fetch(ctx context.Context, now time.Time) (sn
 
 // --- statusline file types ---
 
-// statuslineData is the content of ~/.local/state/usaged/claude-statusline.json.
+// statuslineData is the content of ~/.local/state/ai-usage/claude-statusline.json.
 // It is the rate_limits block from Claude Code's statusline stdin, plus an
 // optional plan field written by the tee script.
 type statuslineData struct {

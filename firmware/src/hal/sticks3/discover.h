@@ -9,10 +9,10 @@
 //
 // THE CONTRACT WITH THE AGENT (agreed; neither half may be changed alone):
 //
-//   * the agent advertises the service type "_usaged._tcp" on its REAL listen
+//   * the agent advertises the service type "_ai-usage._tcp" on its REAL listen
 //     port, so the PORT arrives in the advertisement and is never typed;
-//   * the agent ALSO answers an A query for the host label "usaged"
-//     (usaged.local), which is the fallback when the browse comes back empty.
+//   * the agent ALSO answers an A query for the host label "ai-usage"
+//     (ai-usage.local), which is the fallback when the browse comes back empty.
 //
 // Those two names are the protocol.  They are the only thing either side is
 // allowed to assume — in particular NEITHER SIDE MAY ASSUME AN ADDRESS, and
@@ -42,16 +42,16 @@
 namespace sticks3 {
 
 // The advertised service, as agreed with the agent.  ESPmDNS prepends the
-// underscores, so these are written without them: "usaged" + "tcp" queries
-// _usaged._tcp.
-inline constexpr char kAgentService[] = "usaged";
+// underscores, so these are written without them: "ai-usage" + "tcp" queries
+// _ai-usage._tcp.
+inline constexpr char kAgentService[] = "ai-usage";
 inline constexpr char kAgentProto[]   = "tcp";
 
-// The host label the agent answers an A query for: usaged.local.  Used only
+// The host label the agent answers an A query for: ai-usage.local.  Used only
 // when the service browse finds nothing; the port then falls back to
 // usage::provision::kDefaultPort, which is the agent's compiled-in default and
 // the one value both sides already share.
-inline constexpr char kAgentHostLabel[] = "usaged";
+inline constexpr char kAgentHostLabel[] = "ai-usage";
 
 // --- timing -----------------------------------------------------------------
 //

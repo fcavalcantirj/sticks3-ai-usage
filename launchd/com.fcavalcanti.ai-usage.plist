@@ -3,10 +3,10 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.fcavalcanti.usaged</string>
+  <string>com.fcavalcanti.ai-usage</string>
 
   <!-- run.sh sources the repo .env (USAGED_* env vars + API keys), then
-       execs ./bin/usaged serve in the FOREGROUND — supervised by launchd. -->
+       execs ./bin/ai-usage serve in the FOREGROUND — supervised by launchd. -->
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
@@ -30,9 +30,9 @@
   <string>Background</string>
 
   <key>StandardOutPath</key>
-  <string>/Users/fcavalcanti/Library/Logs/usaged/usaged.out.log</string>
+  <string>/Users/fcavalcanti/Library/Logs/ai-usage/ai-usage.out.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/fcavalcanti/Library/Logs/usaged/usaged.err.log</string>
+  <string>/Users/fcavalcanti/Library/Logs/ai-usage/ai-usage.err.log</string>
 
   <!-- PATH so claude / codex CLIs (~/.local/bin) and `security` (/usr/bin) resolve
        under launchd's minimal environment. No reliance on ~/.zshrc. -->

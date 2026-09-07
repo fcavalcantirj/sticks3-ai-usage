@@ -241,3 +241,26 @@ func bleStepFor(ph bleprov.Phase) string {
 		return ""
 	}
 }
+
+// CurrentNetwork satisfies api.NetworkNamer: the Wi-Fi network this Mac is on,
+// so the dashboard can pre-fill it instead of asking someone to type a name
+// their own computer already knows.
+//
+// An SSID is broadcast by the access point continuously, so it is the one thing
+// the Gatherer produces that is safe to render. The password is never returned
+// here and never reaches the page.
+//
+// confident is false when macOS redacted the association and the name is a
+// guess from the preferred-network list — the caller is expected to say so
+// rather than present it as fact.
+func (p *bleProvisioner) CurrentNetwork(ctx context.Context) (string, bool) {
+	iface, err := p.gatherer.WiFiInterface(ctx)
+	if err != nil {
+		return "", false
+	}
+	ssid, _, err := p.gatherer.CurrentSSID(ctx, iface)
+	if ssid == "" {
+		return "", false
+	}
+	return ssid, err == nil
+}

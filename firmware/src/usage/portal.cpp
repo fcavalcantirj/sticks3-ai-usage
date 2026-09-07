@@ -162,8 +162,8 @@ void apIdentity(const uint8_t mac[6], ApIdentity& out) {
     out.pass[kApPassLen] = '\0';
 
     // The SSID is picked from a phone's list rather than typed, so plain hex of
-    // the last two MAC bytes is fine and matches the ledger's "usaged-A4F2".
-    std::snprintf(out.ssid, sizeof(out.ssid), "usaged-%02X%02X",
+    // the last two MAC bytes is fine and matches the ledger's "ai-usage-A4F2".
+    std::snprintf(out.ssid, sizeof(out.ssid), "ai-usage-%02X%02X",
                   (unsigned)mac[4], (unsigned)mac[5]);
 }
 

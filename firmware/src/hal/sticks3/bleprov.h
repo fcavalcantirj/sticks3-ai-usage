@@ -85,7 +85,7 @@ void bleProvUpdate(uint32_t nowMs);
 
 BleProvState bleProvState();
 
-// The advertised local name — the SAME "usaged-XXXX" identity the captive
+// The advertised local name — the SAME "ai-usage-XXXX" identity the captive
 // portal AP uses (usage::portal::apIdentity), so one device has one name
 // however it is set up.  Empty before bleProvBegin().
 const char* bleProvName();

@@ -15,7 +15,7 @@ func TestIndexHTMLContent(t *testing.T) {
 	}
 	html := string(IndexHTML)
 	for _, want := range []string{
-		"<title>AI Usage</title>",
+		"<title>ai-usage</title>",
 		"/v1/usage",
 		"/v1/stats",
 		"If-None-Match",

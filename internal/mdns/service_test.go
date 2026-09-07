@@ -17,7 +17,7 @@ func serviceOn(t *testing.T, listen string) Service {
 	if err != nil {
 		t.Fatalf("splitListen(%q): %v", listen, err)
 	}
-	return Service{Host: HostLabel, Instance: "usaged-test", Type: ServiceType, Port: port, TXT: defaultTXT()}
+	return Service{Host: HostLabel, Instance: "ai-usage-test", Type: ServiceType, Port: port, TXT: defaultTXT()}
 }
 
 // ask packs a query, runs it through respond, and unpacks the reply, so every
@@ -64,9 +64,9 @@ func findRecord(rs []record, name string, rtype uint16) (record, bool) {
 func TestAnswersHostAQuery(t *testing.T) {
 	s := serviceOn(t, "0.0.0.0:8765")
 
-	reply, unicast := ask(t, s, query("usaged.local.", typeA), false)
+	reply, unicast := ask(t, s, query("ai-usage.local.", typeA), false)
 	if reply == nil {
-		t.Fatal("no reply to an A query for usaged.local.")
+		t.Fatal("no reply to an A query for ai-usage.local.")
 	}
 	if unicast {
 		t.Error("a query from port 5353 with no QU bit must be answered to the group")
@@ -81,7 +81,7 @@ func TestAnswersHostAQuery(t *testing.T) {
 		t.Errorf("a multicast response must carry no question section, got %d", len(reply.questions))
 	}
 
-	a, ok := findRecord(reply.answers, "usaged.local.", typeA)
+	a, ok := findRecord(reply.answers, "ai-usage.local.", typeA)
 	if !ok {
 		t.Fatalf("no A record in the answer section: %+v", reply.answers)
 	}
@@ -98,7 +98,7 @@ func TestAnswersHostAQuery(t *testing.T) {
 
 func TestHostQueryIsCaseInsensitive(t *testing.T) {
 	s := serviceOn(t, "0.0.0.0:8765")
-	reply, _ := ask(t, s, query("USAGED.LOCAL.", typeA), false)
+	reply, _ := ask(t, s, query("AI-USAGE.LOCAL.", typeA), false)
 	if reply == nil {
 		t.Fatal("DNS names are case-insensitive; an upper-case query went unanswered")
 	}
@@ -129,7 +129,7 @@ func TestAdvertisesTheConfiguredPort(t *testing.T) {
 		if srv.target != s.hostName() {
 			t.Errorf("%s: SRV target = %q, want %q", listen, srv.target, s.hostName())
 		}
-		if _, ok := findRecord(reply.additional, "usaged.local.", typeA); !ok {
+		if _, ok := findRecord(reply.additional, "ai-usage.local.", typeA); !ok {
 			t.Errorf("%s: SRV reply should carry the A record so the querier need not ask again", listen)
 		}
 	}
@@ -138,11 +138,11 @@ func TestAdvertisesTheConfiguredPort(t *testing.T) {
 func TestServiceBrowseReturnsEverythingNeededToConnect(t *testing.T) {
 	s := serviceOn(t, "0.0.0.0:9999")
 
-	reply, _ := ask(t, s, query("_usaged._tcp.local.", typePTR), false)
+	reply, _ := ask(t, s, query("_ai-usage._tcp.local.", typePTR), false)
 	if reply == nil {
-		t.Fatal("no reply to a PTR browse of _usaged._tcp.local.")
+		t.Fatal("no reply to a PTR browse of _ai-usage._tcp.local.")
 	}
-	ptr, ok := findRecord(reply.answers, "_usaged._tcp.local.", typePTR)
+	ptr, ok := findRecord(reply.answers, "_ai-usage._tcp.local.", typePTR)
 	if !ok {
 		t.Fatalf("no PTR record: %+v", reply.answers)
 	}
@@ -166,7 +166,7 @@ func TestServiceBrowseReturnsEverythingNeededToConnect(t *testing.T) {
 	if _, ok := findRecord(reply.additional, s.instanceName(), typeTXT); !ok {
 		t.Error("browse reply carries no TXT")
 	}
-	if _, ok := findRecord(reply.additional, "usaged.local.", typeA); !ok {
+	if _, ok := findRecord(reply.additional, "ai-usage.local.", typeA); !ok {
 		t.Error("browse reply carries no A record")
 	}
 }
@@ -214,13 +214,13 @@ func TestTXTCarriesPathsOnly(t *testing.T) {
 func TestIgnoresResponsesAndForeignNames(t *testing.T) {
 	s := serviceOn(t, "0.0.0.0:8765")
 
-	resp := query("usaged.local.", typeA)
+	resp := query("ai-usage.local.", typeA)
 	resp.flags = flagResponse
 	if reply, _ := ask(t, s, resp, false); reply != nil {
 		t.Error("answered a message that was itself a response — two responders would loop forever")
 	}
 
-	op := query("usaged.local.", typeA)
+	op := query("ai-usage.local.", typeA)
 	op.flags = 0x2800 // OPCODE 5 (UPDATE)
 	if reply, _ := ask(t, s, op, false); reply != nil {
 		t.Error("answered a non-standard opcode")
@@ -229,11 +229,11 @@ func TestIgnoresResponsesAndForeignNames(t *testing.T) {
 	if reply, _ := ask(t, s, query("printer.local.", typeA), false); reply != nil {
 		t.Error("answered a name this agent does not own")
 	}
-	if reply, _ := ask(t, s, query("usaged.local.", typeAAAA), false); reply != nil {
+	if reply, _ := ask(t, s, query("ai-usage.local.", typeAAAA), false); reply != nil {
 		t.Error("answered AAAA; this responder publishes IPv4 only")
 	}
 
-	wrongClass := query("usaged.local.", typeA)
+	wrongClass := query("ai-usage.local.", typeA)
 	wrongClass.questions[0].class = 3 // CHAOS
 	if reply, _ := ask(t, s, wrongClass, false); reply != nil {
 		t.Error("answered a query in a class other than IN or ANY")
@@ -242,7 +242,7 @@ func TestIgnoresResponsesAndForeignNames(t *testing.T) {
 
 func TestQUBitAsksForUnicast(t *testing.T) {
 	s := serviceOn(t, "0.0.0.0:8765")
-	q := query("usaged.local.", typeA)
+	q := query("ai-usage.local.", typeA)
 	q.questions[0].class = classIN | classFlag
 
 	reply, unicast := ask(t, s, q, false)
@@ -263,7 +263,7 @@ func TestQUBitAsksForUnicast(t *testing.T) {
 // mDNS's caching rules.
 func TestLegacyResolverGetsAPlainDNSAnswer(t *testing.T) {
 	s := serviceOn(t, "0.0.0.0:8765")
-	q := query("usaged.local.", typeA)
+	q := query("ai-usage.local.", typeA)
 	q.id = 0xbeef
 
 	reply, unicast := ask(t, s, q, true)
@@ -276,7 +276,7 @@ func TestLegacyResolverGetsAPlainDNSAnswer(t *testing.T) {
 	if reply.id != 0xbeef {
 		t.Errorf("id = %#x, want the query's own %#x", reply.id, 0xbeef)
 	}
-	if len(reply.questions) != 1 || reply.questions[0].name != "usaged.local." {
+	if len(reply.questions) != 1 || reply.questions[0].name != "ai-usage.local." {
 		t.Errorf("questions = %+v, want the query echoed back", reply.questions)
 	}
 	for _, r := range append(append([]record{}, reply.answers...), reply.additional...) {
@@ -294,7 +294,7 @@ func TestNoDuplicateRecordsAcrossSections(t *testing.T) {
 	// Ask for everything at once: the A record is an answer for the first
 	// question and an additional for the others.
 	q := &message{questions: []question{
-		{name: "usaged.local.", qtype: typeA, class: classIN},
+		{name: "ai-usage.local.", qtype: typeA, class: classIN},
 		{name: s.typeName(), qtype: typePTR, class: classIN},
 		{name: s.instanceName(), qtype: typeSRV, class: classIN},
 	}}
@@ -310,7 +310,7 @@ func TestNoDuplicateRecordsAcrossSections(t *testing.T) {
 			t.Errorf("record %s type %d appears %d times", r.name, r.rtype, seen[key])
 		}
 	}
-	if _, ok := findRecord(reply.answers, "usaged.local.", typeA); !ok {
+	if _, ok := findRecord(reply.answers, "ai-usage.local.", typeA); !ok {
 		t.Error("the A record should be an ANSWER when it was asked for directly")
 	}
 }

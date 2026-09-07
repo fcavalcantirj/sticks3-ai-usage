@@ -16,14 +16,14 @@ import (
 )
 
 // The two names the firmware is built around. THE CONTRACT: the device calls
-// MDNS.queryHost("usaged") — which resolves usaged.local. — and may also
+// MDNS.queryHost("ai-usage") — which resolves ai-usage.local. — and may also
 // browse "_usaged._tcp". Change either string and every provisioned device
 // stops finding this agent, with no error message anywhere.
 const (
 	// HostLabel is the single label of the host name, without ".local".
-	HostLabel = "usaged"
+	HostLabel = "ai-usage"
 	// ServiceType is the DNS-SD service type, without ".local".
-	ServiceType = "_usaged._tcp"
+	ServiceType = "_ai-usage._tcp"
 )
 
 // serviceEnumName is the DNS-SD "list every service type here" query that
@@ -61,9 +61,9 @@ func defaultTXT() []string {
 // Service is the published identity of one agent: a host name, one DNS-SD
 // instance, and the port the HTTP server is REALLY listening on.
 type Service struct {
-	Host     string // host label, e.g. "usaged" -> usaged.local.
-	Instance string // instance label, e.g. "usaged-mac" -> usaged-mac._usaged._tcp.local.
-	Type     string // service type, e.g. "_usaged._tcp"
+	Host     string // host label, e.g. "ai-usage" -> ai-usage.local.
+	Instance string // instance label, e.g. "ai-usage-mac" -> ai-usage-mac._ai-usage._tcp.local.
+	Type     string // service type, e.g. "_ai-usage._tcp"
 	Port     uint16 // the configured listen port — never a constant
 	TXT      []string
 }
