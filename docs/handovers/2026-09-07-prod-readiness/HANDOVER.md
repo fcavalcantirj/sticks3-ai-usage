@@ -1,8 +1,8 @@
 ---
 slug: prod-readiness
 date: 2026-09-07
-status: open
-round: 0
+status: approved
+round: 1
 author_session: the 2026-09-07 session that shipped BLE zero-config, published to GitHub + M5Burner, then found nine shipped bugs the hard way and ran an audit for the rest
 ---
 
