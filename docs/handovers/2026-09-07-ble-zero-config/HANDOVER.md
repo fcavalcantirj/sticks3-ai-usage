@@ -1,12 +1,30 @@
 ---
 slug: ble-zero-config
 date: 2026-09-07
-status: open
-round: 0
+status: approved
+round: 1
 author_session: the 2026-09-06 overnight session that ran the task 75 spike, landed task 76, built 77-79, then pivoted to BLE
 ---
 
 # Handover — BLE zero-config provisioning
+
+## SUPERSEDED (2026-09-07, REVIEW-r1)
+
+Two things in this handover are WRONG and are corrected in `REVIEW-r1.md`:
+
+1. **`next_action` is wrong.** `hal/sticks3/bleprov.{h,cpp}` is NOT broken. Flash measured
+   33.5% because **nothing references the translation unit**, so the linker discards it.
+   Referenced, it links clean at **50.7% / +572,417 B** with no undefined symbols. Do not
+   rewrite that file. The corrected first move is to give it a call site in `main.cpp`.
+   By extension, this handover's characterisation of the other stalled agents' output as
+   untrustworthy was over-drawn — `internal/bleprov` and `internal/api/setup.go` are in
+   better shape than described.
+2. **The stdlib-only rule lives in `docs/GROUND_RULES.md:5-7`, not `AGENTS.md`.**
+
+Also: HEAD is `71885a8` (this handover names the commit before itself), and this handover
+shipped with **no acceptance checklist**, which the skill requires — ratified retroactively
+in `REVIEW-r1.md`.
+
 
 ## Mission
 
