@@ -1106,7 +1106,7 @@
       "Verify: `make fw-test` prints Failed 0. `make fw-build` is SUCCESS with 0 warnings from firmware/src/. `make fw-publish-check` still prints PUBLISHABLE. `strings firmware/.pio/build/m5stack-sticks3/firmware.bin | grep -i 'pairing code'` returns NOTHING, and the new portal copy IS present in the same `strings` output \u2014 paste both results. Report the before/after `firmware.bin` size and the before/after OTA_BUILD_ID. DO NOT FLASH. Note in the DONE line that a flash is available whenever Felipe wants it, then FINISH THE TASK AND MOVE ON \u2014 do not wait. The firmware change is inert until he authorizes an upload, and nothing downstream depends on it.",
       "passes flips to true on the green build plus the two `strings` results plus the size/build-id comparison. A flash is NOT required for this task to pass, and must not happen without his word."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "host",

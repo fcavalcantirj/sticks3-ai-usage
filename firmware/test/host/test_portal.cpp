@@ -379,10 +379,10 @@ TEST(portal_advanced_block_says_why_it_should_stay_shut) {
 
     // The user is told where the next step happens, because it happens on the
     // device screen after this browser session is already gone.
-    ASSERT_TRUE(has(top, "pairing code"));
+    ASSERT_TRUE(has(top, "collects its own token"));
     ASSERT_TRUE(has(top, "by itself"));
     ASSERT_TRUE(has(adv, "Leave every field below empty"));
-    ASSERT_TRUE(has(adv, "pairing code"));
+    ASSERT_TRUE(has(adv, "networks that block multicast"));
 }
 
 TEST(portal_submit_button_is_outside_the_advanced_block) {

@@ -375,13 +375,13 @@ void renderPage(const PageInput& in, Sink sink, void* ctx) {
 
     // Say what happens next, because the next two steps happen somewhere this
     // page cannot follow: the AP hops channel on the join and this browser
-    // session is gone.  A user who has been told to expect the code on the
-    // device screen is not a user who thinks the thing broke.
+    // session is gone.  A user who has been told what comes after is not a
+    // user who thinks the thing broke.
     emit(sink, ctx,
          "<p class=\"next\">That is everything. The device joins this network, "
-         "finds the usaged agent on it by itself, then shows a pairing code on "
-         "its own screen. Type that code into the usaged dashboard and setup "
-         "is done.</p>");
+         "finds the usaged agent on it by itself, and collects its own token "
+         "from the agent. If that discovery fails, paste a token into the "
+         "Advanced section below.</p>");
 
     // --- the escape hatch, folded away ---------------------------------------
     //
@@ -393,9 +393,8 @@ void renderPage(const PageInput& in, Sink sink, void* ctx) {
     emit(sink, ctx,
          "<details><summary>Advanced (not usually needed)</summary>"
          "<p class=\"hint\">Leave every field below empty. The device finds the "
-         "agent on the network by itself, and gets its own token from the "
-         "pairing code it shows on its screen &mdash; nothing here has to be "
-         "typed. Fill these in only if that discovery cannot work, which "
+         "agent on the network by itself and collects its own token from the "
+         "agent. Fill these in only if that discovery cannot work, which "
          "happens on networks that block multicast.</p>");
 
     emit(sink, ctx,
