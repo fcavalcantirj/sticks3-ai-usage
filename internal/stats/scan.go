@@ -179,7 +179,6 @@ func (s *Scanner) scanClaudeCode(ctx context.Context, dir string, index Index, n
 	modelReqs := make(map[string]int)
 	modelOrder := []string{}
 	dayAgg := make(map[string]dayAccum)
-	unpricedModels := make(map[string]bool) // track for loud gap reporting
 
 	newIdx := make(Index)
 	maxAge := now.Add(-MaxAge)
@@ -314,6 +313,9 @@ func (s *Scanner) scanClaudeCode(ctx context.Context, dir string, index Index, n
 	}
 
 	// Post-walk: compute Today/Month from dayAgg (depends on now, not cacheable).
+	// Also accumulate per-model windowed tokens for the Models table.
+	todayModelAgg := make(map[string]Tokens)
+	monthModelAgg := make(map[string]Tokens)
 	for dk, d := range dayAgg {
 		dayTS := dayBoundaryFromKey(dk, s.TZ)
 		if dayTS >= todayBoundary {
@@ -323,6 +325,7 @@ func (s *Scanner) scanClaudeCode(ctx context.Context, dir string, index Index, n
 				if p, ok := s.priceOf(model); ok {
 					src.Today.Cost += p.Cost(tok)
 				}
+				todayModelAgg[model] = todayModelAgg[model].Add(tok)
 			}
 		}
 		if dayTS >= monthBoundary {
@@ -332,24 +335,15 @@ func (s *Scanner) scanClaudeCode(ctx context.Context, dir string, index Index, n
 				if p, ok := s.priceOf(model); ok {
 					src.Month.Cost += p.Cost(tok)
 				}
+				monthModelAgg[model] = monthModelAgg[model].Add(tok)
 			}
 		}
 	}
 
-	// Build models list (exclude <synthetic>, track unpriced).
-	for _, model := range modelOrder {
-		if model == "<synthetic>" {
-			continue
-		}
-		if _, ok := s.priceOf(model); !ok {
-			unpricedModels[model] = true
-		}
-		m := Model{Model: model, Tokens: modelAgg[model], Requests: modelReqs[model]}
-		if p, ok := s.priceOf(model); ok {
-			m.Cost = p.Cost(modelAgg[model])
-		}
-		src.Models = append(src.Models, m)
-	}
+	// Build models list (exclude <synthetic>, track unpriced), now with
+	// per-model today/month windowed tokens accumulated in the post-walk pass.
+	var unpricedModels map[string]bool
+	src.Models, unpricedModels = buildModelsList(modelOrder, modelAgg, todayModelAgg, monthModelAgg, modelReqs, s.priceOf)
 
 	// Record unpriced models for the caller to warn loudly.
 	if len(unpricedModels) > 0 {
@@ -389,9 +383,9 @@ func (s *Scanner) scanClaudeCode(ctx context.Context, dir string, index Index, n
 		src.Days = append(src.Days, dd)
 	}
 
-	// Sort models by total tokens descending.
+	// Sort models by month tokens descending (matches the Models table header).
 	sort.Slice(src.Models, func(i, j int) bool {
-		return src.Models[i].Tokens.Total() > src.Models[j].Tokens.Total()
+		return src.Models[i].TokensMonth.Total() > src.Models[j].TokensMonth.Total()
 	})
 
 	// Peak day.
@@ -452,7 +446,6 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 	modelReqs := make(map[string]int)
 	modelOrder := []string{}
 	dayAgg := make(map[string]dayAccum)
-	unpricedModels := make(map[string]bool) // track for loud gap reporting
 
 	newIdx := make(Index)
 	maxAge := now.Add(-MaxAge)
@@ -635,6 +628,9 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 	}
 
 	// Post-walk: compute Today/Month from dayAgg (depends on now, not cacheable).
+	// Also accumulate per-model windowed tokens for the Models table.
+	todayModelAgg := make(map[string]Tokens)
+	monthModelAgg := make(map[string]Tokens)
 	for dk, d := range dayAgg {
 		dayTS := dayBoundaryFromKey(dk, s.TZ)
 		if dayTS >= todayBoundary {
@@ -644,6 +640,7 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 				if p, ok := s.priceOf(model); ok {
 					src.Today.Cost += p.Cost(tok)
 				}
+				todayModelAgg[model] = todayModelAgg[model].Add(tok)
 			}
 		}
 		if dayTS >= monthBoundary {
@@ -653,24 +650,15 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 				if p, ok := s.priceOf(model); ok {
 					src.Month.Cost += p.Cost(tok)
 				}
+				monthModelAgg[model] = monthModelAgg[model].Add(tok)
 			}
 		}
 	}
 
-	// Build models list (exclude <synthetic>, track unpriced).
-	for _, model := range modelOrder {
-		if model == "<synthetic>" {
-			continue
-		}
-		if _, ok := s.priceOf(model); !ok {
-			unpricedModels[model] = true
-		}
-		m := Model{Model: model, Tokens: modelAgg[model], Requests: modelReqs[model]}
-		if p, ok := s.priceOf(model); ok {
-			m.Cost = p.Cost(modelAgg[model])
-		}
-		src.Models = append(src.Models, m)
-	}
+	// Build models list (exclude <synthetic>, track unpriced), now with
+	// per-model today/month windowed tokens accumulated in the post-walk pass.
+	var unpricedModels map[string]bool
+	src.Models, unpricedModels = buildModelsList(modelOrder, modelAgg, todayModelAgg, monthModelAgg, modelReqs, s.priceOf)
 
 	// Record unpriced models for the caller to warn loudly.
 	if len(unpricedModels) > 0 {
@@ -710,9 +698,9 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 		src.Days = append(src.Days, dd)
 	}
 
-	// Sort models by total tokens descending.
+	// Sort models by month tokens descending (matches the Models table header).
 	sort.Slice(src.Models, func(i, j int) bool {
-		return src.Models[i].Tokens.Total() > src.Models[j].Tokens.Total()
+		return src.Models[i].TokensMonth.Total() > src.Models[j].TokensMonth.Total()
 	})
 
 	// Peak day.
@@ -724,6 +712,47 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 }
 
 // --- Helpers ---
+
+// buildModelsList constructs the per-model aggregated list from the scan's
+// model-level accumulators. It is shared by scanClaudeCode and scanCodex,
+// which differ only in how they parse transcripts but aggregate identically.
+//
+// The two functions previously carried near-identical copies of this loop —
+// that is how PROD-READY 5/10's month-windowing bug returned silently to one
+// path and not the other (ORDER #45 precedent). One source of truth here.
+//
+// Parameters:
+//   - modelOrder: models in first-seen order (preserves discovery order)
+//   - modelAgg: lifetime token totals per model
+//   - todayModelAgg: today-windowed token totals per model
+//   - monthModelAgg: month-windowed token totals per model
+//   - modelReqs: request counts per model
+//   - priceOf: function to resolve a model's price for cost calculation
+func buildModelsList(modelOrder []string, modelAgg, todayModelAgg, monthModelAgg map[string]Tokens, modelReqs map[string]int, priceOf func(string) (Price, bool)) ([]Model, map[string]bool) {
+	models := []Model{}
+	unpriced := make(map[string]bool)
+	for _, model := range modelOrder {
+		if model == "<synthetic>" {
+			continue
+		}
+		if _, ok := priceOf(model); !ok {
+			unpriced[model] = true
+		}
+		m := Model{
+			Model:       model,
+			Tokens:      modelAgg[model],
+			Requests:    modelReqs[model],
+			TokensToday: todayModelAgg[model],
+			TokensMonth: monthModelAgg[model],
+		}
+		if p, ok := priceOf(model); ok {
+			m.Cost = p.Cost(modelAgg[model])
+			m.CostMonth = p.Cost(monthModelAgg[model])
+		}
+		models = append(models, m)
+	}
+	return models, unpriced
+}
 
 type dayAccum struct {
 	tokens  Tokens

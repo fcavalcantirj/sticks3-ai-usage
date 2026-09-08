@@ -1416,23 +1416,25 @@ function renderStats(report) {
     if (el && srcNames.indexOf(name) === -1) el.style.display = "none";
   });
 
-  // Models table
+  // Models table — server returns models already sorted by month tokens desc.
   var tbody = document.querySelector("#models-table tbody");
   tbody.innerHTML = "";
   var models = [];
   for (var sn in report.sources) {
     var s = report.sources[sn];
     s.models.forEach(function(m) {
-      models.push({ name: m.model, dayTok: tokensTotal(m.tokens), monthTok: 0, cost: m.cost, reqs: m.requests });
+      models.push({ name: m.model, dayTok: tokensTotal(m.tokens_today), monthTok: tokensTotal(m.tokens_month), cost: m.cost_month, reqs: m.requests });
     });
   }
-  models.sort(function(a, b) { return b.dayTok - a.dayTok; });
+  // No client-side sort: the server sorts by month tokens desc. Reordering
+  // here would silently disagree with the table's month-cost ranking.
   models.forEach(function(m) {
     var tr = document.createElement("tr");
     tr.innerHTML = '<td class="model-name">' + esc(m.name) + '</td>' +
       '<td>' + fmtTokens(m.dayTok) + '</td>' +
       '<td>' + fmtTokens(m.monthTok) + '</td>' +
       '<td>' + fmtCost(m.cost) + '</td>' +
+      // Requests column is lifetime (header names no window), not a lie.
       '<td>' + m.reqs + '</td>';
     tbody.appendChild(tr);
   });

@@ -41,10 +41,13 @@ type Totals struct {
 
 // Model aggregates token usage for one model within a source.
 type Model struct {
-	Model    string  `json:"model"`
-	Tokens   Tokens  `json:"tokens"`
-	Cost     float64 `json:"cost"`
-	Requests int     `json:"requests"`
+	Model       string  `json:"model"`
+	Tokens      Tokens  `json:"tokens"`       // lifetime across the scan window
+	Cost        float64 `json:"cost"`         // lifetime cost (USD)
+	Requests    int     `json:"requests"`     // lifetime request count
+	TokensToday Tokens  `json:"tokens_today"` // windowed to the current day
+	TokensMonth Tokens  `json:"tokens_month"` // windowed to the current month
+	CostMonth   float64 `json:"cost_month"`   // windowed month cost (USD)
 }
 
 // Day aggregates token usage for one calendar day.

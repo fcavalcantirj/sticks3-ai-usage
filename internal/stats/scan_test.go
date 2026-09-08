@@ -88,15 +88,12 @@ func TestScanClaudeCodeModels(t *testing.T) {
 		t.Fatalf("len(Models) = %d, want 2", len(src.Models))
 	}
 
-	// Models sorted by total tokens desc: claude-opus (10200+400cr) vs claude-sonnet (1500+2300+200cw)
-	// opus total = 800+1200+0+400 = 2400; sonnet total = 1000+2000+500+300+200+0 = 4000
-	// Actually: msg-001: input=1000, output=2000 → total=3000
-	// msg-002 (deduped): input=500, output=300, cache_write=200 → total=1000
-	// msg-003: input=800, output=1200, cache_read=400 → total=2400
-	// sonnet = 3000 + 1000 = 4000; opus = 2400
-	// So sonnet (4000) > opus (2400), sonnet should be first.
+	// Models sorted by month tokens desc: claude-opus (10200+400cr) vs claude-sonnet (1500+2300+200cw)
+	// opus month = 800+1200+0+400 = 2400; sonnet month = 1000+2000+500+300+200+0 = 4000
+	// All fixture data is in Sep 2026 (within the month), so month = lifetime.
+	// sonnet (4000) > opus (2400), sonnet should be first.
 	if src.Models[0].Model != "claude-sonnet-4-20250514" {
-		t.Errorf("Models[0] = %q, want claude-sonnet-4-20250514 (sorted by total desc)", src.Models[0].Model)
+		t.Errorf("Models[0] = %q, want claude-sonnet-4-20250514 (sorted by month tokens desc)", src.Models[0].Model)
 	}
 	if src.Models[1].Model != "claude-opus-4-20250514" {
 		t.Errorf("Models[1] = %q, want claude-opus-4-20250514", src.Models[1].Model)
@@ -711,10 +708,10 @@ func TestScanCostReconciliation(t *testing.T) {
 		dayCostSum += d.Cost
 	}
 
-	// Sum of per-model costs (src.Models[].Cost).
+	// Sum of per-model costs (src.Models[].CostMonth — month-windowed).
 	modelCostSum := 0.0
 	for _, m := range src.Models {
-		modelCostSum += m.Cost
+		modelCostSum += m.CostMonth
 	}
 
 	// The three must agree: month.cost == sum per-day == sum per-model.
@@ -738,5 +735,79 @@ func TestScanCostReconciliation(t *testing.T) {
 		if d.Date == "2026-09-03" && d.Cost == 0 {
 			t.Errorf("Sep 3 day Cost is 0 — model carry-forward not applied to day buckets")
 		}
+	}
+}
+
+// TestScanModelWindowedVsLifetime verifies that a model with usage on a day
+// outside the month window (Aug 15) and a day inside the month but not today
+// (Sep 2) produces different lifetime and month-windowed figures. The model
+// claude-sonnet-4-20250514 has price input=3, output=15 USD/MTok.
+func TestScanModelWindowedVsLifetime(t *testing.T) {
+	// fixedScanNow = 2026-09-03 12:00 São Paulo.
+	// monthBoundary = 2026-09-01 (start of month, São Paulo TZ).
+	// Aug 15 is outside the month; Sep 2 is inside the month but not today.
+	dir := t.TempDir()
+	lines := []string{
+		// Aug 15 — outside the month window.
+		`{"type":"event_msg","timestamp":"2026-08-15T09:00:00Z","payload":{"type":"turn_context","model":"claude-sonnet-4-20250514"}}`,
+		`{"type":"event_msg","timestamp":"2026-08-15T10:00:00Z","payload":{"type":"token_count","info":{"model":"unknown","last_token_usage":{"input_tokens":1000,"cached_input_tokens":0,"output_tokens":500,"reasoning_output_tokens":0}}}}`,
+		// Sep 2 — inside the month window, not today.
+		`{"type":"event_msg","timestamp":"2026-09-02T09:00:00Z","payload":{"type":"turn_context","model":"claude-sonnet-4-20250514"}}`,
+		`{"type":"event_msg","timestamp":"2026-09-02T10:00:00Z","payload":{"type":"token_count","info":{"model":"unknown","last_token_usage":{"input_tokens":500,"cached_input_tokens":0,"output_tokens":200,"reasoning_output_tokens":0}}}}`,
+	}
+	dst := filepath.Join(dir, "windowed.jsonl")
+	if err := os.WriteFile(dst, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	s := NewScanner(testTZ)
+	s.Clock = func() time.Time { return fixedScanNow }
+	cfg := ScanConfig{TZ: testTZ, CodexDir: dir}
+	report, _, err := s.Scan(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	src, ok := report.Sources["codex"]
+	if !ok {
+		t.Fatal("missing codex source in report")
+	}
+	if len(src.Models) != 1 {
+		t.Fatalf("len(Models) = %d, want 1", len(src.Models))
+	}
+	m := src.Models[0]
+	if m.Model != "claude-sonnet-4-20250514" {
+		t.Fatalf("Model = %q, want claude-sonnet-4-20250514", m.Model)
+	}
+
+	// Lifetime: Aug 15 (1000 in + 500 out) + Sep 2 (500 in + 200 out) = 1500/700.
+	// Month: Sep 2 only (500 in + 200 out) = 500/200. Today: none (Sep 3 has no data).
+	if m.Tokens.Input != 1500 {
+		t.Errorf("lifetime input = %d, want 1500", m.Tokens.Input)
+	}
+	if m.TokensMonth.Input != 500 {
+		t.Errorf("month input = %d, want 500", m.TokensMonth.Input)
+	}
+	if m.TokensToday.Input != 0 {
+		t.Errorf("today input = %d, want 0", m.TokensToday.Input)
+	}
+
+	// Cost: input=3, output=15 USD/MTok (claude-sonnet-4-20250514).
+	// Lifetime: (1500*3 + 700*15) / 1e6 = 15000/1e6 = 0.015
+	// Month:    (500*3 + 200*15) / 1e6  = 4500/1e6 = 0.0045
+	wantLifetimeCost := 0.015
+	wantMonthCost := 0.0045
+	if m.Cost != wantLifetimeCost {
+		t.Errorf("lifetime cost = %.6f, want %.6f", m.Cost, wantLifetimeCost)
+	}
+	if m.CostMonth != wantMonthCost {
+		t.Errorf("month cost = %.6f, want %.6f", m.CostMonth, wantMonthCost)
+	}
+
+	// The core invariant: lifetime and month must differ for this model.
+	if m.Tokens.Total() == m.TokensMonth.Total() {
+		t.Error("lifetime tokens == month tokens — windowing not working for this model")
+	}
+	if m.Cost == m.CostMonth {
+		t.Error("lifetime cost == month cost — windowing not working for this model")
 	}
 }
