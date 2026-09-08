@@ -104,4 +104,6 @@ The existing `internal/providers/codex.go` fetches `/api/v0/wham/usage` and read
 
 ## Conclusion
 
-Viable. The app-server returns the same rate-limit windows and plan type in a structured JSON body, with no auth.json side-effects. The only operational caveat is the initialize handshake. An alternative fetcher (`USAGED_CODEX_SOURCE=cli`) can start the app-server, send the handshake, issue `account/rateLimits/read`, and normalise the result into `snapshot.Provider`.
+Viable. The app-server returns the same rate-limit windows and plan type in a structured JSON body, with no auth.json side-effects. The only operational caveat is the initialize handshake.
+
+**NOTE (2026-09-08, task 91):** The `USAGED_CODEX_SOURCE=cli` fetcher was **deleted**, not fixed. The real `codex app-server` exits on stdin EOF ~1-2 s before it can answer (`Fetch` at codex_cli.go:228 had no fallback, and `realCodexCLIRunner` was constructed by no test at all — not even the USAGED_LIVE lane). Felipe chose deletion over holding stdin open. The spike data above remains valid — the response shape was captured correctly — but the shipped consumer is gone. If the CLI source is ever revived, the spike file and the JSON-RPC field mapping table should be the starting point.

@@ -130,20 +130,9 @@ func buildFetchers(cfg config.Config, ks creds.KeyStore) []providers.Fetcher {
 		}
 	}
 
-	// Codex: HTTP (wham/usage) or CLI (app-server) source.
+	// Codex: HTTP (wham/usage) source.
 	if enabled(config.ProviderCodex) {
-		switch cfg.CodexSource {
-		case "cli":
-			var cliRunner providers.CodexCLIRunner
-			if cfg.FixturesDir != "" {
-				cliRunner = providers.NewCodexFixtureRunner(cfg.FixturesDir)
-			} else {
-				cliRunner = providers.NewCodexCLIRunner()
-			}
-			fetchers = append(fetchers, providers.NewCodexCLI(cliRunner, loc, alerts))
-		default:
-			fetchers = append(fetchers, providers.NewCodex(client, authPath, loc, alerts))
-		}
+		fetchers = append(fetchers, providers.NewCodex(client, authPath, loc, alerts))
 	}
 
 	// OpenRouter fetchers: real when keys are set (env first, then keychain),

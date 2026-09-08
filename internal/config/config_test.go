@@ -38,9 +38,6 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.TZ == nil {
 		t.Error("TZ should not be nil")
 	}
-	if cfg.CodexSource != "http" {
-		t.Errorf("CodexSource = %q, want http", cfg.CodexSource)
-	}
 	if cfg.ClaudeSource != "auto" {
 		t.Errorf("ClaudeSource = %q, want auto", cfg.ClaudeSource)
 	}
@@ -58,7 +55,6 @@ func TestLoadEnvOverrides(t *testing.T) {
 		"GROQ_API_KEY":                "groq-secret",
 		"USAGED_GROQ_PROBE":           "1",
 		"USAGED_LOG_LEVEL":            "debug",
-		"USAGED_CODEX_SOURCE":         "cli",
 		"USAGED_CLAUDE_SOURCE":        "oauth",
 		"USAGED_PUBLISH_URL":          "https://example.com/snapshot",
 		"USAGED_PUBLISH_TOKEN":        "publish-secret",
@@ -87,9 +83,6 @@ func TestLoadEnvOverrides(t *testing.T) {
 	}
 	if cfg.GroqKey != "groq-secret" {
 		t.Errorf("GroqKey = %q", cfg.GroqKey)
-	}
-	if cfg.CodexSource != "cli" {
-		t.Errorf("CodexSource = %q, want cli", cfg.CodexSource)
 	}
 	if cfg.ClaudeSource != "oauth" {
 		t.Errorf("ClaudeSource = %q, want oauth", cfg.ClaudeSource)
@@ -254,19 +247,6 @@ func TestLoadInvalidTZ(t *testing.T) {
 	_, err := Load(nil, envFrom(env))
 	if err == nil {
 		t.Fatal("expected error for invalid timezone")
-	}
-}
-
-func TestLoadInvalidCodexSource(t *testing.T) {
-	env := map[string]string{
-		"USAGED_CODEX_SOURCE": "invalid",
-	}
-	_, err := Load(nil, envFrom(env))
-	if err == nil {
-		t.Fatal("expected error for invalid CodexSource")
-	}
-	if !strings.Contains(err.Error(), "USAGED_CODEX_SOURCE") {
-		t.Errorf("error should mention USAGED_CODEX_SOURCE, got: %v", err)
 	}
 }
 

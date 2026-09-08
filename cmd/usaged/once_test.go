@@ -306,7 +306,6 @@ func TestBuildFetchersHonorsEnabledFlag(t *testing.T) {
 		TZ:           time.UTC,
 		FixturesDir:  "../../testdata/fixtures",
 		ClaudeSource: "oauth",
-		CodexSource:  "http",
 		ProviderConfigs: map[string]config.YamlProvider{
 			config.ProviderGroq: {ID: config.ProviderGroq, Enabled: false},
 		},
