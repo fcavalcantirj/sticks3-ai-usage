@@ -27,5 +27,17 @@ sha = _git(["rev-parse", "--short", "HEAD"]) or "unknown"
 if sha != "unknown" and _git(["status", "--porcelain"]):
     sha += "+dirty"
 
+# The firmware version is the RELEASE TAG, not a number maintained by hand.
+# It used to be a literal in main.cpp that drifted: the stick reported
+# fw=1.0.0 while the project shipped v0.1.9. Deriving it from the same git
+# tags the daemon and the release tarball use means there is one source of
+# truth and nothing to remember to bump.
+tag = _git(["describe", "--tags", "--abbrev=0"]) or ""
+version = tag[1:] if tag.startswith("v") else (tag or "0.0.0-dev")
+
 print("USAGED_BUILD_ID=%s" % sha)
-env.Append(CPPDEFINES=[("USAGED_BUILD_ID", env.StringifyMacro(sha))])  # noqa: F821
+print("USAGED_FW_VERSION=%s" % version)
+env.Append(CPPDEFINES=[  # noqa: F821
+    ("USAGED_BUILD_ID", env.StringifyMacro(sha)),  # noqa: F821
+    ("USAGED_FW_VERSION", env.StringifyMacro(version)),  # noqa: F821
+])

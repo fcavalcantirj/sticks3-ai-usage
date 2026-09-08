@@ -70,7 +70,12 @@ static const uint32_t kBrightnessIdleMs = 1800000;  // 30 minutes
 static const uint32_t kHeapIntervalMs = 60000;      // 60 seconds
 
 // Firmware version reported in the boot banner.
-static const char* kFwVersion = "1.0.0";
+#ifndef USAGED_FW_VERSION
+#define USAGED_FW_VERSION "0.0.0-dev"
+#endif
+// Injected by firmware/scripts/build_id.py from the git tag, so the stick,
+// the daemon and the release tarball always report the same version.
+static const char* kFwVersion = USAGED_FW_VERSION;
 
 // --- poll state -------------------------------------------------------------
 
