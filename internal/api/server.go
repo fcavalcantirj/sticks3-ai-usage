@@ -116,11 +116,10 @@ func New(s *sched.Scheduler, cfg config.Config, configPath string, logger *slog.
 	mux.HandleFunc("POST /v1/keys", srv.handleSetKey)
 	mux.HandleFunc("DELETE /v1/keys", srv.handleDeleteKey)
 
-	// Device pairing (task 78). The routes and their two deliberately
-	// different auth models live in pairing.go; /v1/pair/claim is the one
-	// endpoint auth.go exempts from the token requirement.
+	// Device pairing (BLE provisioning only). pairing.go backs matchToken
+	// and issueDeviceToken for auth and BLE setup; the HTTP window routes
+	// were removed in task 87.
 	srv.pairing = newPairing(pairedDevicesPath(cfg.StatePath), time.Now, logger)
-	srv.pairing.routes(mux)
 
 	// Device network configuration (task 79). A SEPARATE channel from the
 	// snapshot on purpose: /v1/usage is hashed into rev, so device-bound

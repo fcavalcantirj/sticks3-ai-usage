@@ -73,34 +73,6 @@ func (a *Auth) middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// PAIRING — TWO DELIBERATELY DIFFERENT AUTH MODELS (task 78). Do not
-		// "fix" this by requiring a token here: an unpaired device has no
-		// credential to send, so that would make pairing impossible.
-		//
-		//  (1) POST /v1/pair/claim is DEVICE-FACING and necessarily
-		//      UNAUTHENTICATED. Its authorisation is the PAIRING WINDOW, which
-		//      only Felipe can open from the token-protected dashboard — the
-		//      open window IS the human consent the token would otherwise
-		//      stand in for. pairing.go enforces the rest: LAN-only (private,
-		//      non-loopback peer), rate-limited, one device per window, single
-		//      use, closed on first success or on timeout.
-		//  (2) POST /v1/pair/open and POST /v1/pair/confirm are
-		//      DASHBOARD-FACING and mutating, so ORDER #54 applies unchanged
-		//      below: the device token is required even from loopback.
-		//
-		// The JSON content-type is still enforced, so a form-encoded
-		// cross-site POST bounces here rather than reaching the handler.
-		if r.Method == http.MethodPost && r.URL.Path == pairClaimPath {
-			if r.ContentLength > 0 && !isJSONContentType(r.Header.Get("Content-Type")) {
-				writeJSON(w, http.StatusUnsupportedMediaType, map[string]string{
-					"ok": "false", "error": "Content-Type must be application/json",
-				})
-				return
-			}
-			next.ServeHTTP(w, r)
-			return
-		}
-
 		// THE DASHBOARD ON LOOPBACK NEEDS NO TOKEN. This supersedes ORDER #54,
 		// which required one for every mutating route even from this Mac.
 		//

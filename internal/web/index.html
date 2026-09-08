@@ -251,14 +251,6 @@
     }
     .settings-card select { width: 160px; }
     .settings-card input[type="number"] { width: 120px; }
-    #pair-code-field {
-      padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border);
-      background: var(--bg); color: var(--text); font-size: 14px;
-      width: 210px; text-transform: uppercase; letter-spacing: 3px;
-    }
-    #pair-code-field:disabled { opacity: 0.5; }
-    #pair-status { display: block; }
-    #pair-devices { display: block; font-size: 11px; }
 
     /* --- Mobile --- */
     @media (max-width: 959px) {
@@ -369,26 +361,6 @@
         <span id="settings-status" class="info" style="margin-left:10px;"></span>
       </div>
 
-      <!-- Pair a device (task 78). The device token is ISSUED here instead of
-           being compiled into the firmware. The 6-character code appears on the
-           DEVICE SCREEN and nowhere else: this page never receives it, which is
-           what makes typing it proof that you are holding the device. -->
-      <div class="settings-card" id="pair-card">
-        <div class="card-header"><span class="card-title">Pair a device</span></div>
-        <div class="row">
-          <span id="pair-status" class="info">Checking&hellip;</span>
-        </div>
-        <div class="row row-inner">
-          <button id="pair-open-btn">Open pairing window</button>
-          <input type="text" id="pair-code-field" maxlength="8" autocomplete="off"
-                 spellcheck="false" placeholder="Code on the device" disabled>
-          <button id="pair-confirm-btn" disabled>Confirm code</button>
-        </div>
-        <div class="row">
-          <span id="pair-devices" class="info"></span>
-        </div>
-      </div>
-
       <!-- One-click setup over Bluetooth. THE ZERO-TYPING PATH, and the reason
            the other two cards are fallbacks rather than the main event.
 
@@ -396,9 +368,9 @@
            The daemon already knows the SSID, the Wi-Fi password, its own
            address, its port, and a token it can mint on the spot — so the owner
            clicks once and types nothing. The only six characters they ever type
-           go into the macOS pairing dialog, and those are shown on the DEVICE's
+           go into the macOS Bluetooth dialog, and those are shown on the DEVICE's
            own screen, never here: that is what makes typing them proof of
-           physical possession, exactly as the pairing code is above. -->
+           physical possession. -->
       <div class="settings-card" id="setup-card">
         <div class="card-header"><span class="card-title">Set up a new device</span></div>
         <div class="row">
@@ -1041,7 +1013,6 @@ function loadSettings() {
   fetch("/v1/config", { headers: authHeaders() })
     .then(function(r) { if (r.status === 401) { showTokenInput(); return null; } return r.ok ? r.json() : null; })
     .then(function(cfg) { if (cfg) renderSettings(cfg); });
-  refreshPairStatus();
   refreshSetup();
 }
 
@@ -1079,121 +1050,12 @@ function removeKey(pid) {
   });
 }
 
-// ---- Device pairing (task 78) ----
-//
-// A publishable firmware binary carries no credentials, so the device is GIVEN
-// its token: open a short-lived window here, the device shows a 6-character
-// code on its own screen, type that code, and the agent hands the device a
-// token of its own.
-//
-// This page never sees the code and never sees the token. GET /v1/pair reports
-// the state of the window only — the code lives on the device screen (that is
-// what makes typing it proof of physical possession) and the token goes
-// straight to the device.
-
-var pairTimer = 0;
-var pairPrevState = "";   // so the "paired" moment can be reported once
-
-function openPairWindow() {
-  var headers = authHeaders();
-  headers["Content-Type"] = "application/json";
-  fetch("/v1/pair/open", { method: "POST", headers: headers, body: "{}" })
-    .then(function(r) { if (r.status === 401) { showTokenInput(); return null; } return r.json(); })
-    .then(function(js) {
-      if (!js) return;
-      renderPairStatus(js);
-      startPairPolling();
-    });
-}
-
-function confirmPairCode() {
-  var field = document.getElementById("pair-code-field");
-  var code = (field.value || "").trim();
-  if (!code) return;
-  var headers = authHeaders();
-  headers["Content-Type"] = "application/json";
-  fetch("/v1/pair/confirm", { method: "POST", headers: headers, body: JSON.stringify({ code: code }) })
-    .then(function(r) { if (r.status === 401) { showTokenInput(); return null; } return r.json(); })
-    .then(function(js) {
-      if (!js) return;
-      if (js.ok) {
-        field.value = "";
-        setPairMessage("Code accepted. Waiting for the device to collect its token\u2026", true);
-      } else {
-        setPairMessage(js.error || "That code was not accepted.", false);
-      }
-      startPairPolling();
-    });
-}
-
-function refreshPairStatus() {
-  fetch("/v1/pair", { headers: authHeaders() })
-    .then(function(r) { if (r.status === 401) { showTokenInput(); return null; } return r.ok ? r.json() : null; })
-    .then(function(js) { if (js) renderPairStatus(js); });
-}
-
-function renderPairStatus(js) {
-  var field = document.getElementById("pair-code-field");
-  var confirmBtn = document.getElementById("pair-confirm-btn");
-  var openBtn = document.getElementById("pair-open-btn");
-  var waiting = js.state === "claimed";
-  var wasDisabled = field.disabled;
-  var msg;
-
-  if (js.state === "idle" && pairPrevState === "approved") {
-    // The window closes the instant the device collects its token, so this is
-    // the only moment the page can report success.
-    msg = "Paired. The device has a token of its own and will start fetching.";
-  } else if (js.state === "open") {
-    msg = "Window open, " + fmtCountdown(js.expires_in_sec) +
-          " left. Power on the device and wait for its code to appear.";
-  } else if (js.state === "claimed") {
-    msg = "A device at " + ((js.device && js.device.peer) || "the LAN") + " is showing a " +
-          (js.code_len || 6) + "-character code. Type it here \u2014 " +
-          fmtCountdown(js.expires_in_sec) + " left.";
-  } else if (js.state === "approved") {
-    msg = "Code accepted. Waiting for the device to collect its token\u2026";
-  } else {
-    msg = "No pairing window is open. Open one, then power on the device \u2014 " +
-          "the window closes after " + fmtCountdown(js.window_ttl_sec || 180) + ".";
-  }
-  setPairMessage(msg, true);
-
-  field.disabled = !waiting;
-  confirmBtn.disabled = !waiting;
-  openBtn.textContent = js.state === "idle" ? "Open pairing window" : "Restart pairing window";
-  // Focus only on the transition into "type the code now", never on every
-  // poll — otherwise the cursor is yanked back every two seconds.
-  if (waiting && wasDisabled) field.focus();
-
-  renderPairDevices(js.devices);
-  pairPrevState = js.state;
-  if (js.state === "idle") stopPairPolling();
-}
-
-function renderPairDevices(devices) {
-  var el = document.getElementById("pair-devices");
-  if (!devices || !devices.length) {
-    el.textContent = "No device has been paired yet.";
-    return;
-  }
-  var parts = devices.map(function(d) {
-    // Prefer the advertised name. The id is a CoreBluetooth UUID for anything
-    // set up over Bluetooth and means nothing to a person, so it is shown only
-    // when there is no name to show instead.
-    var label = d.name || d.id;
-    var how = d.peer === "ble" ? " over Bluetooth" : "";
-    return esc(label) + " \u00b7 paired" + how + " " + fmtTime(d.issued_at);
-  });
-  el.innerHTML = "Paired: " + parts.join(" \u00b7 ");
-}
-
 // ---- One-click setup over Bluetooth ----
 //
 // The card is a thin renderer over GET /v1/setup. Every sentence the owner
 // reads — the headline, the step text, the failure reason and what to do next
 // — is CHOSEN BY THE AGENT, not composed here, so no implementation string can
-// reach the page. That is the same rule the pairing card follows, and it is why
+// reach the page. That is the same rule the setup card above follows, and it is why
 // this code never builds an error message out of a response field it did not
 // expect.
 //
@@ -1264,11 +1126,6 @@ function renderSetup(js) {
   setupPolling(active);
   if (!active && setupPrevRun === "running") {
     refreshSetup();
-    // A finished run changes the OTHER cards too: the device now holds a token
-    // this agent issued, so "Pair a device" is out of date the moment setup
-    // succeeds. Without this the page keeps saying "No device has been paired
-    // yet" about a device it just set up.
-    refreshPairStatus();
   }
   setupPrevRun = run ? run.state : null;
 }
@@ -1344,27 +1201,10 @@ function stopSetup() {
 
 // ---- One-click setup over Bluetooth ends ----
 
-function setPairMessage(msg, ok) {
-  var el = document.getElementById("pair-status");
-  el.textContent = msg;
-  el.style.color = ok ? "var(--muted)" : "var(--crit)";
-}
-
 function fmtCountdown(sec) {
   sec = Math.max(0, parseInt(sec || 0, 10));
   var m = Math.floor(sec / 60), s = sec % 60;
   return m + ":" + (s < 10 ? "0" : "") + s;
-}
-
-// The window is short-lived, so poll while one is in flight and stop as soon
-// as it closes — no timer runs when there is nothing to watch.
-function startPairPolling() {
-  stopPairPolling();
-  pairTimer = setInterval(refreshPairStatus, 2000);
-}
-
-function stopPairPolling() {
-  if (pairTimer) { clearInterval(pairTimer); pairTimer = 0; }
 }
 
 // ---- Tab handling ----
@@ -1838,11 +1678,6 @@ function init() {
   document.getElementById("setup-scan-btn").addEventListener("click", startSetupScan);
   document.getElementById("setup-provision-btn").addEventListener("click", startSetupProvision);
   document.getElementById("setup-stop-btn").addEventListener("click", stopSetup);
-  document.getElementById("pair-open-btn").addEventListener("click", openPairWindow);
-  document.getElementById("pair-confirm-btn").addEventListener("click", confirmPairCode);
-  document.getElementById("pair-code-field").addEventListener("keydown", function(e) {
-    if (e.key === "Enter") confirmPairCode();
-  });
   // Polling intervals are derived from currentInterval so the
   // interval selector applies without a page reload.
   reloadIntervals();

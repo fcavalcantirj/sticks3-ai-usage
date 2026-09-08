@@ -4,7 +4,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 )
@@ -257,42 +256,6 @@ func TestIndexHTMLCanProbe(t *testing.T) {
 	}
 	if !strings.Contains(html, "p.can_probe") {
 		t.Error(`index.html missing p.can_probe reference`)
-	}
-}
-
-// TestIndexHTMLPairingCard verifies the Settings tab carries the pairing
-// control (task 78): a button to open the window, a field for the code that
-// the DEVICE shows, and the three endpoints behind them.
-func TestIndexHTMLPairingCard(t *testing.T) {
-	html := string(IndexHTML)
-	for _, want := range []string{
-		`id="pair-card"`,
-		`id="pair-open-btn"`,
-		`id="pair-code-field"`,
-		`id="pair-confirm-btn"`,
-		`id="pair-status"`,
-		`id="pair-devices"`,
-		`"/v1/pair/open"`,
-		`"/v1/pair/confirm"`,
-		`"/v1/pair"`,
-	} {
-		if !strings.Contains(html, want) {
-			t.Errorf("index.html missing pairing element %q", want)
-		}
-	}
-}
-
-// TestIndexHTMLPairingNeverShowsTheCode is the page-side half of the rule the
-// API enforces: the pairing code lives on the DEVICE screen, which is what
-// makes typing it proof of physical possession. The dashboard must never
-// render a code or a token it received from the agent.
-func TestIndexHTMLPairingNeverShowsTheCode(t *testing.T) {
-	html := string(IndexHTML)
-	// code_len and token_len are fine — they are lengths. A bare .code or
-	// .token read off a pairing response is not.
-	leak := regexp.MustCompile(`\b(js|pair|status)\.(code|token)\b`)
-	if m := leak.FindString(html); m != "" {
-		t.Errorf("index.html reads %q from the pairing API — the code and token must never reach the page", m)
 	}
 }
 

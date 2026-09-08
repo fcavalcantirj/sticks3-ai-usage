@@ -50,12 +50,11 @@ const (
 // need these — it knows its own routes — but a human running `dns-sd -L`
 // does, and they document the contract at the point of discovery.
 const (
-	usagePath = "/v1/usage"      // mirrors internal/api: GET /v1/usage
-	pairPath  = "/v1/pair/claim" // mirrors internal/api/pairing.go: pairClaimPath
+	usagePath = "/v1/usage" // mirrors internal/api: GET /v1/usage
 )
 
 func defaultTXT() []string {
-	return []string{"txtvers=1", "path=" + usagePath, "pair=" + pairPath}
+	return []string{"txtvers=1", "path=" + usagePath}
 }
 
 // Service is the published identity of one agent: a host name, one DNS-SD

@@ -627,7 +627,7 @@ func TestNetcfgPasswordIsWriteOnlyThroughEveryGET(t *testing.T) {
 	gets := []string{
 		"/", "/index.html", "/healthz",
 		"/v1/usage", "/v1/usage.txt", "/v1/device", "/v1/stats",
-		"/v1/config", "/v1/pair", netcfgPath,
+		"/v1/config", netcfgPath,
 	}
 	for _, path := range gets {
 		for _, remote := range []string{netcfgLoopback, netcfgDeviceIP} {

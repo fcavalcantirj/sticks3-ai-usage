@@ -1683,7 +1683,7 @@ func newHandlerWithKeyStore(t *testing.T, dir string, cfg config.Config, configP
 // A fresh install generates a device token into a file the owner never opens,
 // and the dashboard has no way to know it. So every mutating route answered 401
 // from the user's own machine: they could not set an API key, change a setting,
-// or open a pairing window. Reported from a real first run on 2026-09-07 —
+// or pair a device. Reported from a real first run on 2026-09-07 —
 // "could not set openrouter keys, tried a lot".
 //
 // Loopback is now allowed to mutate WITHOUT a token, and the JSON content-type
