@@ -1210,7 +1210,7 @@
       "Verify: `make verify` exits 0 with the rev-changes-on-reorder test and the ordering test. `make fw-test` Failed 0 with the payload-order page test. Then run THE LANE and prove it on the RUNNING daemon: capture `curl -s 127.0.0.1:8765/v1/usage | python3 -c \"import sys,json;d=json.load(sys.stdin);print(d['rev'],[p['id'] for p in d['providers']])\"`, reorder two providers in the Settings page, and re-run it — the id list must be in the NEW order and the rev must have CHANGED. Paste both lines. Then open the dashboard and confirm the order survives a reload. In the DONE line, state explicitly that kind grouping still wins over order on the device, and ask Felipe whether he wants kKindOrder made configurable too.",
       "DO NOT FLASH. No firmware change is needed for the ordering itself; if the host test required a firmware edit, append `FLASH REQUEST: sha=<short sha> reason=<why> — owner action required` to progress.txt and MOVE ON."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "providers",
