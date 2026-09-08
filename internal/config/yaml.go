@@ -10,12 +10,13 @@ import (
 // environment variables and flags in the precedence chain:
 // flags > env > file > defaults.
 type FileConfig struct {
-	IntervalSec int
-	Listen      string
-	DeviceToken string
-	TZ          string
-	Alerts      map[string]float64
-	Providers   []YamlProvider
+	IntervalSec   int
+	Listen        string
+	DeviceToken   string
+	TZ            string
+	Alerts        map[string]float64
+	Providers     []YamlProvider
+	ProviderOrder []string
 }
 
 // YamlProvider is a single provider entry from the YAML config.
@@ -139,8 +140,20 @@ func ParseYAML(text string) (FileConfig, error) {
 			i = j - 1
 			fc.Providers = provs
 
+		case "provider_order":
+			if value != "" {
+				return fc, fmt.Errorf("line %d: 'provider_order:' must start a list, got value %q", ln.lineNo, value)
+			}
+			i++
+			list, j, err := parseStringList(lines, i)
+			if err != nil {
+				return fc, err
+			}
+			i = j - 1
+			fc.ProviderOrder = list
+
 		default:
-			return fc, fmt.Errorf("line %d: unknown key %q (known keys: interval_sec, listen, device_token, tz, alerts, providers)", ln.lineNo, key)
+			return fc, fmt.Errorf("line %d: unknown key %q (known keys: interval_sec, listen, device_token, tz, alerts, providers, provider_order)", ln.lineNo, key)
 		}
 		i++
 	}
@@ -267,6 +280,30 @@ func parseScalarMap(lines []yamlLine, pos int) (map[string]float64, int, error) 
 	}
 
 	return m, pos, nil
+}
+
+// parseStringList reads a YAML list of scalar strings (e.g. "provider_order:").
+// Each item is a "- value" line at a uniform 2-space indentation. Returns the
+// list and the index past the block.
+func parseStringList(lines []yamlLine, pos int) ([]string, int, error) {
+	var list []string
+
+	if pos >= len(lines) {
+		return list, pos, nil
+	}
+
+	listIndent := lines[pos].indent
+	if listIndent != 2 {
+		return list, pos, fmt.Errorf("line %d: expected indentation of 2 spaces under list key, got %d", lines[pos].lineNo, listIndent)
+	}
+
+	for pos < len(lines) && lines[pos].indent == listIndent && strings.HasPrefix(lines[pos].content, "- ") {
+		val := strings.TrimPrefix(lines[pos].content, "- ")
+		list = append(list, unquote(strings.TrimSpace(val)))
+		pos++
+	}
+
+	return list, pos, nil
 }
 
 // parseProviderList reads a YAML list of maps. Each item begins with

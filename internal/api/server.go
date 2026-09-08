@@ -436,10 +436,11 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	resp := map[string]any{
-		"interval_sec": int(s.cfg.Interval.Seconds()),
-		"listen":       s.cfg.Listen,
-		"plan_presets": presets,
-		"tz":           s.cfg.TZ.String(),
+		"interval_sec":   int(s.cfg.Interval.Seconds()),
+		"listen":         s.cfg.Listen,
+		"plan_presets":   presets,
+		"tz":             s.cfg.TZ.String(),
+		"provider_order": s.cfg.ProviderOrder,
 		"alerts": map[string]any{
 			"openrouter_low_usd":    s.cfg.AlertOpenRouterLowUSD,
 			"quota_warn_5h_pct":     s.cfg.AlertQuotaWarn5hPct,
@@ -560,11 +561,12 @@ func (s *Server) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 		Plan    *planReq `json:"plan,omitempty"`
 	}
 	type configReq struct {
-		IntervalSec int                `json:"interval_sec"`
-		Listen      string             `json:"listen"`
-		TZ          string             `json:"tz"`
-		Alerts      map[string]float64 `json:"alerts"`
-		Providers   []providerReq      `json:"providers"`
+		IntervalSec   int                `json:"interval_sec"`
+		Listen        string             `json:"listen"`
+		TZ            string             `json:"tz"`
+		Alerts        map[string]float64 `json:"alerts"`
+		Providers     []providerReq      `json:"providers"`
+		ProviderOrder []string           `json:"provider_order"`
 	}
 
 	var body configReq
@@ -630,9 +632,10 @@ func (s *Server) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 
 	// Build a FileConfig from the request and update in-memory state.
 	fc := config.FileConfig{
-		IntervalSec: body.IntervalSec,
-		Listen:      body.Listen,
-		TZ:          body.TZ,
+		IntervalSec:   body.IntervalSec,
+		Listen:        body.Listen,
+		TZ:            body.TZ,
+		ProviderOrder: body.ProviderOrder,
 	}
 	for k, v := range body.Alerts {
 		if fc.Alerts == nil {
@@ -705,6 +708,9 @@ func (s *Server) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.cfg.ProviderConfigs = provs
+	if len(body.ProviderOrder) > 0 {
+		s.cfg.ProviderOrder = body.ProviderOrder
+	}
 	// Apply alert thresholds in-memory (migration-aware: legacy
 	// quota_warn_pct seeds both new keys; explicit new keys take precedence).
 	if v, ok := fc.Alerts["quota_warn_pct"]; ok {
@@ -821,6 +827,7 @@ func (s *Server) rebuildFetchers() {
 	}
 	fetchers := s.fetcherBuilder(s.cfg)
 	s.sched.SetFetchers(fetchers)
+	s.sched.SetProviderOrder(s.cfg.ProviderOrder)
 	go s.sched.Refresh()
 }
 

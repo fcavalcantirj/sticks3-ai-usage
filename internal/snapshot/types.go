@@ -6,7 +6,10 @@ import (
 	"unicode/utf8"
 )
 
-// canonicalProviderOrder is the fixed order every client expects.
+// canonicalProviderOrder is the default display order used when no
+// user-chosen order is configured. It is also the SET of known provider ids:
+// ids not in this list are rejected by Validate. Providers may appear in any
+// order in a snapshot; the user controls display order via config/ProviderOrder.
 // Missing ids are allowed (a subset is valid); unknown ids are rejected.
 var canonicalProviderOrder = []string{
 	"claude", "codex", "openrouter:main", "openrouter:fallback", "groq", "opencode:go",
@@ -59,7 +62,7 @@ type Snapshot struct {
 	GeneratedAt int64      `json:"generated_at"` // unix s of last CHANGE
 	CheckedAt   int64      `json:"checked_at"`   // unix s of last poll attempt
 	NextSec     int        `json:"next_sec"`     // 900
-	Providers   []Provider `json:"providers"`    // sorted in canonical order
+	Providers   []Provider `json:"providers"`    // sorted in user-chosen display order (default: canonical)
 }
 
 // Validate enforces the v1 contract rules.
@@ -69,7 +72,6 @@ func (s *Snapshot) Validate() error {
 	}
 
 	seen := make(map[string]bool)
-	lastPos := -1
 
 	for _, p := range s.Providers {
 		if seen[p.ID] {
@@ -77,20 +79,18 @@ func (s *Snapshot) Validate() error {
 		}
 		seen[p.ID] = true
 
-		pos := -1
-		for i, id := range canonicalProviderOrder {
+		// Known-id check against the canonical set (order is NOT enforced —
+		// the user may choose any display order via config.ProviderOrder).
+		known := false
+		for _, id := range canonicalProviderOrder {
 			if p.ID == id {
-				pos = i
+				known = true
 				break
 			}
 		}
-		if pos == -1 {
+		if !known {
 			return fmt.Errorf("unknown provider id: %s", p.ID)
 		}
-		if pos < lastPos {
-			return fmt.Errorf("provider %s out of canonical order", p.ID)
-		}
-		lastPos = pos
 
 		if !validStatuses[p.Status] {
 			return fmt.Errorf("invalid status %q for provider %s", p.Status, p.ID)
@@ -121,11 +121,18 @@ func (s *Snapshot) Validate() error {
 	return nil
 }
 
-// Order returns ids sorted into the canonical provider order.
-// Unknown ids are placed at the end, preserving input order.
-func Order(ids []string) []string {
+// Order returns ids sorted into the user-chosen display order. If order is
+// non-empty, ids are arranged to match it (preserving input order for ids not
+// in the list). If order is empty or nil, the canonicalProviderOrder default
+// is used instead. Unknown ids (not in canonicalProviderOrder) are placed at
+// the end, preserving input order.
+func Order(ids []string, order []string) []string {
 	pos := make(map[string]int, len(canonicalProviderOrder))
-	for i, id := range canonicalProviderOrder {
+	ref := order
+	if len(ref) == 0 {
+		ref = canonicalProviderOrder
+	}
+	for i, id := range ref {
 		pos[id] = i
 	}
 
@@ -135,11 +142,11 @@ func Order(ids []string) []string {
 	sort.SliceStable(sorted, func(i, j int) bool {
 		pi, ok1 := pos[sorted[i]]
 		if !ok1 {
-			pi = len(canonicalProviderOrder)
+			pi = len(ref)
 		}
 		pj, ok2 := pos[sorted[j]]
 		if !ok2 {
-			pj = len(canonicalProviderOrder)
+			pj = len(ref)
 		}
 		return pi < pj
 	})

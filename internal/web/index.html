@@ -640,9 +640,39 @@ function renderSettings(cfg) {
     return;
   }
 
-  cfg.providers.forEach(function(p) {
+  // The server already returns providers in the configured order, but be
+  // explicit: if provider_order is present, sort by it so a stale response
+  // never renders in the wrong position.
+  var order = cfg.provider_order || [];
+  var provs = cfg.providers || [];
+  if (order.length > 0) {
+    var rank = {};
+    for (var oi = 0; oi < order.length; oi++) rank[order[oi]] = oi;
+    provs = provs.slice().sort(function(a, b) {
+      var ra = rank[a.id] !== undefined ? rank[a.id] : order.length;
+      var rb = rank[b.id] !== undefined ? rank[b.id] : order.length;
+      return ra - rb;
+    });
+  }
+  provs.forEach(function(p) {
     list.appendChild(createProviderCard(p));
   });
+}
+
+// moveCardUp moves a provider card up by one position in the DOM.
+function moveCardUp(card) {
+  var prev = card.previousElementSibling;
+  if (prev && prev.classList.contains("provider-card")) {
+    card.parentNode.insertBefore(card, prev);
+  }
+}
+
+// moveCardDown moves a provider card down by one position in the DOM.
+function moveCardDown(card) {
+  var next = card.nextElementSibling;
+  if (next && next.classList.contains("provider-card")) {
+    card.parentNode.insertBefore(next, card);
+  }
 }
 
 function createProviderCard(p) {
@@ -684,6 +714,21 @@ function createProviderCard(p) {
   chevron.className = "card-chevron";
   chevron.textContent = "\u25b6";  // ▶
   header.appendChild(chevron);
+
+  // Up/down buttons for reordering provider display order
+  var moveUpBtn = document.createElement("button");
+  moveUpBtn.className = "btn-small";
+  moveUpBtn.textContent = "\u25b2";  // ▲
+  moveUpBtn.setAttribute("title", "Move up");
+  moveUpBtn.onclick = function(e) { e.stopPropagation(); moveCardUp(card); };
+  header.appendChild(moveUpBtn);
+
+  var moveDownBtn = document.createElement("button");
+  moveDownBtn.className = "btn-small";
+  moveDownBtn.textContent = "\u25bc";  // ▼
+  moveDownBtn.setAttribute("title", "Move down");
+  moveDownBtn.onclick = function(e) { e.stopPropagation(); moveCardDown(card); };
+  header.appendChild(moveDownBtn);
 
   header.onclick = function() { toggleProviderCard(card); };
   card.appendChild(header);
@@ -914,11 +959,15 @@ function saveSettings() {
 
   // Gather provider data from each card.
   var providers = [];
+  var provider_order = [];
   var cards = document.querySelectorAll("#provider-list .provider-card");
   cards.forEach(function(card) {
     var pid = card.getAttribute("data-pid");
     var enabled = card.querySelector('input[data-field="enabled"]').checked;
     var label = card.querySelector('input[data-field="label"]').value.trim();
+
+    // Collect the DOM order as the user-chosen provider_order.
+    provider_order.push(pid);
 
     var providerObj = { id: pid, enabled: enabled, label: label };
 
@@ -964,7 +1013,8 @@ function saveSettings() {
     listen: cfg_listen_cache,
     tz: cfg_tz_cache,
     alerts: alerts,
-    providers: providers
+    providers: providers,
+    provider_order: provider_order
   });
   var headers = authHeaders();
   headers["Content-Type"] = "application/json";

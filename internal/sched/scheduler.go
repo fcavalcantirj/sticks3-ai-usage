@@ -43,6 +43,10 @@ type Scheduler struct {
 	PublishURL    string
 	PublishToken  string
 	PublishClient *http.Client
+
+	// ProviderOrder is the user-chosen display order for provider ids.
+	// When nil/empty, snapshot.Order falls back to the canonical default.
+	ProviderOrder []string
 }
 
 // NewScheduler creates a Scheduler with sane defaults. If clock is nil,
@@ -181,7 +185,7 @@ func (s *Scheduler) pollOnce(ctx context.Context) {
 	for i, p := range blockList {
 		ids[i] = p.ID
 	}
-	sortedIDs := snapshot.Order(ids)
+	sortedIDs := snapshot.Order(ids, s.ProviderOrder)
 	byID := make(map[string]snapshot.Provider, len(blockList))
 	for _, p := range blockList {
 		byID[p.ID] = p
@@ -364,6 +368,16 @@ func (s *Scheduler) SetFetchers(fetchers []providers.Fetcher) {
 	s.pollMu.Lock()
 	defer s.pollMu.Unlock()
 	s.Fetchers = fetchers
+}
+
+// SetProviderOrder updates the user-chosen display order at runtime. The new
+// order takes effect on the next poll. It is guarded by pollMu so it never
+// races with PollOnce or Refresh, both of which read s.ProviderOrder while
+// holding pollMu.
+func (s *Scheduler) SetProviderOrder(order []string) {
+	s.pollMu.Lock()
+	defer s.pollMu.Unlock()
+	s.ProviderOrder = order
 }
 
 // Run polls immediately, then on an Interval ticker with ±10% jitter until

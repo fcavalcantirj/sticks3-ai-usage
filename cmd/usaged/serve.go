@@ -62,6 +62,7 @@ func runServe(args []string, stdout io.Writer) int {
 	// Configure snapshot publishing (task 59).
 	s.PublishURL = cfg.PublishURL
 	s.PublishToken = cfg.PublishToken
+	s.ProviderOrder = cfg.ProviderOrder
 	s.StatsCfg = stats.ScanConfig{
 		TZ:        cfg.TZ,
 		ClaudeDir: cfg.ClaudeDir,

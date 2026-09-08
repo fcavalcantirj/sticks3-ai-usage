@@ -225,3 +225,72 @@ func TestValidateRejectsDuplicateIDs(t *testing.T) {
 		t.Fatal("expected error for duplicate provider ids")
 	}
 }
+
+// TestValidateAcceptsNonCanonicalOrder — Validate must not enforce the
+// canonical sequence; the display order is now user-controlled.
+func TestValidateAcceptsNonCanonicalOrder(t *testing.T) {
+	snap := Snapshot{
+		V: 1,
+		Providers: []Provider{
+			{ID: "codex", Label: "ChatGPT", Plan: "plus", Kind: "plan", Severity: "crit", Status: "ok", Msg: ""},
+			{ID: "claude", Label: "Claude", Plan: "max_20x", Kind: "plan", Severity: "ok", Status: "ok", Msg: ""},
+		},
+	}
+	if err := snap.Validate(); err != nil {
+		t.Fatalf("Validate rejected non-canonical order: %v", err)
+	}
+}
+
+// TestRevDiffersByProviderOrder — two snapshots with identical provider
+// content but reversed order produce different revs, because Rev hashes the
+// array in its given order.
+func TestRevDiffersByProviderOrder(t *testing.T) {
+	mk := func(id, plan string) Provider {
+		return Provider{
+			ID: id, Label: id, Plan: plan, Kind: "plan",
+			Severity: "ok", Status: "ok",
+		}
+	}
+	a := []Provider{mk("claude", "max_20x"), mk("codex", "plus")}
+	b := []Provider{mk("codex", "plus"), mk("claude", "max_20x")}
+
+	revA := Rev(a)
+	revB := Rev(b)
+	if revA == revB {
+		t.Fatalf("rev identical for reordered providers: %s", revA)
+	}
+}
+
+// TestOrderWithUserOrder — Order with a non-empty order param sorts by it.
+func TestOrderWithUserOrder(t *testing.T) {
+	ids := []string{"claude", "codex", "groq"}
+	// User-chosen order: groq first, then claude, then codex.
+	order := []string{"groq", "claude", "codex"}
+	got := Order(ids, order)
+	want := []string{"groq", "claude", "codex"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i, id := range want {
+		if got[i] != id {
+			t.Errorf("got[%d]=%q, want %q", i, got[i], id)
+		}
+	}
+}
+
+// TestOrderFallsBackToCanonical — Order with empty order param uses the
+// canonical default.
+func TestOrderFallsBackToCanonical(t *testing.T) {
+	ids := []string{"groq", "claude", "codex"}
+	got := Order(ids, nil)
+	// canonical: claude, codex, ..., groq
+	want := []string{"claude", "codex", "groq"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i, id := range want {
+		if got[i] != id {
+			t.Errorf("got[%d]=%q, want %q", i, got[i], id)
+		}
+	}
+}

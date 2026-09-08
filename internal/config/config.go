@@ -69,6 +69,10 @@ type Config struct {
 	// by provider ID (e.g. "openrouter:main"). A provider with Enabled=false
 	// is dropped from the snapshot entirely.
 	ProviderConfigs map[string]YamlProvider
+
+	// ProviderOrder is the user-chosen display order of provider ids. When
+	// empty, the scheduler falls back to config.DefaultProviderOrder.
+	ProviderOrder []string
 }
 
 // DefaultConfigFile is the default path for the optional YAML config.
@@ -95,6 +99,10 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 	cfg.AlertQuotaWarn5hPct = 70
 	cfg.AlertQuotaWarnWeeklyPct = 60
 	cfg.ClaudeSource = "auto"
+
+	// Default provider display order (the canonical fallback). A non-empty
+	// value in config.yaml overrides this.
+	cfg.ProviderOrder = DefaultProviderOrder
 
 	tz, err := time.LoadLocation(DefaultTZ)
 	if err != nil {
@@ -350,6 +358,9 @@ func applyFileConfig(cfg *Config, fc *FileConfig, home string) {
 	for _, p := range fc.Providers {
 		cfg.ProviderConfigs[p.ID] = p
 	}
+	if len(fc.ProviderOrder) > 0 {
+		cfg.ProviderOrder = fc.ProviderOrder
+	}
 }
 
 // Redacted returns a map safe for logging: all secret values are
@@ -391,6 +402,7 @@ func (c Config) Redacted() map[string]any {
 		}
 	}
 	m["provider_configs"] = provConfigs
+	m["provider_order"] = c.ProviderOrder
 	if c.OpenRouterKeys != nil {
 		keys := make(map[string]string, len(c.OpenRouterKeys))
 		for k, v := range c.OpenRouterKeys {

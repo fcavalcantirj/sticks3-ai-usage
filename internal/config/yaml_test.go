@@ -568,3 +568,119 @@ func TestLoadPlanFromConfigFile(t *testing.T) {
 		t.Errorf("codex Plan.Currency = %q, want BRL", codex.Plan.Currency)
 	}
 }
+
+// TestParseYAMLProviderOrder verifies the provider_order list is parsed.
+func TestParseYAMLProviderOrder(t *testing.T) {
+	text := `provider_order:
+  - codex
+  - claude
+  - groq
+`
+	fc, err := ParseYAML(text)
+	if err != nil {
+		t.Fatalf("ParseYAML: %v", err)
+	}
+	if len(fc.ProviderOrder) != 3 {
+		t.Fatalf("len(ProviderOrder) = %d, want 3", len(fc.ProviderOrder))
+	}
+	if fc.ProviderOrder[0] != "codex" {
+		t.Errorf("ProviderOrder[0] = %q, want codex", fc.ProviderOrder[0])
+	}
+	if fc.ProviderOrder[1] != "claude" {
+		t.Errorf("ProviderOrder[1] = %q, want claude", fc.ProviderOrder[1])
+	}
+	if fc.ProviderOrder[2] != "groq" {
+		t.Errorf("ProviderOrder[2] = %q, want groq", fc.ProviderOrder[2])
+	}
+}
+
+// TestParseYAMLProviderOrderRoundTrip verifies serialize + parse round-trips
+// the provider_order list.
+func TestParseYAMLProviderOrderRoundTrip(t *testing.T) {
+	fc := FileConfig{
+		ProviderOrder: []string{"codex", "claude", "openrouter:main"},
+	}
+	out, err := SerializeYAML(fc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := ParseYAML(out)
+	if err != nil {
+		t.Fatalf("ParseYAML round-trip: %v\n%s", err, out)
+	}
+	if len(parsed.ProviderOrder) != 3 {
+		t.Fatalf("round-trip ProviderOrder = %d, want 3", len(parsed.ProviderOrder))
+	}
+	if parsed.ProviderOrder[0] != "codex" {
+		t.Errorf("ProviderOrder[0] = %q, want codex", parsed.ProviderOrder[0])
+	}
+	if parsed.ProviderOrder[1] != "claude" {
+		t.Errorf("ProviderOrder[1] = %q, want claude", parsed.ProviderOrder[1])
+	}
+	if parsed.ProviderOrder[2] != "openrouter:main" {
+		t.Errorf("ProviderOrder[2] = %q, want openrouter:main", parsed.ProviderOrder[2])
+	}
+}
+
+// TestLoadFileProviderOrder verifies that provider_order from a YAML file
+// overrides the default.
+func TestLoadFileProviderOrder(t *testing.T) {
+	text := `provider_order:
+  - codex
+  - claude
+`
+	path := writeTempYAML(t, text)
+	cfg, err := Load([]string{"--config", path}, envFrom(map[string]string{
+		"USAGED_DEVICE_TOKEN": "test-token",
+	}))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(cfg.ProviderOrder) != 2 {
+		t.Fatalf("len(ProviderOrder) = %d, want 2", len(cfg.ProviderOrder))
+	}
+	if cfg.ProviderOrder[0] != "codex" {
+		t.Errorf("ProviderOrder[0] = %q, want codex", cfg.ProviderOrder[0])
+	}
+	if cfg.ProviderOrder[1] != "claude" {
+		t.Errorf("ProviderOrder[1] = %q, want claude", cfg.ProviderOrder[1])
+	}
+}
+
+// TestLoadDefaultProviderOrder verifies the default is set when no file override.
+func TestLoadDefaultProviderOrder(t *testing.T) {
+	cfg, err := Load(nil, envFrom(map[string]string{
+		"HOME":                "/nonexistent-home-xyz",
+		"USAGED_DEVICE_TOKEN": "test-token",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.ProviderOrder) != len(DefaultProviderOrder) {
+		t.Fatalf("len(ProviderOrder) = %d, want %d", len(cfg.ProviderOrder), len(DefaultProviderOrder))
+	}
+	for i, id := range DefaultProviderOrder {
+		if cfg.ProviderOrder[i] != id {
+			t.Errorf("ProviderOrder[%d] = %q, want %q", i, cfg.ProviderOrder[i], id)
+		}
+	}
+}
+
+// TestRedactedProviderOrder verifies provider_order appears in Redacted().
+func TestRedactedProviderOrder(t *testing.T) {
+	cfg := Config{
+		ProviderOrder: []string{"codex", "claude"},
+	}
+	r := cfg.Redacted()
+	po, ok := r["provider_order"]
+	if !ok {
+		t.Fatal("Redacted() missing provider_order")
+	}
+	poSlice, ok := po.([]string)
+	if !ok {
+		t.Fatalf("provider_order is %T, want []string", po)
+	}
+	if len(poSlice) != 2 || poSlice[0] != "codex" || poSlice[1] != "claude" {
+		t.Errorf("provider_order = %v, want [codex claude]", poSlice)
+	}
+}

@@ -34,6 +34,19 @@ alerts:
 # CLI/web can compare API-equiv usage against the real cost. Keys are cost and
 # currency (the plan's price), cost_usd (manual USD equivalent for ratio math;
 # when absent for non-USD plans, no ratio is shown — no invented FX), and label.
+# provider_order: (optional) overrides the default display order of providers in
+# the web dashboard and on the StickS3 screen. List ids in the desired order;
+# any known provider not listed falls back to its default position. IDs are
+# matched against the built-in set (claude, codex, openrouter:main,
+# openrouter:fallback, groq, opencode:go).
+provider_order:
+  - claude
+  - codex
+  - openrouter:main
+  - openrouter:fallback
+  - groq
+  - opencode:go
+
 providers:
   - id: claude
     enabled: true

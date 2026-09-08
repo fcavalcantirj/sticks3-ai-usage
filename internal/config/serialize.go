@@ -35,6 +35,13 @@ func SerializeYAML(fc FileConfig) (string, error) {
 		}
 	}
 
+	if len(fc.ProviderOrder) > 0 {
+		out += "provider_order:\n"
+		for _, id := range fc.ProviderOrder {
+			out += fmt.Sprintf("  - %s\n", yamlStr(id))
+		}
+	}
+
 	if len(fc.Providers) > 0 {
 		out += "providers:\n"
 		for _, p := range fc.Providers {

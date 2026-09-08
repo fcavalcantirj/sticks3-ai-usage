@@ -494,3 +494,58 @@ TEST(plan_instructions_page_words_shortened) {
     ASSERT_STREQ("pages", plan.lines[0].right);   // was "cycle pages"
     ASSERT_STREQ("bright", plan.lines[1].right);  // was "brightness"
 }
+
+// --- ORDER #36 task 51: user-chosen provider display order ---------------------
+//
+// The firmware renders providers in PAYLOAD order (the order they arrive in the
+// JSON).  The device groups by KIND (plan -> credit -> free) first, but within
+// a kind the row order follows the provider order in the payload.  This test
+// feeds codex BEFORE claude (the reverse of the canonical order) and verifies
+// that page 0 (PLANS) starts with a codex row.
+
+TEST(plan_provider_order_payload_first) {
+    // codex is listed first in the JSON — its rows should appear first on
+    // the PLANS page, before claude's rows.
+    const char* json =
+        "{\"v\":1,\"seq\":1,\"rev\":\"abcd1234\",\"generated_at\":0,\"next_sec\":900,"
+        "\"providers\":["
+        "{\"id\":\"codex\",\"label\":\"ChatGPT\",\"plan\":\"plus\","
+        "\"kind\":\"plan\",\"severity\":\"ok\",\"status\":\"ok\",\"msg\":\"\","
+        "\"rows\":[{\"k\":\"5h\",\"label\":\"GPT 5h\",\"pct\":100,"
+        "\"txt\":\"23:13\",\"tier\":\"crit\",\"reset_at\":0},"
+        "{\"k\":\"7d\",\"label\":\"GPT 7d\",\"pct\":31,"
+        "\"txt\":\"Tue\",\"tier\":\"ok\",\"reset_at\":0},"
+        "{\"k\":\"bal\",\"label\":\"GPT cr\",\"pct\":null,"
+        "\"txt\":\"178 cr\",\"tier\":\"ok\",\"reset_at\":null}]},"
+        "{\"id\":\"claude\",\"label\":\"Claude\",\"plan\":\"max_20x\","
+        "\"kind\":\"plan\",\"severity\":\"ok\",\"status\":\"ok\",\"msg\":\"\","
+        "\"rows\":[{\"k\":\"5h\",\"label\":\"CLAUDE 5h\",\"pct\":19,"
+        "\"txt\":\"05:09\",\"tier\":\"ok\",\"reset_at\":0},"
+        "{\"k\":\"7d\",\"label\":\"CLAUDE 7d\",\"pct\":30,"
+        "\"txt\":\"Mon\",\"tier\":\"ok\",\"reset_at\":0},"
+        "{\"k\":\"7d:Fable\",\"label\":\"FABLE 7d\",\"pct\":20,"
+        "\"txt\":\"Mon\",\"tier\":\"ok\",\"reset_at\":0}]}]}";
+
+    Model m;
+    char err[256];
+    bool ok = usage::parseSnapshot(json, strlen(json), m, err, sizeof(err));
+    ASSERT_TRUE(ok);
+
+    // Both providers are "plan" kind: 6 rows total -> 2 pages (maxLines=5).
+    // +1 instructions page = 3 total.
+    RenderPlan plan;
+    buildTestPlan(m, 0, plan);
+    ASSERT_EQ(3u, plan.pageCount);
+    ASSERT_EQ(1u, plan.page);
+    ASSERT_STREQ("PLANS", plan.title);
+    ASSERT_EQ(usage::KIND_PLAN, plan.kind);
+
+    // First row must come from codex (first in payload), not claude.
+    ASSERT_EQ(5, (int)plan.lineCount);
+    ASSERT_STREQ("GPT 5h", plan.lines[0].left);
+    ASSERT_STREQ("GPT 7d", plan.lines[1].left);
+    ASSERT_STREQ("GPT cr", plan.lines[2].left);
+    // Then claude's rows overflow.
+    ASSERT_STREQ("CLAUDE 5h", plan.lines[3].left);
+    ASSERT_STREQ("CLAUDE 7d", plan.lines[4].left);
+}

@@ -1730,3 +1730,113 @@ func TestDashboardWorksOnLoopbackWithNoToken(t *testing.T) {
 		t.Errorf("form-encoded loopback POST = %d, want it refused", rec.Code)
 	}
 }
+
+// TestConfigProviderOrderReordersSnapshot verifies that PUT /v1/config with a
+// provider_order list causes the scheduler to re-order providers in the next
+// snapshot, producing a different rev.
+func TestConfigProviderOrderReordersSnapshot(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{
+		Listen:      "127.0.0.1:0",
+		Interval:    900 * time.Second,
+		TZ:          testLoc,
+		DeviceToken: "x",
+	}
+
+	client := &httpx.Client{HTTP: &http.Client{Transport: httpx.NewFixtureTransport(dir)}}
+	runner := creds.FixtureRunner(dir)
+	fetchers := []providers.Fetcher{
+		providers.NewClaude(client, runner, "testuser", testLoc, format.DefaultAlerts()),
+		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc, format.DefaultAlerts()),
+	}
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
+	s.PollOnce(context.Background())
+
+	builder := func(c config.Config) []providers.Fetcher {
+		var out []providers.Fetcher
+		for _, p := range c.EffectiveProviders() {
+			if !p.Enabled {
+				continue
+			}
+			switch p.ID {
+			case config.ProviderClaude:
+				out = append(out, providers.NewClaude(client, runner, "testuser", testLoc, format.DefaultAlerts()))
+			case config.ProviderCodex:
+				out = append(out, providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc, format.DefaultAlerts()))
+			}
+		}
+		return out
+	}
+
+	srv, err := New(s, cfg, "", logger, WithFetcherBuilder(builder))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	handler := srv.Handler
+
+	// Baseline: default order (claude, codex).
+	req := httptest.NewRequest(http.MethodGet, "/v1/usage", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("baseline GET /v1/usage: status = %d", rec.Code)
+	}
+	var snap1 snapshot.Snapshot
+	json.Unmarshal(rec.Body.Bytes(), &snap1)
+	if snap1.Providers[0].ID != "claude" {
+		t.Fatalf("baseline providers[0] = %q, want claude", snap1.Providers[0].ID)
+	}
+	rev1 := snap1.Rev
+
+	// PUT with reordered provider_order: codex first.
+	body := `{"providers":[],"provider_order":["codex","claude"]}`
+	req2 := httptest.NewRequest(http.MethodPut, "/v1/config", strings.NewReader(body))
+	req2.Header.Set("Content-Type", "application/json")
+	req2.RemoteAddr = "127.0.0.1:12345"
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("PUT /v1/config: status = %d, body = %s", rec2.Code, rec2.Body.String())
+	}
+
+	// Wait for the background refresh triggered by rebuildFetchers.
+	for i := 0; i < 50; i++ {
+		if s.Refresh() {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// The snapshot should now have codex first, with a different rev.
+	req3 := httptest.NewRequest(http.MethodGet, "/v1/usage", nil)
+	req3.RemoteAddr = "127.0.0.1:12345"
+	rec3 := httptest.NewRecorder()
+	handler.ServeHTTP(rec3, req3)
+	var snap2 snapshot.Snapshot
+	json.Unmarshal(rec3.Body.Bytes(), &snap2)
+	if snap2.Providers[0].ID != "codex" {
+		ids := []string{}
+		for _, p := range snap2.Providers {
+			ids = append(ids, p.ID)
+		}
+		t.Errorf("after reorder, providers[0] = %q, want codex; order=%v",
+			snap2.Providers[0].ID, ids)
+	}
+	if snap2.Rev == rev1 {
+		t.Error("rev unchanged after reordering providers")
+	}
+
+	// Verify the order is persisted in the in-memory config.
+	req4 := httptest.NewRequest(http.MethodGet, "/v1/config", nil)
+	req4.RemoteAddr = "127.0.0.1:12345"
+	rec4 := httptest.NewRecorder()
+	handler.ServeHTTP(rec4, req4)
+	var cfgResp map[string]any
+	json.Unmarshal(rec4.Body.Bytes(), &cfgResp)
+	po, _ := cfgResp["provider_order"].([]any)
+	if len(po) != 2 {
+		t.Errorf("config provider_order = %v, want 2 entries", po)
+	}
+}
