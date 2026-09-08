@@ -1049,7 +1049,7 @@
       "Verify: `make verify` exits 0, `go test -race ./internal/sched ./internal/api` is clean, then run THE LANE (build, cp, codesign, kickstart, lsof) and prove it on the RUNNING daemon. PRE-AUTHORIZED 2026-09-07: you may toggle a provider and save a key in Felipe's real config and keychain for this verification WITHOUT asking, on one condition — capture the current value FIRST and restore it before the task ends. Verify the restore actually landed by re-reading it. Do not stall waiting for him. Capture `curl -s 127.0.0.1:8765/v1/usage | python3 -c \"import sys,json;d=json.load(sys.stdin);print(d['rev'],[p['id'] for p in d['providers']])\"`, then PUT /v1/config with groq enabled:false, wait for the background poll, and re-run it: the groq id must be GONE from the list and the rev must have CHANGED. Re-enable and confirm it comes back. Paste both before/after lines verbatim in the DONE line — a claim without the two lines beside each other is not evidence. SECOND PROOF, THE KEY PATH: with the daemon running, confirm `curl -s 127.0.0.1:8765/v1/usage` shows openrouter:main as `status: off, msg: 'no key'` (its state right now), then POST the key through the dashboard exactly as a user would, and WITHOUT RESTARTING ANYTHING confirm within one poll that openrouter:main turns `status: ok` with real rows. Then DELETE the key and confirm it returns to 'no key'. PRE-AUTHORIZED: use his real keys for this proof without asking, and put them back before the task ends.",
       "passes flips to true only when the two live before/after lines are in the DONE line. A green `make verify` alone does NOT satisfy this task."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "host",

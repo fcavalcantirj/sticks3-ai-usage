@@ -16,6 +16,7 @@ import (
 	"usaged/internal/config"
 	"usaged/internal/creds"
 	"usaged/internal/mdns"
+	"usaged/internal/providers"
 	"usaged/internal/sched"
 	"usaged/internal/snapshot"
 	"usaged/internal/stats"
@@ -109,7 +110,12 @@ func runServe(args []string, stdout io.Writer) int {
 	// CoreBluetooth never reports PoweredOn without a GUI session and the
 	// process then never reaches ListenAndServe. See bleprov_darwin.go.
 	// Constructing the adapter itself touches no radio.
-	apiOpts := []api.Option{api.WithKeyStore(creds.NewKeyStore())}
+	apiOpts := []api.Option{
+		api.WithKeyStore(creds.NewKeyStore()),
+		api.WithFetcherBuilder(func(cfg config.Config) []providers.Fetcher {
+			return buildFetchers(cfg, creds.NewKeyStore())
+		}),
+	}
 	if bleSupported {
 		apiOpts = append(apiOpts, api.WithProvisioner(newBLEProvisioner(cfg, logger)))
 	} else {

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"usaged/internal/config"
 	"usaged/internal/snapshot"
 )
 
@@ -293,4 +294,48 @@ func providerIDOr(s snapshot.Snapshot) string {
 		return s.Providers[0].ID
 	}
 	return "<none>"
+}
+
+// TestBuildFetchersHonorsEnabledFlag verifies that a provider whose
+// EffectiveProviders entry has Enabled=false is omitted from the fetcher list
+// entirely — not even a static "no key" block is emitted (AUDIT #20).
+func TestBuildFetchersHonorsEnabledFlag(t *testing.T) {
+	cfg := config.Config{
+		Listen:       "127.0.0.1:8765",
+		Interval:     900 * time.Second,
+		TZ:           time.UTC,
+		FixturesDir:  "../../testdata/fixtures",
+		ClaudeSource: "oauth",
+		CodexSource:  "http",
+		ProviderConfigs: map[string]config.YamlProvider{
+			config.ProviderGroq: {ID: config.ProviderGroq, Enabled: false},
+		},
+	}
+
+	fetchers := buildFetchers(cfg, nil)
+	for _, f := range fetchers {
+		if f.ID() == config.ProviderGroq {
+			t.Errorf("groq fetcher present but disabled")
+		}
+	}
+
+	// All default providers EXCEPT groq should be present.
+	want := map[string]bool{
+		config.ProviderClaude:         true,
+		config.ProviderCodex:          true,
+		config.ProviderOpenRouterMain: true,
+		config.ProviderOpenRouterFbk:  true,
+	}
+	got := make(map[string]bool, len(fetchers))
+	for _, f := range fetchers {
+		got[f.ID()] = true
+	}
+	for id := range want {
+		if !got[id] {
+			t.Errorf("missing enabled provider %q", id)
+		}
+	}
+	if len(got) != len(want) {
+		t.Errorf("got %d fetchers, want %d: %v", len(got), len(want), got)
+	}
 }

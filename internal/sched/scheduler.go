@@ -357,6 +357,15 @@ func (s *Scheduler) SetInterval(d time.Duration) {
 	}
 }
 
+// SetFetchers replaces the fetcher list at runtime. The new list takes effect
+// on the next poll. It is guarded by pollMu so it never races with PollOnce or
+// Refresh, both of which read s.Fetchers while holding pollMu.
+func (s *Scheduler) SetFetchers(fetchers []providers.Fetcher) {
+	s.pollMu.Lock()
+	defer s.pollMu.Unlock()
+	s.Fetchers = fetchers
+}
+
 // Run polls immediately, then on an Interval ticker with ±10% jitter until
 // ctx is cancelled.
 func (s *Scheduler) Run(ctx context.Context) {

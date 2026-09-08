@@ -82,10 +82,9 @@ func runOnce(args []string, stdout io.Writer) int {
 	return exitCode(snap)
 }
 
-// buildFetchers assembles the provider fetcher list from config. Claude and
-// Codex are always present; OpenRouter fetchers are registered when keys are
-// set, otherwise static off blocks keep the canonical provider order. Groq
-// arrives in a later task — keep its placeholder.
+// buildFetchers assembles the provider fetcher list from config. Providers
+// with Enabled=false are omitted entirely; enabled providers without a key are
+// represented by a static "off" block so the canonical order is preserved.
 //
 // Key resolution (ORDER #52 task 57): env var first (Felipe's .env keeps
 // working), then the macOS Keychain as a fallback when no env var is set.
@@ -110,30 +109,37 @@ func buildFetchers(cfg config.Config, ks creds.KeyStore) []providers.Fetcher {
 	loc := cfg.TZ
 	var fetchers []providers.Fetcher
 
+	// Helper: is this provider enabled in the effective config?
+	enabled := providerEnabled(cfg)
+
 	// Claude: auto (statusline+oauth fallback), oauth, or statusline source.
-	claudeOAuth := providers.NewClaude(client, runner, claudeUsername(), loc)
-	claudeStatuslinePath := claudeStatuslinePath()
-	switch cfg.ClaudeSource {
-	case "statusline":
-		fetchers = append(fetchers, providers.NewClaudeStatusline(claudeStatuslinePath, nil, loc))
-	case "oauth":
-		fetchers = append(fetchers, claudeOAuth)
-	default: // auto
-		fetchers = append(fetchers, providers.NewClaudeStatusline(claudeStatuslinePath, claudeOAuth, loc))
+	if enabled(config.ProviderClaude) {
+		claudeOAuth := providers.NewClaude(client, runner, claudeUsername(), loc)
+		claudeStatuslinePath := claudeStatuslinePath()
+		switch cfg.ClaudeSource {
+		case "statusline":
+			fetchers = append(fetchers, providers.NewClaudeStatusline(claudeStatuslinePath, nil, loc))
+		case "oauth":
+			fetchers = append(fetchers, claudeOAuth)
+		default: // auto
+			fetchers = append(fetchers, providers.NewClaudeStatusline(claudeStatuslinePath, claudeOAuth, loc))
+		}
 	}
 
 	// Codex: HTTP (wham/usage) or CLI (app-server) source.
-	switch cfg.CodexSource {
-	case "cli":
-		var cliRunner providers.CodexCLIRunner
-		if cfg.FixturesDir != "" {
-			cliRunner = providers.NewCodexFixtureRunner(cfg.FixturesDir)
-		} else {
-			cliRunner = providers.NewCodexCLIRunner()
+	if enabled(config.ProviderCodex) {
+		switch cfg.CodexSource {
+		case "cli":
+			var cliRunner providers.CodexCLIRunner
+			if cfg.FixturesDir != "" {
+				cliRunner = providers.NewCodexFixtureRunner(cfg.FixturesDir)
+			} else {
+				cliRunner = providers.NewCodexCLIRunner()
+			}
+			fetchers = append(fetchers, providers.NewCodexCLI(cliRunner, loc))
+		default:
+			fetchers = append(fetchers, providers.NewCodex(client, authPath, loc))
 		}
-		fetchers = append(fetchers, providers.NewCodexCLI(cliRunner, loc))
-	default:
-		fetchers = append(fetchers, providers.NewCodex(client, authPath, loc))
 	}
 
 	// OpenRouter fetchers: real when keys are set (env first, then keychain),
@@ -143,9 +149,12 @@ func buildFetchers(cfg config.Config, ks creds.KeyStore) []providers.Fetcher {
 		label string
 		orKey string // key into cfg.OpenRouterKeys ("main"/"fallback")
 	}{
-		{"openrouter:main", "OpenRouter main", "main"},
-		{"openrouter:fallback", "OpenRouter fallback", "fallback"},
+		{config.ProviderOpenRouterMain, "OpenRouter main", "main"},
+		{config.ProviderOpenRouterFbk, "OpenRouter fallback", "fallback"},
 	} {
+		if !enabled(b.id) {
+			continue
+		}
 		key := cfg.OpenRouterKeys[b.orKey]
 		if key == "" && ks != nil {
 			key, _, _ = ks.Get(context.Background(), b.id)
@@ -158,17 +167,35 @@ func buildFetchers(cfg config.Config, ks creds.KeyStore) []providers.Fetcher {
 	}
 
 	// Groq: real fetcher when key set (env first, then keychain).
-	groqKey := cfg.GroqKey
-	if groqKey == "" && ks != nil {
-		groqKey, _, _ = ks.Get(context.Background(), config.ProviderGroq)
-	}
-	if groqKey != "" {
-		fetchers = append(fetchers, providers.NewGroq(client, groqKey, cfg.GroqProbeEnabled()))
-	} else {
-		fetchers = append(fetchers, newStaticFetcher("groq", "Groq", "no key"))
+	if enabled(config.ProviderGroq) {
+		groqKey := cfg.GroqKey
+		if groqKey == "" && ks != nil {
+			groqKey, _, _ = ks.Get(context.Background(), config.ProviderGroq)
+		}
+		if groqKey != "" {
+			fetchers = append(fetchers, providers.NewGroq(client, groqKey, cfg.GroqProbeEnabled()))
+		} else {
+			fetchers = append(fetchers, newStaticFetcher("groq", "Groq", "no key"))
+		}
 	}
 
 	return fetchers
+}
+
+// providerEnabled returns a function that reports whether id is enabled in the
+// effective provider config. Unknown ids default to enabled so ad-hoc tests
+// that pass a bare Config do not silently drop fetchers.
+func providerEnabled(cfg config.Config) func(id string) bool {
+	byID := make(map[string]bool, len(config.DefaultProviderOrder))
+	for _, p := range cfg.EffectiveProviders() {
+		byID[p.ID] = p.Enabled
+	}
+	return func(id string) bool {
+		if v, ok := byID[id]; ok {
+			return v
+		}
+		return true
+	}
 }
 
 // resolveFixturesDir resolves the fixtures directory, applying a scenario

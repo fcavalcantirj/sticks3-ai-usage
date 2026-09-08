@@ -295,6 +295,59 @@ func TestSchedulerStateFile(t *testing.T) {
 	}
 }
 
+// TestSchedulerSetFetchers verifies that replacing the fetcher list drops
+// removed providers from the snapshot and changes the rev (AUDIT #20).
+func TestSchedulerSetFetchers(t *testing.T) {
+	clock := testClock()
+	pct := 19
+	r := int64(1788411000)
+
+	claude := &fakeFetcher{
+		id: "claude",
+		fn: func(ctx context.Context, now time.Time) (snapshot.Provider, providers.Outcome) {
+			return okProvider("claude", "Claude", "max_20x", pct, r, now), providers.Outcome{}
+		},
+	}
+	codex := &fakeFetcher{
+		id: "codex",
+		fn: func(ctx context.Context, now time.Time) (snapshot.Provider, providers.Outcome) {
+			return snapshot.Provider{
+				ID:        "codex",
+				Label:     "ChatGPT",
+				Plan:      "plus",
+				Status:    "ok",
+				FetchedAt: now.Unix(),
+				Rows:      []snapshot.Row{{K: "5h", Label: "GPT 5h", Pct: &pct, Txt: "23:13", Tier: "ok", ResetAt: &r}},
+			}, providers.Outcome{}
+		},
+	}
+
+	s := NewScheduler([]providers.Fetcher{claude, codex}, 900*time.Second, "", clock, nil)
+	s.PollOnce(context.Background())
+	first := s.Current()
+	if len(first.Providers) != 2 {
+		t.Fatalf("first poll: len(Providers) = %d, want 2", len(first.Providers))
+	}
+
+	// Remove codex, keep claude.
+	s.SetFetchers([]providers.Fetcher{claude})
+	s.PollOnce(context.Background())
+	second := s.Current()
+
+	if len(second.Providers) != 1 {
+		t.Fatalf("after SetFetchers: len(Providers) = %d, want 1", len(second.Providers))
+	}
+	if second.Providers[0].ID != "claude" {
+		t.Errorf("providers[0].id = %q, want claude", second.Providers[0].ID)
+	}
+	if second.Rev == first.Rev {
+		t.Errorf("rev unchanged after fetcher removal: %s", second.Rev)
+	}
+	if second.Seq != first.Seq+1 {
+		t.Errorf("Seq = %d, want %d", second.Seq, first.Seq+1)
+	}
+}
+
 func TestSchedulerNoGoroutineLeak(t *testing.T) {
 	clock := func() time.Time { return time.Now() }
 	f := &fakeFetcher{

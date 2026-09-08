@@ -17,6 +17,7 @@ import (
 	"usaged/internal/config"
 	"usaged/internal/creds"
 	"usaged/internal/format"
+	"usaged/internal/providers"
 	"usaged/internal/sched"
 	"usaged/internal/snapshot"
 	"usaged/internal/stats"
@@ -25,19 +26,20 @@ import (
 
 // Server hosts the usage HTTP API backed by a scheduler.
 type Server struct {
-	sched       *sched.Scheduler
-	cfg         config.Config
-	configPath  string // path to the YAML config file (for interval persistence)
-	keystore    creds.KeyStore
-	getenv      func(string) string // defaults to os.Getenv; injectable for tests
-	rateLimit   *rateLimiter        // guards the /v1/keys endpoints (ORDER #52 task 57)
-	pairing     *pairing            // device pairing window + issued tokens (task 78)
-	netcfg      *netcfg             // device-directed Wi-Fi changes (task 79)
-	setup       *setup              // one-click BLE device setup (setup.go)
-	provisioner Provisioner         // BLE central for device setup; nil disables it
-	logger      *slog.Logger
-	start       time.Time
-	tracker     *clientTracker // per-client /v1/usage access log (ORDER #58 task 61)
+	sched          *sched.Scheduler
+	cfg            config.Config
+	configPath     string // path to the YAML config file (for interval persistence)
+	keystore       creds.KeyStore
+	getenv         func(string) string                     // defaults to os.Getenv; injectable for tests
+	fetcherBuilder func(config.Config) []providers.Fetcher // rebuilds fetchers after config/key changes
+	rateLimit      *rateLimiter                            // guards the /v1/keys endpoints (ORDER #52 task 57)
+	pairing        *pairing                                // device pairing window + issued tokens (task 78)
+	netcfg         *netcfg                                 // device-directed Wi-Fi changes (task 79)
+	setup          *setup                                  // one-click BLE device setup (setup.go)
+	provisioner    Provisioner                             // BLE central for device setup; nil disables it
+	logger         *slog.Logger
+	start          time.Time
+	tracker        *clientTracker // per-client /v1/usage access log (ORDER #58 task 61)
 }
 
 // Option configures a Server built by New.
@@ -54,6 +56,14 @@ func WithKeyStore(ks creds.KeyStore) Option {
 // Defaults to os.Getenv. Tests inject a fixed environment.
 func WithGetenv(fn func(string) string) Option {
 	return func(s *Server) { s.getenv = fn }
+}
+
+// WithFetcherBuilder injects the function that rebuilds the provider fetcher
+// list from a (possibly mutated) config. When set, config and keychain changes
+// rebuild the scheduler's fetchers and trigger a background poll. Defaults to
+// nil, in which case runtime changes are not reflected until restart.
+func WithFetcherBuilder(fn func(config.Config) []providers.Fetcher) Option {
+	return func(s *Server) { s.fetcherBuilder = fn }
 }
 
 // New builds the HTTP API server around a scheduler and config. It returns an
@@ -693,6 +703,7 @@ func (s *Server) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.cfg.ProviderConfigs = provs
+	s.rebuildFetchers()
 
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
@@ -783,6 +794,18 @@ var validKeyProviderIDs = map[string]bool{
 	config.ProviderGroq:           true,
 }
 
+// rebuildFetchers rebuilds the scheduler's fetcher list from the current
+// in-memory config and kicks a background poll so the change is reflected
+// without a restart. It is a no-op when no fetcher builder was injected.
+func (s *Server) rebuildFetchers() {
+	if s.fetcherBuilder == nil {
+		return
+	}
+	fetchers := s.fetcherBuilder(s.cfg)
+	s.sched.SetFetchers(fetchers)
+	go s.sched.Refresh()
+}
+
 // handleSetKey stores an API key for a provider in the keychain. The provider id
 // must be one of the five known providers and the value must be non-empty.
 func (s *Server) handleSetKey(w http.ResponseWriter, r *http.Request) {
@@ -829,6 +852,7 @@ func (s *Server) handleSetKey(w http.ResponseWriter, r *http.Request) {
 
 	// Never echo the key value.
 	s.logger.Info("key stored", "id", body.ID, "key_len", len(body.Value))
+	s.rebuildFetchers()
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "id": body.ID})
 }
 
@@ -858,6 +882,7 @@ func (s *Server) handleDeleteKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.rebuildFetchers()
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "id": id})
 }
 
