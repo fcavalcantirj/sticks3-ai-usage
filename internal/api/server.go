@@ -34,7 +34,6 @@ type Server struct {
 	fetcherBuilder func(config.Config) []providers.Fetcher // rebuilds fetchers after config/key changes
 	rateLimit      *rateLimiter                            // guards the /v1/keys endpoints (ORDER #52 task 57)
 	pairing        *pairing                                // device pairing window + issued tokens (task 78)
-	netcfg         *netcfg                                 // device-directed Wi-Fi changes (task 79)
 	setup          *setup                                  // one-click BLE device setup (setup.go)
 	provisioner    Provisioner                             // BLE central for device setup; nil disables it
 	logger         *slog.Logger
@@ -120,12 +119,6 @@ func New(s *sched.Scheduler, cfg config.Config, configPath string, logger *slog.
 	// and issueDeviceToken for auth and BLE setup; the HTTP window routes
 	// were removed in task 87.
 	srv.pairing = newPairing(pairedDevicesPath(cfg.StatePath), time.Now, logger)
-
-	// Device network configuration (task 79). A SEPARATE channel from the
-	// snapshot on purpose: /v1/usage is hashed into rev, so device-bound
-	// config there would churn rev and force redraws. See netcfg.go.
-	srv.netcfg = newNetcfg(time.Now, logger)
-	srv.netcfg.routes(mux)
 
 	// One-click device setup over BLE (setup.go). The Provisioner is injected
 	// by cmd/usaged (internal/bleprov) through WithProvisioner; with none wired

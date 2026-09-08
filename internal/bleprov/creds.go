@@ -11,8 +11,8 @@ package bleprov
 // FOUR RULES, AND THE FIRST ONE OUTRANKS EVERYTHING ELSE IN THIS FILE:
 //
 //  1. NO CREDENTIAL VALUE IS EVER LOGGED. Not the Wi-Fi password, not the
-//     device token. Lengths, or "set"/"unset", exactly as the netcfg and
-//     pairing code already do. Credentials implements slog.LogValuer so this
+//     device token. Lengths, or "set"/"unset", exactly as the pairing code
+//     already does. Credentials implements slog.LogValuer so this holds even
 //     holds even when the struct is handed to a logger by accident.
 //  2. NOTHING IS HARDCODED THAT THE RUNNING SYSTEM CAN BE ASKED. Not port 8765
 //     — that comes from cfg.Listen — and not the interface name "en0", which is

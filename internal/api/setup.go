@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -687,9 +688,9 @@ func (s *setup) okViewLocked() map[string]any {
 // --- the view ---------------------------------------------------------------
 
 // setupNotice is the ORDERING the owner asked for, and it is server-owned copy
-// rather than page text for the same reason netcfgNotice is: GOLDEN_RULES #3
-// means a curl of this endpoint gets the complete answer, including the one
-// thing a first-time user must be told BEFORE they set a device up.
+// rather than page text for the same reason GOLDEN_RULES #3 means a curl of
+// this endpoint gets the complete answer, including the one thing a first-time
+// user must be told BEFORE they set a device up.
 const setupNotice = "Set this Mac up first. usaged must be running and your AI providers " +
 	"configured here BEFORE you set the stick up — the stick is a mirror: it only ever " +
 	"shows what this Mac already reports."
@@ -1159,4 +1160,28 @@ func (s *Server) providerReadiness() setupReadiness {
 // without Bluetooth support should say.
 func WithProvisioner(p Provisioner) Option {
 	return func(s *Server) { s.provisioner = p }
+}
+
+// noStore marks a response uncacheable. (Moved here from netcfg.go — still used
+// by the setup routes, which also must never be conditional.)
+func noStore(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
+}
+
+// netcfgClean trims free text reported by the device to something printable and
+// short. Everything here reaches a log line and a web page, and the device is
+// the least trusted writer in the system. (Moved here from netcfg.go when that
+// endpoint group was deleted in task 90 — setup.go is its only remaining caller.)
+func netcfgClean(s string, max int) string {
+	var b strings.Builder
+	for _, r := range strings.TrimSpace(s) {
+		if r < 0x20 || r == 0x7f {
+			continue
+		}
+		if b.Len()+len(string(r)) > max {
+			break
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
 }

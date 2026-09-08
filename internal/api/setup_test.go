@@ -998,3 +998,17 @@ func TestAPanickingProvisionerDoesNotKillTheAgent(t *testing.T) {
 		t.Error("a panic produced no error sentence for the owner")
 	}
 }
+
+// decodeBody decodes a JSON response body into a map. Used by the setup tests
+// (moved here from netcfg_test.go when that file was deleted in task 90).
+func decodeBody(t *testing.T, rec *httptest.ResponseRecorder) map[string]any {
+	t.Helper()
+	var m map[string]any
+	if rec.Body.Len() == 0 {
+		return m
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &m); err != nil {
+		t.Fatalf("decode body %q: %v", rec.Body.String(), err)
+	}
+	return m
+}

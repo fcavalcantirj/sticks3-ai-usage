@@ -1145,7 +1145,7 @@
       "Verify: `make verify` exits 0 (lint clean, no unused symbols). Then run THE LANE and prove it against the RUNNING daemon: `curl -s -o /dev/null -w '%{http_code}\\n' -X POST -H 'Content-Type: application/json' -d '{\"device_id\":\"x\"}' 127.0.0.1:8765/v1/device/netcfg` returns 404 (it returns 200 today), and `curl -s -o /dev/null -w '%{http_code}\\n' 127.0.0.1:8765/v1/netcfg` returns 404. Then confirm the BLE setup card still reports available: `curl -s 127.0.0.1:8765/v1/setup | head -c 200` must still show \"available\":true — netcfg and setup share helpers, so this is the regression that matters. Paste all three results.",
       "passes flips to true only when the two 404s and the still-available setup response are in the DONE line."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "providers",
