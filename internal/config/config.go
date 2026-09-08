@@ -57,8 +57,9 @@ type Config struct {
 	PublishToken string
 
 	// Alert thresholds (from YAML config file; used by snapshot formatting)
-	AlertOpenRouterLowUSD float64
-	AlertQuotaWarnPct     int
+	AlertOpenRouterLowUSD   float64
+	AlertQuotaWarn5hPct     int
+	AlertQuotaWarnWeeklyPct int
 
 	// ConfigPath is the path of the YAML config file that was loaded, if any.
 	// Used by the API server to persist runtime config changes (e.g. interval).
@@ -91,7 +92,8 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 	cfg.GroqProbe = false
 	cfg.LogLevel = slog.LevelInfo
 	cfg.AlertOpenRouterLowUSD = 1.00 // sensible default for OpenRouter low-balance warning
-	cfg.AlertQuotaWarnPct = 95
+	cfg.AlertQuotaWarn5hPct = 70
+	cfg.AlertQuotaWarnWeeklyPct = 60
 	cfg.CodexSource = "http"
 	cfg.ClaudeSource = "auto"
 
@@ -335,8 +337,18 @@ func applyFileConfig(cfg *Config, fc *FileConfig, home string) {
 		if v, ok := fc.Alerts["openrouter_low_usd"]; ok {
 			cfg.AlertOpenRouterLowUSD = v
 		}
+		// Migration: a legacy quota_warn_pct seeds BOTH new keys so a
+		// pre-existing setting is never silently dropped. The new keys
+		// take precedence if all three are absent.
 		if v, ok := fc.Alerts["quota_warn_pct"]; ok {
-			cfg.AlertQuotaWarnPct = int(v)
+			cfg.AlertQuotaWarn5hPct = int(v)
+			cfg.AlertQuotaWarnWeeklyPct = int(v)
+		}
+		if v, ok := fc.Alerts["quota_warn_5h_pct"]; ok {
+			cfg.AlertQuotaWarn5hPct = int(v)
+		}
+		if v, ok := fc.Alerts["quota_warn_weekly_pct"]; ok {
+			cfg.AlertQuotaWarnWeeklyPct = int(v)
 		}
 	}
 	for _, p := range fc.Providers {
@@ -360,8 +372,9 @@ func (c Config) Redacted() map[string]any {
 		"fixtures_dir":    c.FixturesDir,
 		"scenario":        c.Scenario,
 		"alerts": map[string]any{
-			"openrouter_low_usd": c.AlertOpenRouterLowUSD,
-			"quota_warn_pct":     c.AlertQuotaWarnPct,
+			"openrouter_low_usd":    c.AlertOpenRouterLowUSD,
+			"quota_warn_5h_pct":     c.AlertQuotaWarn5hPct,
+			"quota_warn_weekly_pct": c.AlertQuotaWarnWeeklyPct,
 		},
 	}
 	provConfigs := make(map[string]map[string]any, len(c.ProviderConfigs))

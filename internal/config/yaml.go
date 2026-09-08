@@ -47,9 +47,13 @@ type yamlLine struct {
 }
 
 // validAlertKeys are the only keys allowed under the "alerts:" map.
+// quota_warn_pct is kept for migration only (applyFileConfig maps it to both
+// new keys); the serializer never writes it.
 var validAlertKeys = map[string]bool{
-	"openrouter_low_usd": true,
-	"quota_warn_pct":     true,
+	"openrouter_low_usd":    true,
+	"quota_warn_pct":        true,
+	"quota_warn_5h_pct":     true,
+	"quota_warn_weekly_pct": true,
 }
 
 func validAlertKey(k string) bool {
@@ -251,7 +255,7 @@ func parseScalarMap(lines []yamlLine, pos int) (map[string]float64, int, error) 
 			return m, pos, fmt.Errorf("line %d: nested map values must be scalars (got key %q with no value)", ln.lineNo, key)
 		}
 		if !validAlertKey(key) {
-			return m, pos, fmt.Errorf("line %d: unknown alert key %q (known: openrouter_low_usd, quota_warn_pct)", ln.lineNo, key)
+			return m, pos, fmt.Errorf("line %d: unknown alert key %q (known: openrouter_low_usd, quota_warn_5h_pct, quota_warn_weekly_pct)", ln.lineNo, key)
 		}
 
 		f, err := strconv.ParseFloat(value, 64)

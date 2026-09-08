@@ -3,6 +3,8 @@ package format
 import (
 	"testing"
 	"time"
+
+	"usaged/internal/snapshot"
 )
 
 // saoPaulo is a fixed UTC-3 zone (no DST in 2026), matching config.DefaultTZ.
@@ -73,6 +75,56 @@ func TestTierOff(t *testing.T) {
 	// stale + low pct still ok
 	if got := Tier(intPtr(49), "stale"); got != "ok" {
 		t.Errorf("Tier(49, stale) = %q, want ok", got)
+	}
+}
+
+func TestSeverityWindowSpecificThresholds(t *testing.T) {
+	alerts := DefaultAlerts() // Warn5hPct=70, WarnWeeklyPct=60
+	pct62 := 62
+
+	// 7d row at 62% → warn (weekly threshold 60, 62 >= 60)
+	row7d := []snapshot.Row{{K: "7d", Label: "CLAUDE 7d", Pct: &pct62, Tier: "ok", Txt: "Mon"}}
+	if got := Severity("ok", row7d, alerts); got != "warn" {
+		t.Errorf("Severity(7d@62%%) = %q, want warn (weekly threshold 60)", got)
+	}
+
+	// 5h row at 62% → ok (5h threshold 70, 62 < 70)
+	row5h := []snapshot.Row{{K: "5h", Label: "CLAUDE 5h", Pct: &pct62, Tier: "ok", Txt: "15:04"}}
+	if got := Severity("ok", row5h, alerts); got != "ok" {
+		t.Errorf("Severity(5h@62%%) = %q, want ok (5h threshold 70)", got)
+	}
+}
+
+func TestSeverityCritAt100(t *testing.T) {
+	alerts := DefaultAlerts()
+	pct100 := 100
+	row := []snapshot.Row{{K: "5h", Label: "X", Pct: &pct100, Tier: "crit", Txt: "now"}}
+	if got := Severity("ok", row, alerts); got != "crit" {
+		t.Errorf("Severity(100%%) = %q, want crit", got)
+	}
+}
+
+func TestSeverityAuthErrorIsCrit(t *testing.T) {
+	alerts := DefaultAlerts()
+	row := []snapshot.Row{{K: "5h", Label: "X", Pct: nil, Tier: "off", Txt: "run claude"}}
+	for _, status := range []string{"auth", "error"} {
+		if got := Severity(status, row, alerts); got != "crit" {
+			t.Errorf("Severity(%q) = %q, want crit", status, got)
+		}
+	}
+}
+
+func TestWarnPctFor(t *testing.T) {
+	a := Alerts{Warn5hPct: 70, WarnWeeklyPct: 60}
+	if a.WarnPctFor("7d") != 60 {
+		t.Errorf("WarnPctFor(\"7d\") = %d, want 60", a.WarnPctFor("7d"))
+	}
+	if a.WarnPctFor("5h") != 70 {
+		t.Errorf("WarnPctFor(\"5h\") = %d, want 70", a.WarnPctFor("5h"))
+	}
+	// Rows with no window key (OpenRouter credit, Groq rate) take the short-window threshold
+	if a.WarnPctFor("key") != 70 {
+		t.Errorf("WarnPctFor(\"key\") = %d, want 70", a.WarnPctFor("key"))
 	}
 }
 

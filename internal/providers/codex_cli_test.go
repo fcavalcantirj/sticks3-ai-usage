@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"usaged/internal/format"
 )
 
 // fakeCodexRunner implements CodexCLIRunner by returning a pre-canned stdout.
@@ -28,7 +29,7 @@ func TestCodexCliProviderHappyPath(t *testing.T) {
 	}
 
 	runner := fakeCodexRunner{stdout: fixture}
-	p := NewCodexCLI(runner, testLoc)
+	p := NewCodexCLI(runner, testLoc, format.DefaultAlerts())
 	now := testNow()
 
 	result, outcome := p.Fetch(context.Background(), now)
@@ -90,7 +91,7 @@ func TestCodexCliProviderHappyPath(t *testing.T) {
 
 func TestCodexCliProviderRunnerError(t *testing.T) {
 	runner := fakeCodexRunner{err: errors.New("exec: codex not found")}
-	p := NewCodexCLI(runner, testLoc)
+	p := NewCodexCLI(runner, testLoc, format.DefaultAlerts())
 
 	result, outcome := p.Fetch(context.Background(), testNow())
 
@@ -116,7 +117,7 @@ func TestCodexCliProviderRunnerError(t *testing.T) {
 
 func TestCodexCliProviderParseError(t *testing.T) {
 	runner := fakeCodexRunner{stdout: []byte("not valid json-rpc\n")}
-	p := NewCodexCLI(runner, testLoc)
+	p := NewCodexCLI(runner, testLoc, format.DefaultAlerts())
 
 	result, _ := p.Fetch(context.Background(), testNow())
 
@@ -133,7 +134,7 @@ func TestCodexCliProviderSkippedWindow(t *testing.T) {
 	// Here both windows have 0 duration, so only the reset row survives.
 	body := `{"jsonrpc":"2.0","id":1,"result":{"rateLimits":{"primary":{"usedPercent":50,"windowDurationMins":0,"resetsAt":0},"secondary":{"usedPercent":0,"windowDurationMins":0,"resetsAt":0},"credits":{"hasCredits":false,"unlimited":false,"balance":"0"},"planType":"plus"},"rateLimitResetCredits":{"availableCount":0,"applicableAvailableCount":0}}}`
 	runner := fakeCodexRunner{stdout: []byte(body)}
-	p := NewCodexCLI(runner, testLoc)
+	p := NewCodexCLI(runner, testLoc, format.DefaultAlerts())
 
 	result, _ := p.Fetch(context.Background(), testNow())
 
@@ -149,7 +150,7 @@ func TestCodexCliProviderTimeoutClassified(t *testing.T) {
 	runner := fakeCodexRunner{
 		err: context.DeadlineExceeded,
 	}
-	p := NewCodexCLI(runner, testLoc)
+	p := NewCodexCLI(runner, testLoc, format.DefaultAlerts())
 
 	result, _ := p.Fetch(context.Background(), testNow())
 

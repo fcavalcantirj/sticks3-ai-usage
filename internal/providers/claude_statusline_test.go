@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"usaged/internal/format"
 	"usaged/internal/snapshot"
 )
 
@@ -32,7 +33,7 @@ func writeStatuslineFixture(t *testing.T, now time.Time, age time.Duration) stri
 
 func TestStatuslineProviderHappyPath(t *testing.T) {
 	path := writeStatuslineFixture(t, testNow(), 1*time.Minute) // fresh
-	p := NewClaudeStatusline(path, nil, testLoc)
+	p := NewClaudeStatusline(path, nil, testLoc, format.DefaultAlerts())
 	now := testNow()
 
 	result, outcome := p.Fetch(context.Background(), now)
@@ -81,9 +82,9 @@ func TestStatuslineProviderStaleFallback(t *testing.T) {
 
 	// Fake fallback that returns a known block.
 	fallback := &fakeClaudeFetcher{
-		result: claudeBlock("ok", "", "max", nil, testNow().Unix()),
+		result: claudeBlock("ok", "", "max", nil, testNow().Unix(), format.DefaultAlerts()),
 	}
-	p := NewClaudeStatusline(path, fallback, testLoc)
+	p := NewClaudeStatusline(path, fallback, testLoc, format.DefaultAlerts())
 
 	result, _ := p.Fetch(context.Background(), testNow())
 

@@ -349,8 +349,13 @@
           <input type="number" id="setting-openrouter-low" min="0" step="0.01">
         </div>
         <div class="row">
-          <label for="setting-quota-warn">Quota warn at</label>
-          <input type="number" id="setting-quota-warn" min="50" max="100">
+          <label for="setting-quota-warn-5h">5h quota warn at</label>
+          <input type="number" id="setting-quota-warn-5h" min="50" max="100">
+          <span style="color:var(--muted);font-size:11px;">%</span>
+        </div>
+        <div class="row">
+          <label for="setting-quota-warn-weekly">Weekly quota warn at</label>
+          <input type="number" id="setting-quota-warn-weekly" min="50" max="100">
           <span style="color:var(--muted);font-size:11px;">%</span>
         </div>
       </div>
@@ -643,8 +648,11 @@ function renderSettings(cfg) {
     if (cfg.alerts.openrouter_low_usd != null) {
       document.getElementById("setting-openrouter-low").value = cfg.alerts.openrouter_low_usd;
     }
-    if (cfg.alerts.quota_warn_pct != null) {
-      document.getElementById("setting-quota-warn").value = cfg.alerts.quota_warn_pct;
+    if (cfg.alerts.quota_warn_5h_pct != null) {
+      document.getElementById("setting-quota-warn-5h").value = cfg.alerts.quota_warn_5h_pct;
+    }
+    if (cfg.alerts.quota_warn_weekly_pct != null) {
+      document.getElementById("setting-quota-warn-weekly").value = cfg.alerts.quota_warn_weekly_pct;
     }
   }
 
@@ -928,7 +936,8 @@ function saveSettings() {
 
   var alerts = {
     openrouter_low_usd: parseFloat(document.getElementById("setting-openrouter-low").value) || 0,
-    quota_warn_pct: parseInt(document.getElementById("setting-quota-warn").value, 10) || 95
+    quota_warn_5h_pct: parseInt(document.getElementById("setting-quota-warn-5h").value, 10) || 70,
+    quota_warn_weekly_pct: parseInt(document.getElementById("setting-quota-warn-weekly").value, 10) || 60
   };
 
   // Gather provider data from each card.
@@ -1716,13 +1725,14 @@ function renderAttention(snap, statsReport) {
       if (p.rows[i].pct != null && p.rows[i].pct > maxPct) maxPct = p.rows[i].pct;
     }
 
-    if (p.status === "auth" || p.status === "error") {
-      container.insertAdjacentHTML("beforeend", attentionItem(p.label, "Critical", "chip-critical",
-        "auth or error"));
-    } else if (maxPct >= 80) {
-      var cls = maxPct >= 95 ? "chip-critical" : "chip-watch";
-      var label = maxPct >= 95 ? "Critical" : "Watch";
-      container.insertAdjacentHTML("beforeend", attentionItem(p.label, label, cls,
+    // Render from p.severity (the single threshold-driven source of truth
+    // computed in the Go daemon). The page no longer re-derives 80/95
+    // constants — see PROD-READY 2/10. pct stays as display text only.
+    if (p.severity === "crit") {
+      var detail = (p.status === "auth" || p.status === "error") ? "auth or error" : pctText(maxPct, "");
+      container.insertAdjacentHTML("beforeend", attentionItem(p.label, "Critical", "chip-critical", detail));
+    } else if (p.severity === "warn") {
+      container.insertAdjacentHTML("beforeend", attentionItem(p.label, "Watch", "chip-watch",
         pctText(maxPct, "")));
     }
     if (p.status === "stale") {

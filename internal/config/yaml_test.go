@@ -26,7 +26,8 @@ device_token: "my-token"
 tz: "UTC"
 alerts:
   openrouter_low_usd: 2.00
-  quota_warn_pct: 90
+  quota_warn_5h_pct: 70
+  quota_warn_weekly_pct: 60
 providers:
   - id: claude
     enabled: true
@@ -58,8 +59,11 @@ providers:
 	if fc.Alerts["openrouter_low_usd"] != 2.00 {
 		t.Errorf("Alerts[openrouter_low_usd] = %v", fc.Alerts["openrouter_low_usd"])
 	}
-	if fc.Alerts["quota_warn_pct"] != 90 {
-		t.Errorf("Alerts[quota_warn_pct] = %v", fc.Alerts["quota_warn_pct"])
+	if fc.Alerts["quota_warn_5h_pct"] != 70 {
+		t.Errorf("Alerts[quota_warn_5h_pct] = %v", fc.Alerts["quota_warn_5h_pct"])
+	}
+	if fc.Alerts["quota_warn_weekly_pct"] != 60 {
+		t.Errorf("Alerts[quota_warn_weekly_pct] = %v", fc.Alerts["quota_warn_weekly_pct"])
 	}
 	if len(fc.Providers) != 3 {
 		t.Fatalf("len(Providers) = %d, want 3", len(fc.Providers))
@@ -316,7 +320,8 @@ func TestLoadFileEnabledFalseDropsProvider(t *testing.T) {
 func TestLoadFileAlertThresholds(t *testing.T) {
 	text := `alerts:
   openrouter_low_usd: 0.50
-  quota_warn_pct: 80
+  quota_warn_5h_pct: 70
+  quota_warn_weekly_pct: 60
 `
 	path := writeTempYAML(t, text)
 	cfg, err := Load([]string{"--config", path}, envFrom(map[string]string{"USAGED_DEVICE_TOKEN": "test-token"}))
@@ -326,8 +331,46 @@ func TestLoadFileAlertThresholds(t *testing.T) {
 	if cfg.AlertOpenRouterLowUSD != 0.50 {
 		t.Errorf("AlertOpenRouterLowUSD = %v, want 0.50", cfg.AlertOpenRouterLowUSD)
 	}
-	if cfg.AlertQuotaWarnPct != 80 {
-		t.Errorf("AlertQuotaWarnPct = %d, want 80", cfg.AlertQuotaWarnPct)
+	if cfg.AlertQuotaWarn5hPct != 70 {
+		t.Errorf("AlertQuotaWarn5hPct = %d, want 70", cfg.AlertQuotaWarn5hPct)
+	}
+	if cfg.AlertQuotaWarnWeeklyPct != 60 {
+		t.Errorf("AlertQuotaWarnWeeklyPct = %d, want 60", cfg.AlertQuotaWarnWeeklyPct)
+	}
+}
+
+func TestLoadLegacyQuotaWarnPctMigration(t *testing.T) {
+	// A legacy quota_warn_pct in an existing file must seed BOTH new keys.
+	text := `alerts:
+  quota_warn_pct: 80
+`
+	path := writeTempYAML(t, text)
+	cfg, err := Load([]string{"--config", path}, envFrom(map[string]string{"USAGED_DEVICE_TOKEN": "test-token"}))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.AlertQuotaWarn5hPct != 80 {
+		t.Errorf("AlertQuotaWarn5hPct = %d, want 80 (migrated from quota_warn_pct)", cfg.AlertQuotaWarn5hPct)
+	}
+	if cfg.AlertQuotaWarnWeeklyPct != 80 {
+		t.Errorf("AlertQuotaWarnWeeklyPct = %d, want 80 (migrated from quota_warn_pct)", cfg.AlertQuotaWarnWeeklyPct)
+	}
+}
+
+func TestSerializeYAMLDoesNotEmitLegacyKey(t *testing.T) {
+	fc := FileConfig{
+		Alerts: map[string]float64{
+			"quota_warn_pct":        95.0, // legacy key, should NOT appear in output
+			"quota_warn_5h_pct":     70.0,
+			"quota_warn_weekly_pct": 60.0,
+		},
+	}
+	out, err := SerializeYAML(fc)
+	if err != nil {
+		t.Fatalf("SerializeYAML: %v", err)
+	}
+	if strings.Contains(out, "quota_warn_pct") {
+		t.Errorf("serializer wrote legacy quota_warn_pct:\n%s", out)
 	}
 }
 

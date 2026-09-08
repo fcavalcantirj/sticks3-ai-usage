@@ -6,11 +6,12 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+	"usaged/internal/format"
 )
 
 func TestGroqProviderDefaultMode(t *testing.T) {
 	client := newFixtureClient("../../testdata/fixtures")
-	p := NewGroq(client, "test-key", false)
+	p := NewGroq(client, "test-key", false, format.DefaultAlerts())
 
 	result, outcome := p.Fetch(context.Background(), testNow())
 
@@ -55,7 +56,7 @@ func TestGroqProvider401(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "routes.json"), []byte(routes), 0644)
 
 	client := newFixtureClient(dir)
-	p := NewGroq(client, "test-key", false)
+	p := NewGroq(client, "test-key", false, format.DefaultAlerts())
 
 	result, _ := p.Fetch(context.Background(), testNow())
 
@@ -69,7 +70,7 @@ func TestGroqProvider401(t *testing.T) {
 
 func TestGroqProviderProbeMode(t *testing.T) {
 	client := newFixtureClient("../../testdata/fixtures")
-	p := NewGroq(client, "test-key", true)
+	p := NewGroq(client, "test-key", true, format.DefaultAlerts())
 
 	result, _ := p.Fetch(context.Background(), testNow())
 

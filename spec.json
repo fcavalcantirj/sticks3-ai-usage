@@ -1070,7 +1070,7 @@
       "Verify: `make verify` exits 0 with new tests that a 7d row at 62% yields warn while a 5h row at 62% does not, that a legacy quota_warn_pct seeds both keys, and that PUT /v1/config rejects 40 and 101 on both keys. Then run THE LANE and prove it against the RUNNING daemon: `curl -s 127.0.0.1:8765/v1/usage | python3 -c \"import sys,json;d=json.load(sys.stdin)\\nfor p in d['providers']: print(p['id'], p['severity'], [(r['k'], r['pct']) for r in p['rows']])\"` — check every severity by hand against 70/60. Then PUT quota_warn_5h_pct DOWN TO 50 — the minimum step (a)'s own validation allows; do NOT use a value below 50 and do NOT weaken the validation to permit one — wait one poll, confirm the claude block flips to warn, PUT it back to 70 and confirm it returns. Also run `ai-usage` status line output before and after and paste both. PRE-AUTHORIZED 2026-09-07: make these PUTs against his real config without asking; capture the original values first and restore them before the task ends, then re-read to confirm the restore landed.",
       "passes flips to true only when the per-provider severity/rows dump and the 5-pct flip are both pasted in the DONE line."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "web",

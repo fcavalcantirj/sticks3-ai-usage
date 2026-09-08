@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"usaged/internal/creds"
+	"usaged/internal/format"
 	"usaged/internal/httpx"
 )
 
@@ -31,7 +32,7 @@ func writeCodexAuthFixture(t *testing.T, auth map[string]any) string {
 func TestCodexProviderHappyPath(t *testing.T) {
 	authPath := "../../testdata/fixtures/codex_auth.json"
 	client := newFixtureClient("../../testdata/fixtures")
-	p := NewCodex(client, authPath, testLoc)
+	p := NewCodex(client, authPath, testLoc, format.DefaultAlerts())
 
 	result, outcome := p.Fetch(context.Background(), testNow())
 
@@ -98,7 +99,7 @@ func TestCodexProviderExpiredJWTNoHTTP(t *testing.T) {
 
 	ct := &spyTransport{}
 	client := &httpx.Client{HTTP: &http.Client{Transport: ct}}
-	p := NewCodex(client, path, testLoc)
+	p := NewCodex(client, path, testLoc, format.DefaultAlerts())
 
 	result, outcome := p.Fetch(context.Background(), testNow())
 
@@ -120,7 +121,7 @@ func TestCodexProviderNotLoggedInNoHTTP(t *testing.T) {
 	authPath := filepath.Join(t.TempDir(), "nonexistent.json")
 	ct := &spyTransport{}
 	client := &httpx.Client{HTTP: &http.Client{Transport: ct}}
-	p := NewCodex(client, authPath, testLoc)
+	p := NewCodex(client, authPath, testLoc, format.DefaultAlerts())
 
 	result, outcome := p.Fetch(context.Background(), testNow())
 
@@ -151,7 +152,7 @@ func TestCodexProviderSwappedWindows(t *testing.T) {
 
 	authPath := "../../testdata/fixtures/codex_auth.json"
 	client := newFixtureClient(dir)
-	p := NewCodex(client, authPath, testLoc)
+	p := NewCodex(client, authPath, testLoc, format.DefaultAlerts())
 
 	result, _ := p.Fetch(context.Background(), testNow())
 
@@ -187,7 +188,7 @@ func TestCodexProvider401(t *testing.T) {
 
 	authPath := "../../testdata/fixtures/codex_auth.json"
 	client := newFixtureClient(dir)
-	p := NewCodex(client, authPath, testLoc)
+	p := NewCodex(client, authPath, testLoc, format.DefaultAlerts())
 
 	result, outcome := p.Fetch(context.Background(), testNow())
 

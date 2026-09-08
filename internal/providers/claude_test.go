@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"usaged/internal/creds"
+	"usaged/internal/format"
 	"usaged/internal/httpx"
 )
 
@@ -67,7 +68,7 @@ func (s *spyTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 func TestClaudeProviderHappyPath(t *testing.T) {
 	runner := newClaudeRunner("sk-ant-oat01-TEST-TOKEN-12345", false)
 	client := newFixtureClient("../../testdata/fixtures")
-	p := NewClaude(client, runner, "testuser", testLoc)
+	p := NewClaude(client, runner, "testuser", testLoc, format.DefaultAlerts())
 
 	result, outcome := p.Fetch(context.Background(), testNow())
 
@@ -117,7 +118,7 @@ func TestClaudeProviderExpiredCredsNoHTTP(t *testing.T) {
 	runner := newClaudeRunner("sk-ant-oat01-TEST-TOKEN-12345", true) // expired
 	ct := &spyTransport{}
 	client := &httpx.Client{HTTP: &http.Client{Transport: ct}}
-	p := NewClaude(client, runner, "testuser", testLoc)
+	p := NewClaude(client, runner, "testuser", testLoc, format.DefaultAlerts())
 
 	result, outcome := p.Fetch(context.Background(), testNow())
 
@@ -149,7 +150,7 @@ func TestClaudeProviderNotLoggedInNoHTTP(t *testing.T) {
 	}
 	ct := &spyTransport{}
 	client := &httpx.Client{HTTP: &http.Client{Transport: ct}}
-	p := NewClaude(client, runner, "testuser", testLoc)
+	p := NewClaude(client, runner, "testuser", testLoc, format.DefaultAlerts())
 
 	result, outcome := p.Fetch(context.Background(), testNow())
 
@@ -177,7 +178,7 @@ func TestClaudeProvider401(t *testing.T) {
 
 	runner := newClaudeRunner("sk-ant-oat01-TEST-TOKEN-12345", false)
 	client := newFixtureClient(dir)
-	p := NewClaude(client, runner, "testuser", testLoc)
+	p := NewClaude(client, runner, "testuser", testLoc, format.DefaultAlerts())
 
 	result, outcome := p.Fetch(context.Background(), testNow())
 
@@ -202,7 +203,7 @@ func TestClaudeProvider429WithCooldown(t *testing.T) {
 
 	runner := newClaudeRunner("sk-ant-oat01-TEST-TOKEN-12345", false)
 	client := newFixtureClient(dir)
-	p := NewClaude(client, runner, "testuser", testLoc)
+	p := NewClaude(client, runner, "testuser", testLoc, format.DefaultAlerts())
 
 	now := testNow()
 	result, outcome := p.Fetch(context.Background(), now)
@@ -238,7 +239,7 @@ func TestClaudeProviderLimitsLess(t *testing.T) {
 
 	runner := newClaudeRunner("sk-ant-oat01-TEST-TOKEN-12345", false)
 	client := newFixtureClient(dir)
-	p := NewClaude(client, runner, "testuser", testLoc)
+	p := NewClaude(client, runner, "testuser", testLoc, format.DefaultAlerts())
 
 	result, _ := p.Fetch(context.Background(), testNow())
 
@@ -269,7 +270,7 @@ func TestClaudeProviderNoTokenInLogs(t *testing.T) {
 	knownToken := "sk-ant-oat01-UNIQUE-TOKEN-9999"
 	runner := newClaudeRunner(knownToken, false)
 	client := newFixtureClient("../../testdata/fixtures")
-	p := NewClaude(client, runner, "testuser", testLoc)
+	p := NewClaude(client, runner, "testuser", testLoc, format.DefaultAlerts())
 
 	result, _ := p.Fetch(context.Background(), testNow())
 

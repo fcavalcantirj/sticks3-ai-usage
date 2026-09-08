@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"usaged/internal/format"
 	"usaged/internal/snapshot"
 )
 
@@ -196,11 +197,12 @@ func codexAppServerStdin() []byte {
 type codexCliProvider struct {
 	runner CodexCLIRunner
 	loc    *time.Location
+	alerts format.Alerts
 }
 
 // NewCodexCLI returns a Codex fetcher backed by the codex app-server.
-func NewCodexCLI(runner CodexCLIRunner, loc *time.Location) Fetcher {
-	return &codexCliProvider{runner: runner, loc: loc}
+func NewCodexCLI(runner CodexCLIRunner, loc *time.Location, alerts format.Alerts) Fetcher {
+	return &codexCliProvider{runner: runner, loc: loc, alerts: alerts}
 }
 
 func (p *codexCliProvider) ID() string { return codexID }
@@ -219,15 +221,15 @@ func (p *codexCliProvider) Fetch(ctx context.Context, now time.Time) (snapshot.P
 		if errors.Is(err, context.DeadlineExceeded) {
 			msg = "api timeout"
 		}
-		return codexBlock("error", msg, "", nil, now.Unix()), Outcome{}
+		return codexBlock("error", msg, "", nil, now.Unix(), p.alerts), Outcome{}
 	}
 
 	body, err := parseCodexAppServer(stdout)
 	if err != nil {
 		slog.Debug("codex-cli: parse error", "err", err)
-		return codexBlock("error", "parse error", "", nil, now.Unix()), Outcome{}
+		return codexBlock("error", "parse error", "", nil, now.Unix(), p.alerts), Outcome{}
 	}
 
 	rows := parseCodexRows(body, now, p.loc)
-	return codexBlock("ok", "", body.PlanType, rows, now.Unix()), Outcome{}
+	return codexBlock("ok", "", body.PlanType, rows, now.Unix(), p.alerts), Outcome{}
 }

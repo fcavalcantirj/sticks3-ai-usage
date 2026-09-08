@@ -30,7 +30,7 @@ func TestLiveClaude(t *testing.T) {
 	// Real transport (no fixture transport), real ExecRunner (real Keychain).
 	client := &httpx.Client{UserAgent: "usaged/0.1"}
 	runner := creds.ExecRunner{}
-	p := NewClaude(client, runner, u.Username, testLoc)
+	p := NewClaude(client, runner, u.Username, testLoc, format.DefaultAlerts())
 
 	// Use a 30s context — the scheduler uses 20s, the httpx default is 10s.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -69,7 +69,7 @@ func TestLiveCodex(t *testing.T) {
 
 	// Real transport, real auth.json path (defaults to ~/.codex/auth.json).
 	client := &httpx.Client{UserAgent: "usaged/0.1"}
-	p := NewCodex(client, "", testLoc)
+	p := NewCodex(client, "", testLoc, format.DefaultAlerts())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

@@ -107,6 +107,10 @@ func buildFetchers(cfg config.Config, ks creds.KeyStore) []providers.Fetcher {
 	}
 
 	loc := cfg.TZ
+	alerts := format.Alerts{
+		Warn5hPct:     cfg.AlertQuotaWarn5hPct,
+		WarnWeeklyPct: cfg.AlertQuotaWarnWeeklyPct,
+	}
 	var fetchers []providers.Fetcher
 
 	// Helper: is this provider enabled in the effective config?
@@ -114,15 +118,15 @@ func buildFetchers(cfg config.Config, ks creds.KeyStore) []providers.Fetcher {
 
 	// Claude: auto (statusline+oauth fallback), oauth, or statusline source.
 	if enabled(config.ProviderClaude) {
-		claudeOAuth := providers.NewClaude(client, runner, claudeUsername(), loc)
+		claudeOAuth := providers.NewClaude(client, runner, claudeUsername(), loc, alerts)
 		claudeStatuslinePath := claudeStatuslinePath()
 		switch cfg.ClaudeSource {
 		case "statusline":
-			fetchers = append(fetchers, providers.NewClaudeStatusline(claudeStatuslinePath, nil, loc))
+			fetchers = append(fetchers, providers.NewClaudeStatusline(claudeStatuslinePath, nil, loc, alerts))
 		case "oauth":
 			fetchers = append(fetchers, claudeOAuth)
 		default: // auto
-			fetchers = append(fetchers, providers.NewClaudeStatusline(claudeStatuslinePath, claudeOAuth, loc))
+			fetchers = append(fetchers, providers.NewClaudeStatusline(claudeStatuslinePath, claudeOAuth, loc, alerts))
 		}
 	}
 
@@ -136,9 +140,9 @@ func buildFetchers(cfg config.Config, ks creds.KeyStore) []providers.Fetcher {
 			} else {
 				cliRunner = providers.NewCodexCLIRunner()
 			}
-			fetchers = append(fetchers, providers.NewCodexCLI(cliRunner, loc))
+			fetchers = append(fetchers, providers.NewCodexCLI(cliRunner, loc, alerts))
 		default:
-			fetchers = append(fetchers, providers.NewCodex(client, authPath, loc))
+			fetchers = append(fetchers, providers.NewCodex(client, authPath, loc, alerts))
 		}
 	}
 
@@ -160,7 +164,7 @@ func buildFetchers(cfg config.Config, ks creds.KeyStore) []providers.Fetcher {
 			key, _, _ = ks.Get(context.Background(), b.id)
 		}
 		if key != "" {
-			fetchers = append(fetchers, providers.NewOpenRouter(client, b.id, b.label, key))
+			fetchers = append(fetchers, providers.NewOpenRouter(client, b.id, b.label, key, alerts, cfg.AlertOpenRouterLowUSD))
 		} else {
 			fetchers = append(fetchers, newStaticFetcher(b.id, b.label, "no key"))
 		}
@@ -173,7 +177,7 @@ func buildFetchers(cfg config.Config, ks creds.KeyStore) []providers.Fetcher {
 			groqKey, _, _ = ks.Get(context.Background(), config.ProviderGroq)
 		}
 		if groqKey != "" {
-			fetchers = append(fetchers, providers.NewGroq(client, groqKey, cfg.GroqProbeEnabled()))
+			fetchers = append(fetchers, providers.NewGroq(client, groqKey, cfg.GroqProbeEnabled(), alerts))
 		} else {
 			fetchers = append(fetchers, newStaticFetcher("groq", "Groq", "no key"))
 		}

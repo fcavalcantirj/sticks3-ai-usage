@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 
 	"usaged/internal/config"
 	"usaged/internal/creds"
+	"usaged/internal/format"
 	"usaged/internal/httpx"
 	"usaged/internal/providers"
 	"usaged/internal/sched"
@@ -64,8 +66,8 @@ func newFixtureHandlerCfg(t *testing.T, dir string, cfg config.Config) (http.Han
 	client := &httpx.Client{HTTP: &http.Client{Transport: httpx.NewFixtureTransport(dir)}}
 	runner := creds.FixtureRunner(dir)
 	fetchers := []providers.Fetcher{
-		providers.NewClaude(client, runner, "testuser", testLoc),
-		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc),
+		providers.NewClaude(client, runner, "testuser", testLoc, format.DefaultAlerts()),
+		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc, format.DefaultAlerts()),
 	}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
@@ -420,8 +422,8 @@ func TestStatsServedFromScan(t *testing.T) {
 	client := &httpx.Client{HTTP: &http.Client{Transport: httpx.NewFixtureTransport(dir)}}
 	runner := creds.FixtureRunner(dir)
 	fetchers := []providers.Fetcher{
-		providers.NewClaude(client, runner, "testuser", testLoc),
-		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc),
+		providers.NewClaude(client, runner, "testuser", testLoc, format.DefaultAlerts()),
+		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc, format.DefaultAlerts()),
 	}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
@@ -479,8 +481,8 @@ func TestStatsScanErrorDoesNotWipeReport(t *testing.T) {
 	client := &httpx.Client{HTTP: &http.Client{Transport: httpx.NewFixtureTransport(dir)}}
 	runner := creds.FixtureRunner(dir)
 	fetchers := []providers.Fetcher{
-		providers.NewClaude(client, runner, "testuser", testLoc),
-		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc),
+		providers.NewClaude(client, runner, "testuser", testLoc, format.DefaultAlerts()),
+		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc, format.DefaultAlerts()),
 	}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
@@ -602,8 +604,8 @@ func TestAuthEmptyTokenLAN(t *testing.T) {
 	client := &httpx.Client{HTTP: &http.Client{Transport: httpx.NewFixtureTransport(dir)}}
 	runner := creds.FixtureRunner(dir)
 	fetchers := []providers.Fetcher{
-		providers.NewClaude(client, runner, "testuser", testLoc),
-		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc),
+		providers.NewClaude(client, runner, "testuser", testLoc, format.DefaultAlerts()),
+		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc, format.DefaultAlerts()),
 	}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
@@ -626,8 +628,8 @@ func TestNewRefusesPlaceholderTokenNonLoopback(t *testing.T) {
 	client := &httpx.Client{HTTP: &http.Client{Transport: httpx.NewFixtureTransport(dir)}}
 	runner := creds.FixtureRunner(dir)
 	fetchers := []providers.Fetcher{
-		providers.NewClaude(client, runner, "testuser", testLoc),
-		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc),
+		providers.NewClaude(client, runner, "testuser", testLoc, format.DefaultAlerts()),
+		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc, format.DefaultAlerts()),
 	}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
@@ -647,8 +649,8 @@ func TestNewAllowsPlaceholderTokenOnLoopback(t *testing.T) {
 	client := &httpx.Client{HTTP: &http.Client{Transport: httpx.NewFixtureTransport(dir)}}
 	runner := creds.FixtureRunner(dir)
 	fetchers := []providers.Fetcher{
-		providers.NewClaude(client, runner, "testuser", testLoc),
-		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc),
+		providers.NewClaude(client, runner, "testuser", testLoc, format.DefaultAlerts()),
+		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc, format.DefaultAlerts()),
 	}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
@@ -1183,8 +1185,8 @@ func buildTestHandlerWithConfigPath(t *testing.T, dir string, cfg config.Config,
 	client := &httpx.Client{HTTP: &http.Client{Transport: httpx.NewFixtureTransport(dir)}}
 	runner := creds.FixtureRunner(dir)
 	fetchers := []providers.Fetcher{
-		providers.NewClaude(client, runner, "testuser", testLoc),
-		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc),
+		providers.NewClaude(client, runner, "testuser", testLoc, format.DefaultAlerts()),
+		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc, format.DefaultAlerts()),
 	}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
@@ -1216,8 +1218,8 @@ func TestSetConfigDisablesProviderAndRebuildsFetchers(t *testing.T) {
 	client := &httpx.Client{HTTP: &http.Client{Transport: httpx.NewFixtureTransport(dir)}}
 	runner := creds.FixtureRunner(dir)
 	fetchers := []providers.Fetcher{
-		providers.NewClaude(client, runner, "testuser", testLoc),
-		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc),
+		providers.NewClaude(client, runner, "testuser", testLoc, format.DefaultAlerts()),
+		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc, format.DefaultAlerts()),
 	}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
@@ -1233,9 +1235,9 @@ func TestSetConfigDisablesProviderAndRebuildsFetchers(t *testing.T) {
 			}
 			switch p.ID {
 			case config.ProviderClaude:
-				out = append(out, providers.NewClaude(client, runner, "testuser", testLoc))
+				out = append(out, providers.NewClaude(client, runner, "testuser", testLoc, format.DefaultAlerts()))
 			case config.ProviderCodex:
-				out = append(out, providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc))
+				out = append(out, providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc, format.DefaultAlerts()))
 			}
 		}
 		return out
@@ -1417,7 +1419,7 @@ func TestConfigSetPlanBlock(t *testing.T) {
 	handler := newHandlerWithKeyStore(t, dir, cfg, configPath, creds.NewFakeKeyStore(nil))
 
 	// PUT with a plan block for claude.
-	payload := `{"interval_sec":600,"listen":"127.0.0.1:0","tz":"America/Sao_Paulo","alerts":{"openrouter_low_usd":1.0,"quota_warn_pct":90},"providers":[{"id":"claude","enabled":true,"label":"Claude","plan":{"cost":200,"currency":"USD","label":"Max 20x","cost_usd":200}}]}`
+	payload := `{"interval_sec":600,"listen":"127.0.0.1:0","tz":"America/Sao_Paulo","alerts":{"openrouter_low_usd":1.0,"quota_warn_5h_pct":70,"quota_warn_weekly_pct":60},"providers":[{"id":"claude","enabled":true,"label":"Claude","plan":{"cost":200,"currency":"USD","label":"Max 20x","cost_usd":200}}]}`
 	req := httptest.NewRequest(http.MethodPut, "/v1/config", strings.NewReader(payload))
 	req.RemoteAddr = "127.0.0.1:12345"
 	req.Header.Set("X-Device-Token", "x")
@@ -1595,7 +1597,7 @@ func TestKeyRateLimited(t *testing.T) {
 	}
 }
 
-// TestConfigInvalidThresholdRejected verifies PUT /v0/config rejects invalid
+// TestConfigInvalidThresholdRejected verifies PUT /v1/config rejects invalid
 // alert thresholds with a field-specific error.
 func TestConfigInvalidThresholdRejected(t *testing.T) {
 	dir := setupFixtures(t)
@@ -1607,17 +1609,28 @@ func TestConfigInvalidThresholdRejected(t *testing.T) {
 	os.WriteFile(configPath, []byte("interval_sec: 900\n"), 0o600)
 	handler := newHandlerWithKeyStore(t, dir, cfg, configPath, creds.NewFakeKeyStore(nil))
 
-	// quota_warn_pct must be 50-100; 10 is invalid.
-	payload := `{"interval_sec":600,"alerts":{"quota_warn_pct":10,"openrouter_low_usd":1.0}}`
-	req := httptest.NewRequest(http.MethodPut, "/v1/config", strings.NewReader(payload))
-	req.RemoteAddr = "127.0.0.1:12345"
-	req.Header.Set("X-Device-Token", "x")
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
+	// Both keys must be 50-100; 40 (below) and 101 (above) are invalid.
+	for _, tc := range []struct {
+		key   string
+		value float64
+	}{
+		{"quota_warn_5h_pct", 40},
+		{"quota_warn_5h_pct", 101},
+		{"quota_warn_weekly_pct", 40},
+		{"quota_warn_weekly_pct", 101},
+	} {
+		alertsJSON := fmt.Sprintf(`{"%s":%v,"openrouter_low_usd":1.0}`, tc.key, tc.value)
+		payload := `{"interval_sec":600,"alerts":` + alertsJSON + `}`
+		req := httptest.NewRequest(http.MethodPut, "/v1/config", strings.NewReader(payload))
+		req.RemoteAddr = "127.0.0.1:12345"
+		req.Header.Set("X-Device-Token", "x")
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("PUT invalid threshold: status = %d, want 400", rec.Code)
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("PUT %s=%v: status = %d, want 400", tc.key, tc.value, rec.Code)
+		}
 	}
 	// File should be unchanged.
 	written, _ := os.ReadFile(configPath)
@@ -1633,8 +1646,8 @@ func newHandlerWithKeyStore(t *testing.T, dir string, cfg config.Config, configP
 	client := &httpx.Client{HTTP: &http.Client{Transport: httpx.NewFixtureTransport(dir)}}
 	runner := creds.FixtureRunner(dir)
 	fetchers := []providers.Fetcher{
-		providers.NewClaude(client, runner, "testuser", testLoc),
-		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc),
+		providers.NewClaude(client, runner, "testuser", testLoc, format.DefaultAlerts()),
+		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc, format.DefaultAlerts()),
 	}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)

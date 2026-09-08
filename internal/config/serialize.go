@@ -28,7 +28,7 @@ func SerializeYAML(fc FileConfig) (string, error) {
 
 	if len(fc.Alerts) > 0 {
 		out += "alerts:\n"
-		for _, key := range []string{"openrouter_low_usd", "quota_warn_pct"} {
+		for _, key := range []string{"openrouter_low_usd", "quota_warn_5h_pct", "quota_warn_weekly_pct"} {
 			if v, ok := fc.Alerts[key]; ok {
 				out += fmt.Sprintf("  %s: %s\n", key, strconv.FormatFloat(v, 'f', -1, 64))
 			}

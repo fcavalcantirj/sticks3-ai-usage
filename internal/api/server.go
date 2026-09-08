@@ -449,8 +449,9 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, _ *http.Request) {
 		"plan_presets": presets,
 		"tz":           s.cfg.TZ.String(),
 		"alerts": map[string]any{
-			"openrouter_low_usd": s.cfg.AlertOpenRouterLowUSD,
-			"quota_warn_pct":     s.cfg.AlertQuotaWarnPct,
+			"openrouter_low_usd":    s.cfg.AlertOpenRouterLowUSD,
+			"quota_warn_5h_pct":     s.cfg.AlertQuotaWarn5hPct,
+			"quota_warn_weekly_pct": s.cfg.AlertQuotaWarnWeeklyPct,
 		},
 		"providers": providers,
 	}
@@ -599,11 +600,20 @@ func (s *Server) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if v, ok := body.Alerts["quota_warn_pct"]; ok {
+	if v, ok := body.Alerts["quota_warn_5h_pct"]; ok {
 		if v < 50 || v > 100 {
 			writeJSON(w, http.StatusBadRequest, map[string]string{
 				"ok":    "false",
-				"error": fmt.Sprintf("invalid field: alerts.quota_warn_pct must be 50-100, got %v", v),
+				"error": fmt.Sprintf("invalid field: alerts.quota_warn_5h_pct must be 50-100, got %v", v),
+			})
+			return
+		}
+	}
+	if v, ok := body.Alerts["quota_warn_weekly_pct"]; ok {
+		if v < 50 || v > 100 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{
+				"ok":    "false",
+				"error": fmt.Sprintf("invalid field: alerts.quota_warn_weekly_pct must be 50-100, got %v", v),
 			})
 			return
 		}
@@ -703,6 +713,21 @@ func (s *Server) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.cfg.ProviderConfigs = provs
+	// Apply alert thresholds in-memory (migration-aware: legacy
+	// quota_warn_pct seeds both new keys; explicit new keys take precedence).
+	if v, ok := fc.Alerts["quota_warn_pct"]; ok {
+		s.cfg.AlertQuotaWarn5hPct = int(v)
+		s.cfg.AlertQuotaWarnWeeklyPct = int(v)
+	}
+	if v, ok := fc.Alerts["quota_warn_5h_pct"]; ok {
+		s.cfg.AlertQuotaWarn5hPct = int(v)
+	}
+	if v, ok := fc.Alerts["quota_warn_weekly_pct"]; ok {
+		s.cfg.AlertQuotaWarnWeeklyPct = int(v)
+	}
+	if v, ok := fc.Alerts["openrouter_low_usd"]; ok {
+		s.cfg.AlertOpenRouterLowUSD = v
+	}
 	s.rebuildFetchers()
 
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})

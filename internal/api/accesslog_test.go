@@ -15,6 +15,7 @@ import (
 
 	"usaged/internal/config"
 	"usaged/internal/creds"
+	"usaged/internal/format"
 	"usaged/internal/httpx"
 	"usaged/internal/providers"
 	"usaged/internal/sched"
@@ -36,8 +37,8 @@ func newCaptureHandler(t *testing.T, dir string) (http.Handler, *bytes.Buffer) {
 	client := &httpx.Client{HTTP: &http.Client{Transport: httpx.NewFixtureTransport(dir)}}
 	runner := creds.FixtureRunner(dir)
 	fetchers := []providers.Fetcher{
-		providers.NewClaude(client, runner, "testuser", testLoc),
-		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc),
+		providers.NewClaude(client, runner, "testuser", testLoc, format.DefaultAlerts()),
+		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc, format.DefaultAlerts()),
 	}
 	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
 	s.PollOnce(context.Background())

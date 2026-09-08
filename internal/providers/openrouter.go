@@ -29,16 +29,20 @@ type openRouterProvider struct {
 	id     string // "openrouter:main" | "openrouter:fallback"
 	label  string // "OpenRouter main" | "OpenRouter fallback"
 	key    string
+	alerts format.Alerts
+	lowUSD float64 // OpenRouter low-balance threshold in dollars
 }
 
 // NewOpenRouter creates a Fetcher that polls the OpenRouter credits and key
 // endpoints for a single API key.
-func NewOpenRouter(client *httpx.Client, id string, label string, key string) Fetcher {
+func NewOpenRouter(client *httpx.Client, id string, label string, key string, alerts format.Alerts, lowUSD float64) Fetcher {
 	return &openRouterProvider{
 		client: client,
 		id:     id,
 		label:  label,
 		key:    key,
+		alerts: alerts,
+		lowUSD: lowUSD,
 	}
 }
 
@@ -61,7 +65,7 @@ func (p *openRouterProvider) block(status, msg, plan string, rows []snapshot.Row
 		Label:     p.label,
 		Plan:      plan,
 		Kind:      "credit",
-		Severity:  format.Severity(status, rows),
+		Severity:  format.Severity(status, rows, p.alerts),
 		Status:    status,
 		Msg:       msg,
 		FetchedAt: fetchedAt,
@@ -180,7 +184,7 @@ func (p *openRouterProvider) Fetch(ctx context.Context, now time.Time) (snapshot
 		if *balCents <= 0 {
 			svc.Severity = "crit"
 			svc.Msg = "EMPTY - free blocked"
-		} else if *balCents < 100 {
+		} else if *balCents < format.Cents(p.lowUSD) {
 			svc.Severity = "warn"
 			svc.Msg = "low " + format.Money(*balCents)
 		}

@@ -31,16 +31,18 @@ type groqProvider struct {
 	client *httpx.Client
 	key    string
 	probe  bool
+	alerts format.Alerts
 }
 
 // NewGroq creates a Fetcher for the Groq provider. When probe is true the
 // provider additionally POSTs a 1-token completion to read rate-limit
 // headroom from the response headers.
-func NewGroq(client *httpx.Client, key string, probe bool) Fetcher {
+func NewGroq(client *httpx.Client, key string, probe bool, alerts format.Alerts) Fetcher {
 	return &groqProvider{
 		client: client,
 		key:    key,
 		probe:  probe,
+		alerts: alerts,
 	}
 }
 
@@ -51,7 +53,7 @@ func (p *groqProvider) block(status, msg, plan string, rows []snapshot.Row, fetc
 	// free tier); if the probe ever reports a paid plan, the Fetch method
 	// overrides this to "credit".
 	kind := "free"
-	severity := format.Severity(status, rows)
+	severity := format.Severity(status, rows, p.alerts)
 	if plan == "paid" {
 		kind = "credit"
 	}

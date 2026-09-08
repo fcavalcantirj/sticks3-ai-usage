@@ -5,11 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"usaged/internal/format"
 )
 
 func TestOpenRouterProviderHappyPath(t *testing.T) {
 	client := newFixtureClient("../../testdata/fixtures")
-	p := NewOpenRouter(client, "openrouter:main", "OpenRouter main", "test-key")
+	p := NewOpenRouter(client, "openrouter:main", "OpenRouter main", "test-key", format.DefaultAlerts(), 1.00)
 
 	result, outcome := p.Fetch(context.Background(), testNow())
 
@@ -78,7 +79,7 @@ func TestOpenRouterProviderCredits403(t *testing.T) {
 	copyFixture(t, dir, "openrouter_key.json")
 
 	client := newFixtureClient(dir)
-	p := NewOpenRouter(client, "openrouter:main", "OpenRouter main", "test-key")
+	p := NewOpenRouter(client, "openrouter:main", "OpenRouter main", "test-key", format.DefaultAlerts(), 1.00)
 
 	result, _ := p.Fetch(context.Background(), testNow())
 
@@ -114,7 +115,7 @@ func TestOpenRouterProviderKey401(t *testing.T) {
 	copyFixture(t, dir, "openrouter_credits.json")
 
 	client := newFixtureClient(dir)
-	p := NewOpenRouter(client, "openrouter:main", "OpenRouter main", "test-key")
+	p := NewOpenRouter(client, "openrouter:main", "OpenRouter main", "test-key", format.DefaultAlerts(), 1.00)
 
 	result, _ := p.Fetch(context.Background(), testNow())
 
@@ -128,7 +129,7 @@ func TestOpenRouterProviderKey401(t *testing.T) {
 
 func TestOpenRouterProviderFallbackLabel(t *testing.T) {
 	client := newFixtureClient("../../testdata/fixtures")
-	p := NewOpenRouter(client, "openrouter:fallback", "OpenRouter fallback", "fbk-key")
+	p := NewOpenRouter(client, "openrouter:fallback", "OpenRouter fallback", "fbk-key", format.DefaultAlerts(), 1.00)
 
 	result, _ := p.Fetch(context.Background(), testNow())
 
@@ -172,7 +173,7 @@ func TestOpenRouterProviderEmptyBalanceCrit(t *testing.T) {
 	copyFixture(t, dir, "openrouter_key.json")
 
 	client := newFixtureClient(dir)
-	p := NewOpenRouter(client, "openrouter:main", "OpenRouter main", "test-key")
+	p := NewOpenRouter(client, "openrouter:main", "OpenRouter main", "test-key", format.DefaultAlerts(), 1.00)
 
 	result, _ := p.Fetch(context.Background(), testNow())
 

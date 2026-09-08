@@ -23,17 +23,19 @@ type claudeStatuslineProvider struct {
 	sourceFile string
 	fallback   Fetcher
 	loc        *time.Location
+	alerts     format.Alerts
 }
 
 // NewClaudeStatusline returns a Fetcher that prefers the statusline file
 // when it is younger than claudeStatuslineTTL, falling back to `fallback`
 // (an OAuth claudeProvider) when it is stale or absent. If fallback is nil
 // and the file is unusable, an error block is returned.
-func NewClaudeStatusline(sourceFile string, fallback Fetcher, loc *time.Location) Fetcher {
+func NewClaudeStatusline(sourceFile string, fallback Fetcher, loc *time.Location, alerts format.Alerts) Fetcher {
 	return &claudeStatuslineProvider{
 		sourceFile: sourceFile,
 		fallback:   fallback,
 		loc:        loc,
+		alerts:     alerts,
 	}
 }
 
@@ -44,7 +46,7 @@ func (p *claudeStatuslineProvider) Fetch(ctx context.Context, now time.Time) (sn
 		if p.fallback != nil {
 			return p.fallback.Fetch(ctx, now)
 		}
-		return claudeBlock("error", "no claude source", "", nil, now.Unix()), Outcome{}
+		return claudeBlock("error", "no claude source", "", nil, now.Unix(), p.alerts), Outcome{}
 	}
 
 	data, err := os.ReadFile(p.sourceFile)
@@ -53,7 +55,7 @@ func (p *claudeStatuslineProvider) Fetch(ctx context.Context, now time.Time) (sn
 		if p.fallback != nil {
 			return p.fallback.Fetch(ctx, now)
 		}
-		return claudeBlock("error", "no statusline data", "", nil, now.Unix()), Outcome{}
+		return claudeBlock("error", "no statusline data", "", nil, now.Unix(), p.alerts), Outcome{}
 	}
 
 	fi, err := os.Stat(p.sourceFile)
@@ -62,7 +64,7 @@ func (p *claudeStatuslineProvider) Fetch(ctx context.Context, now time.Time) (sn
 		if p.fallback != nil {
 			return p.fallback.Fetch(ctx, now)
 		}
-		return claudeBlock("error", "statusline stale", "", nil, now.Unix()), Outcome{}
+		return claudeBlock("error", "statusline stale", "", nil, now.Unix(), p.alerts), Outcome{}
 	}
 
 	body, err := parseStatuslineData(data)
@@ -71,12 +73,12 @@ func (p *claudeStatuslineProvider) Fetch(ctx context.Context, now time.Time) (sn
 		if p.fallback != nil {
 			return p.fallback.Fetch(ctx, now)
 		}
-		return claudeBlock("error", "parse error", "", nil, now.Unix()), Outcome{}
+		return claudeBlock("error", "parse error", "", nil, now.Unix(), p.alerts), Outcome{}
 	}
 
 	rows := parseStatuslineRows(body, now, p.loc)
 	plan := body.PlanType
-	return claudeBlock("ok", "", plan, rows, now.Unix()), Outcome{}
+	return claudeBlock("ok", "", plan, rows, now.Unix(), p.alerts), Outcome{}
 }
 
 // --- statusline file types ---

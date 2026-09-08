@@ -11,8 +11,9 @@ func TestSerializeYAMLRoundTrip(t *testing.T) {
 		Listen:      "0.0.0.0:8765",
 		TZ:          "America/Sao_Paulo",
 		Alerts: map[string]float64{
-			"openrouter_low_usd": 1.0,
-			"quota_warn_pct":     95.0,
+			"openrouter_low_usd":    1.0,
+			"quota_warn_5h_pct":     70.0,
+			"quota_warn_weekly_pct": 60.0,
 		},
 		Providers: []YamlProvider{
 			{
@@ -57,6 +58,12 @@ func TestSerializeYAMLRoundTrip(t *testing.T) {
 	}
 	if parsed.Providers[1].Enabled != false {
 		t.Errorf("round-trip Providers[1].Enabled = true, want false")
+	}
+	if parsed.Alerts["quota_warn_5h_pct"] != 70 {
+		t.Errorf("round-trip Alerts[quota_warn_5h_pct] = %v, want 70", parsed.Alerts["quota_warn_5h_pct"])
+	}
+	if parsed.Alerts["quota_warn_weekly_pct"] != 60 {
+		t.Errorf("round-trip Alerts[quota_warn_weekly_pct] = %v, want 60", parsed.Alerts["quota_warn_weekly_pct"])
 	}
 }
 

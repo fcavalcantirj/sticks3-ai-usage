@@ -41,6 +41,10 @@ func ResetTxt(reset time.Time, now time.Time, loc *time.Location) string {
 // Tier maps (pct, status) to a qualitative tier string.
 // nil pct or a status other than ok/stale → "off".
 // Otherwise: <50 ok, <80 warn, >=80 crit.
+//
+// Tier is per-row cosmetics only and is NOT driven by the alert knobs in
+// format.Alerts. Severity is the alert engine; Tier is the row colour. They
+// serve different purposes and must not be conflated — see PROD-READY 2/10.
 func Tier(pct *int, status string) string {
 	if pct == nil {
 		return "off"
@@ -58,11 +62,46 @@ func Tier(pct *int, status string) string {
 	return "crit"
 }
 
-// Severity computes the provider-level severity from status and rows.
-// Any auth/error status → "crit". Any quota row at 100% → "crit" (fully
-// exhausted, cannot serve requests). Any quota row at 95–99% → "warn".
-// Otherwise → "ok".
-func Severity(status string, rows []snapshot.Row) string {
+// Alerts holds the alert threshold configuration, threaded from the daemon's
+// config into every provider constructor so there is exactly one source of
+// truth for the warn percentages.
+type Alerts struct {
+	Warn5hPct     int // warn when a short-window (5h) quota row reaches this %
+	WarnWeeklyPct int // warn when a weekly-window quota row reaches this %
+}
+
+// DefaultAlerts returns the standard alert thresholds: 70 % for 5h windows
+// (recoverable in an afternoon) and 60 % for weekly windows (earlier notice).
+func DefaultAlerts() Alerts {
+	return Alerts{Warn5hPct: 70, WarnWeeklyPct: 60}
+}
+
+// WarnPctFor returns the warning percentage threshold for a row with window
+// key k. "7d" rows use the weekly threshold; everything else — including
+// rows with no window key (OpenRouter credit rows, Groq rate-limit rows) —
+// uses the short-window (5h) threshold. This is a deliberate rule: a credit
+// balance or rate-limit bucket has no weekly cadence to warn against early,
+// so it takes the sooner threshold.
+// NOTE: task 92 (OpenCode Go) will add a "30d" window key that MUST map to the
+// weekly threshold, not the 5h one — a monthly cap you cannot recover from
+// deserves the earlier warning. Add "30d" alongside "7d" then.
+func (a Alerts) WarnPctFor(k string) int {
+	if k == "7d" {
+		return a.WarnWeeklyPct
+	}
+	return a.Warn5hPct
+}
+
+// Severity computes the provider-level severity from status, rows, and the
+// alert thresholds in alerts.
+//
+// Rules (in priority order):
+//   - auth/error status → "crit" (hard fact)
+//   - any quota row at ≥100 % → "crit" (fully exhausted)
+//   - any quota row at or above its window-specific warn threshold → "warn"
+//     (5h rows use Warn5hPct; 7d rows use WarnWeeklyPct)
+//   - otherwise → "ok"
+func Severity(status string, rows []snapshot.Row, alerts Alerts) string {
 	if status == "auth" || status == "error" {
 		return "crit"
 	}
@@ -72,7 +111,7 @@ func Severity(status string, rows []snapshot.Row) string {
 		}
 	}
 	for _, r := range rows {
-		if r.Pct != nil && *r.Pct >= 95 {
+		if r.Pct != nil && *r.Pct >= alerts.WarnPctFor(r.K) {
 			return "warn"
 		}
 	}

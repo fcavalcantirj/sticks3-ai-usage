@@ -23,7 +23,8 @@ tz: "America/Sao_Paulo"
 # Alert thresholds (used by the snapshot/web rendering tasks that follow).
 alerts:
   openrouter_low_usd: 1.00    # warn when an OpenRouter credit balance drops below this
-  quota_warn_pct: 95          # warn when any quota row reaches this percentage
+  quota_warn_5h_pct: 70       # warn when a 5h quota row reaches this percentage
+  quota_warn_weekly_pct: 60   # warn when a weekly quota row reaches this percentage
 
 # Provider toggles. `enabled: false` removes the provider from the snapshot
 # entirely. `key_env` names the ENVIRONMENT VARIABLE that holds the API key —

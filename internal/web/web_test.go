@@ -127,7 +127,8 @@ func TestIndexHTMLSettingsTab(t *testing.T) {
 	// Settings form elements (interval is in the header, not here).
 	for _, want := range []string{
 		`id="setting-openrouter-low"`,
-		`id="setting-quota-warn"`,
+		`id="setting-quota-warn-5h"`,
+		`id="setting-quota-warn-weekly"`,
 		`id="save-config-btn"`,
 		`id="settings-form"`,
 		`id="provider-list"`,
