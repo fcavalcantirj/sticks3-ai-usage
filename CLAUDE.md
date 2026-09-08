@@ -2,14 +2,14 @@
 
 **Status: ACTIVE. Start at `spec.json` task 85 — the prod-readiness group.**
 
-92 tasks, 80 passing. `spec.json` is both the acceptance ledger and the
+93 tasks, 82 passing. `spec.json` is both the acceptance ledger and the
 executable build order: take the first entry with `passes: false`.
 
 The device works. A stranger can flash from M5Burner, run one curl command and
 click once to set it up — proven end to end on hardware, 2026-09-07. What is not
 ready is everything around it: an audit found twenty confirmed findings and the
 dashboard still renders controls wired to nothing. **The open work is tasks
-85-92: fix those until nothing on the page lies.** Every one of them comes from
+85-93: fix those until nothing on the page lies.** Every one of them comes from
 `docs/handovers/2026-09-07-prod-readiness/` — read `AUDIT.md` there for the
 reproduction command behind each.
 
@@ -34,7 +34,7 @@ defects:
 - **A task whose verify step names Felipe does not flip to `passes: true` until
   he says so.** Not when the tests pass, not when it looks right on your screen.
 
-### The one thing to understand about tasks 85-92
+### The one thing to understand about tasks 85-93
 
 Every bug shipped on 2026-09-07 had the same root cause:
 
@@ -48,7 +48,7 @@ Nine of them, in one day.
 
 So a fix is not done until the REAL thing has run: the binary, the endpoint, the
 log, the wire. Not a fake, not a unit test, not a green build. Every task in
-85-92 carries a `Verify:` step naming the live command and its expected output
+85-93 carries a `Verify:` step naming the live command and its expected output
 for exactly that reason — a green `make verify` never satisfies one on its own.
 
 ## Read these first, in this order
