@@ -91,6 +91,7 @@ rm -f ~/Library/LaunchAgents/com.fcavalcanti.ai-usage.plist ~/.local/bin/ai-usag
 | Claude | macOS Keychain item `Claude Code-credentials` | [Claude Code](https://claude.com/claude-code) installed and logged in |
 | ChatGPT / Codex | `~/.codex/auth.json` | Codex CLI installed and logged in |
 | OpenRouter, Groq | API keys you add in Settings | an account (optional) |
+| OpenCode Go | API key you add in Settings | an [OpenCode Go](https://opencode.ai) subscription (optional) |
 
 A provider you do not use simply says so. It never refreshes, rotates or copies
 a token — when one expires the page shows a "run claude" badge and nothing else.
@@ -108,11 +109,26 @@ That is the whole setup. The daemon sends the Wi-Fi name, the Wi-Fi password,
 its own address, its port and a token it mints for that device — you type
 nothing but those six digits.
 
-**No Bluetooth?** After two minutes the stick raises its own Wi-Fi network
+**No Bluetooth?** After ten minutes the stick raises its own Wi-Fi network
 instead. Join `ai-usage-XXXX` from a phone, and a setup page opens by itself.
 
 **The firmware carries no credentials.** Wi-Fi details live only in the stick's
 own storage, written during setup — never compiled into the published image.
+
+## What you can change in Settings
+
+Everything below takes effect immediately — no restart, no config file to edit.
+
+| Control | What it does |
+|---|---|
+| **Provider on/off** | Unchecking one stops polling it and removes it from the stick entirely |
+| **API keys** | Stored in the macOS Keychain, never in a file. Adding one starts polling it at once |
+| **Alert thresholds** | Two knobs: warn at *n*% of the 5-hour window, and at *n*% of the weekly one. Weekly defaults lower (60 vs 70) because a weekly cap you cannot recover from in an afternoon deserves earlier notice |
+| **Provider order** | Drag the order you want. The stick obeys it — the first providers fill its first page |
+| **Poll interval** | How often the daemon asks. Minimum 300 s |
+
+The stick groups its pages by kind — subscription plans first, then prepaid
+credit, then free tiers — so reordering moves a provider within its group.
 
 ## Requirements
 
