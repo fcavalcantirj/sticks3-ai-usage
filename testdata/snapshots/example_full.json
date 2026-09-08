@@ -1,7 +1,7 @@
 {
   "v": 1,
   "seq": 1,
-  "rev": "03df5712",
+  "rev": "14b4ca9d",
   "generated_at": 1788393600,
   "checked_at": 1788393600,
   "next_sec": 900,
@@ -151,6 +151,42 @@
           "txt": "ok",
           "tier": "ok",
           "reset_at": null
+        }
+      ]
+    },
+    {
+      "id": "opencode:go",
+      "label": "OpenCode Go",
+      "plan": "plan",
+      "kind": "plan",
+      "severity": "ok",
+      "status": "ok",
+      "msg": "",
+      "fetched_at": 1788393600,
+      "rows": [
+        {
+          "k": "5h",
+          "label": "OCgo 5h",
+          "pct": 5,
+          "txt": "Tue",
+          "tier": "ok",
+          "reset_at": 1788841416
+        },
+        {
+          "k": "7d",
+          "label": "OCgo 7d",
+          "pct": 2,
+          "txt": "Sun",
+          "tier": "ok",
+          "reset_at": 1789344000
+        },
+        {
+          "k": "30d",
+          "label": "OCgo 30d",
+          "pct": 1,
+          "txt": "Wed",
+          "tier": "ok",
+          "reset_at": 1791414875
         }
       ]
     }

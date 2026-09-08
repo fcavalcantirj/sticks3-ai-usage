@@ -131,6 +131,7 @@ func defaultFixtureTable() map[string]fixtureEntry {
 		"GET openrouter.ai/api/v1/credits":       {File: "openrouter_credits.json"},
 		"GET openrouter.ai/api/v1/key":           {File: "openrouter_key.json"},
 		"GET api.groq.com/openai/v1/models":      {Inline: `{"data":[]}`},
+		"GET opencode.ai/zen/go/v1/usage":        {File: "opencode_usage.json"},
 		"POST api.groq.com/openai/v1/chat/completions": {
 			Inline: `{"usage":{"total_tokens":73}}`,
 			Headers: map[string]string{

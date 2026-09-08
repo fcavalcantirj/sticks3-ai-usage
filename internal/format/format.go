@@ -86,7 +86,7 @@ func DefaultAlerts() Alerts {
 // weekly threshold, not the 5h one — a monthly cap you cannot recover from
 // deserves the earlier warning. Add "30d" alongside "7d" then.
 func (a Alerts) WarnPctFor(k string) int {
-	if k == "7d" {
+	if k == "7d" || k == "30d" {
 		return a.WarnWeeklyPct
 	}
 	return a.Warn5hPct

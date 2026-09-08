@@ -172,6 +172,19 @@ func buildFetchers(cfg config.Config, ks creds.KeyStore) []providers.Fetcher {
 		}
 	}
 
+	// OpenCode Go: real fetcher when key set (env first, then keychain).
+	if enabled(config.ProviderOpenCodeGo) {
+		opencodeKey := cfg.OpenCodeKey
+		if opencodeKey == "" && ks != nil {
+			opencodeKey, _, _ = ks.Get(context.Background(), config.ProviderOpenCodeGo)
+		}
+		if opencodeKey != "" {
+			fetchers = append(fetchers, providers.NewOpenCode(client, opencodeKey, loc, alerts))
+		} else {
+			fetchers = append(fetchers, newStaticFetcher("opencode:go", "OpenCode Go", "no key"))
+		}
+	}
+
 	return fetchers
 }
 

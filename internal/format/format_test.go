@@ -126,6 +126,11 @@ func TestWarnPctFor(t *testing.T) {
 	if a.WarnPctFor("key") != 70 {
 		t.Errorf("WarnPctFor(\"key\") = %d, want 70", a.WarnPctFor("key"))
 	}
+	// "30d" maps to the WEEKLY threshold (not 5h) — OpenCode Go monthly caps
+	// are unrecoverable, so they deserve the earlier warning.
+	if a.WarnPctFor("30d") != 60 {
+		t.Errorf("WarnPctFor(\"30d\") = %d, want 60", a.WarnPctFor("30d"))
+	}
 }
 
 func TestMoney(t *testing.T) {

@@ -9,7 +9,7 @@ import (
 // canonicalProviderOrder is the fixed order every client expects.
 // Missing ids are allowed (a subset is valid); unknown ids are rejected.
 var canonicalProviderOrder = []string{
-	"claude", "codex", "openrouter:main", "openrouter:fallback", "groq",
+	"claude", "codex", "openrouter:main", "openrouter:fallback", "groq", "opencode:go",
 }
 
 var validStatuses = map[string]bool{

@@ -41,7 +41,7 @@ struct Model {
     uint16_t nextSec;     // seconds until next poll (900)
     uint32_t age;         // ORDER #65: server-computed age in seconds (now - checked_at at fetch time)
     uint8_t providerCount;
-    Provider providers[5];
+    Provider providers[6];
 };
 
 // parseSnapshot parses a v1 JSON snapshot into a bounded Model.

@@ -85,9 +85,9 @@ TEST(model_parses_full) {
                                    strlen(kSnapshotExampleFull),
                                    m, err, sizeof(err));
     ASSERT_TRUE(ok);
-    ASSERT_EQ(5, (int)m.providerCount);
+    ASSERT_EQ(6, (int)m.providerCount);
 
-    // Canonical provider order: claude, codex, openrouter:main, fallback, groq.
+    // Canonical provider order: claude, codex, openrouter:main, fallback, groq, opencode:go.
     ASSERT_STREQ("claude", m.providers[0].id);
     ASSERT_STREQ("plan", m.providers[0].kind);
     ASSERT_STREQ("codex", m.providers[1].id);
@@ -102,6 +102,28 @@ TEST(model_parses_full) {
     ASSERT_EQ(1, (int)m.providers[3].severity);  // warn
     ASSERT_STREQ("groq", m.providers[4].id);
     ASSERT_STREQ("free", m.providers[4].kind);
+
+    // OpenCode Go: 6th provider, kind "plan", 3 rows with a "30d" window.
+    const Provider& oc = m.providers[5];
+    ASSERT_STREQ("opencode:go", oc.id);
+    ASSERT_STREQ("OpenCode Go", oc.label);
+    ASSERT_STREQ("plan", oc.plan);
+    ASSERT_STREQ("plan", oc.kind);
+    ASSERT_EQ(0, (int)oc.status);   // ok
+    ASSERT_EQ(0, (int)oc.severity); // ok
+    ASSERT_EQ(3, (int)oc.rowCount);
+
+    // OCgo 5h: pct 5, tier 0
+    ASSERT_STREQ("5h", oc.rows[0].k);
+    ASSERT_STREQ("OCgo 5h", oc.rows[0].label);
+    ASSERT_EQ(5, oc.rows[0].pct);
+    ASSERT_EQ(0, (int)oc.rows[0].tier);
+
+    // OCgo 30d: the new monthly window key
+    ASSERT_STREQ("30d", oc.rows[2].k);
+    ASSERT_STREQ("OCgo 30d", oc.rows[2].label);
+    ASSERT_EQ(1, oc.rows[2].pct);
+    ASSERT_EQ(0, (int)oc.rows[2].tier);
 
     // OpenRouter main: bal pct 99, tier 2 (crit)
     const Row& orBal = m.providers[2].rows[0];
@@ -191,4 +213,48 @@ TEST(model_parses_age) {
     bool ok = usage::parseSnapshot(json, strlen(json), m, err, sizeof(err));
     ASSERT_TRUE(ok);
     ASSERT_EQ(42u, m.age);
+}
+
+TEST(model_clamps_overflow_providers) {
+    // Seven providers must be clamped to 6 (the array capacity), not rejected.
+    // The 7th ("extra") is silently dropped — no overflow, providerCount == 6.
+    Model m;
+    char err[256];
+    const char* json =
+        "{\"v\":1,\"seq\":1,\"rev\":\"abcd1234\",\"generated_at\":0,"
+        "\"next_sec\":900,\"providers\":["
+        "{\"id\":\"a\",\"label\":\"A\",\"plan\":\"free\",\"kind\":\"free\","
+        "\"severity\":\"ok\",\"status\":\"ok\",\"msg\":\"\",\"rows\":[{\"k\":\"k\","
+        "\"label\":\"L\",\"pct\":null,\"txt\":\"T\",\"tier\":\"ok\","
+        "\"reset_at\":0}]},"
+        "{\"id\":\"b\",\"label\":\"B\",\"plan\":\"free\",\"kind\":\"free\","
+        "\"severity\":\"ok\",\"status\":\"ok\",\"msg\":\"\",\"rows\":[{\"k\":\"k\","
+        "\"label\":\"L\",\"pct\":null,\"txt\":\"T\",\"tier\":\"ok\","
+        "\"reset_at\":0}]},"
+        "{\"id\":\"c\",\"label\":\"C\",\"plan\":\"free\",\"kind\":\"free\","
+        "\"severity\":\"ok\",\"status\":\"ok\",\"msg\":\"\",\"rows\":[{\"k\":\"k\","
+        "\"label\":\"L\",\"pct\":null,\"txt\":\"T\",\"tier\":\"ok\","
+        "\"reset_at\":0}]},"
+        "{\"id\":\"d\",\"label\":\"D\",\"plan\":\"free\",\"kind\":\"free\","
+        "\"severity\":\"ok\",\"status\":\"ok\",\"msg\":\"\",\"rows\":[{\"k\":\"k\","
+        "\"label\":\"L\",\"pct\":null,\"txt\":\"T\",\"tier\":\"ok\","
+        "\"reset_at\":0}]},"
+        "{\"id\":\"e\",\"label\":\"E\",\"plan\":\"free\",\"kind\":\"free\","
+        "\"severity\":\"ok\",\"status\":\"ok\",\"msg\":\"\",\"rows\":[{\"k\":\"k\","
+        "\"label\":\"L\",\"pct\":null,\"txt\":\"T\",\"tier\":\"ok\","
+        "\"reset_at\":0}]},"
+        "{\"id\":\"f\",\"label\":\"F\",\"plan\":\"free\",\"kind\":\"free\","
+        "\"severity\":\"ok\",\"status\":\"ok\",\"msg\":\"\",\"rows\":[{\"k\":\"k\","
+        "\"label\":\"L\",\"pct\":null,\"txt\":\"T\",\"tier\":\"ok\","
+        "\"reset_at\":0}]},"
+        "{\"id\":\"extra\",\"label\":\"X\",\"plan\":\"free\",\"kind\":\"free\","
+        "\"severity\":\"ok\",\"status\":\"ok\",\"msg\":\"\",\"rows\":[{\"k\":\"k\","
+        "\"label\":\"L\",\"pct\":null,\"txt\":\"T\",\"tier\":\"ok\","
+        "\"reset_at\":0}]}"
+        "]}";
+    bool ok = usage::parseSnapshot(json, strlen(json), m, err, sizeof(err));
+    ASSERT_TRUE(ok);                 // clamp, not reject
+    ASSERT_TRUE(err[0] == '\0');       // err empty on success
+    ASSERT_EQ(6, (int)m.providerCount);   // 7th dropped
+    ASSERT_STREQ("f", m.providers[5].id); // 6th (index 5) is the last kept
 }

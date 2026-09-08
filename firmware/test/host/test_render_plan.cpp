@@ -112,7 +112,7 @@ TEST(plan_full_four_pages) {
                                    m, err, sizeof(err));
     ASSERT_TRUE(ok);
 
-    ASSERT_EQ(5, (int)m.providerCount);
+    ASSERT_EQ(6, (int)m.providerCount);
 
     // Page 0: PLANS, 5 rows (no row stealing — maxLines=5).
     // Total: 4 kind pages + 1 instructions page = 5.
@@ -138,14 +138,20 @@ TEST(plan_full_four_pages) {
     ASSERT_EQ(31, p0.lines[4].pct);
     ASSERT_STREQ("ChatGPT GPT 5h 100%", p0.footer);
 
-    // Page 1: PLANS overflow, 1 row (GPT cr).
+    // Page 1: PLANS overflow, 4 rows (GPT cr, OCgo 5h, OCgo 7d, OCgo 30d).
     RenderPlan p1;
     buildTestPlan(m, 1, p1);
     ASSERT_EQ(2u, p1.page);
     ASSERT_STREQ("PLANS", p1.title);
-    ASSERT_EQ(1, (int)p1.lineCount);
+    ASSERT_EQ(4, (int)p1.lineCount);
     ASSERT_STREQ("GPT cr", p1.lines[0].left);
     ASSERT_EQ(-1, p1.lines[0].pct);
+    ASSERT_STREQ("OCgo 5h", p1.lines[1].left);
+    ASSERT_EQ(5, p1.lines[1].pct);
+    ASSERT_STREQ("OCgo 7d", p1.lines[2].left);
+    ASSERT_EQ(2, p1.lines[2].pct);
+    ASSERT_STREQ("OCgo 30d", p1.lines[3].left);
+    ASSERT_EQ(1, p1.lines[3].pct);
 
     // Page 2: CREDITS, 4 rows (ORmain bal, ORmain day, ORfbk bal, ORfbk day).
     RenderPlan p2;

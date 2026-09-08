@@ -117,7 +117,7 @@ func TestOnceStateTempByDefault(t *testing.T) {
 
 // --- Golden tests (Task 26: providers integration) ---
 
-var goldenFullProviders = []string{"claude", "codex", "openrouter:main", "openrouter:fallback", "groq"}
+var goldenFullProviders = []string{"claude", "codex", "openrouter:main", "openrouter:fallback", "groq", "opencode:go"}
 
 // providerIDsFrom returns the id of each provider in order.
 func providerIDsFrom(ps []snapshot.Provider) []string {
@@ -168,6 +168,7 @@ func setDummyKeys(t *testing.T) {
 	t.Setenv("OPENROUTER_API_KEY", "x")
 	t.Setenv("OPENROUTER_API_KEY_FALLBACK", "fx")
 	t.Setenv("GROQ_API_KEY", "gx")
+	t.Setenv("OPENCODE_API_KEY", "ox")
 }
 
 // TestGoldenFullSnapshot generates (on first run) and then verifies a golden
@@ -324,6 +325,7 @@ func TestBuildFetchersHonorsEnabledFlag(t *testing.T) {
 		config.ProviderCodex:          true,
 		config.ProviderOpenRouterMain: true,
 		config.ProviderOpenRouterFbk:  true,
+		config.ProviderOpenCodeGo:     true,
 	}
 	got := make(map[string]bool, len(fetchers))
 	for _, f := range fetchers {

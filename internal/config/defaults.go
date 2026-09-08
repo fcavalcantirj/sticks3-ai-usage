@@ -14,6 +14,7 @@ const (
 	ProviderOpenRouterMain = "openrouter:main"
 	ProviderOpenRouterFbk  = "openrouter:fallback"
 	ProviderGroq           = "groq"
+	ProviderOpenCodeGo     = "opencode:go"
 )
 
 // DefaultProviderOrder is the fixed display order used by the settings page
@@ -24,6 +25,7 @@ var DefaultProviderOrder = []string{
 	ProviderOpenRouterMain,
 	ProviderOpenRouterFbk,
 	ProviderGroq,
+	ProviderOpenCodeGo,
 }
 
 // DefaultProvider describes one built-in provider default. It is the same
@@ -68,6 +70,12 @@ func DefaultProviders() []DefaultProvider {
 			KeyEnv:   "GROQ_API_KEY",
 			Probe:    false,
 			HasProbe: false,
+		},
+		{
+			ID:      ProviderOpenCodeGo,
+			Enabled: true,
+			Label:   "OpenCode Go",
+			KeyEnv:  "OPENCODE_API_KEY",
 		},
 	}
 }

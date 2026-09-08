@@ -37,6 +37,7 @@ type Config struct {
 	TZ             *time.Location    // display timezone for reset text
 	OpenRouterKeys map[string]string // "main", "fallback"
 	GroqKey        string
+	OpenCodeKey    string
 	GroqProbe      bool   // probe rate-limit headroom on Groq
 	FixstDir       string // offline mode: serve everything from here
 	FixturesDir    string // offline mode: serve everything from here
@@ -202,6 +203,9 @@ func Load(args []string, getenv func(string) string) (Config, error) {
 	}
 	if v := getenv("GROQ_API_KEY"); v != "" {
 		cfg.GroqKey = v
+	}
+	if v := getenv("OPENCODE_API_KEY"); v != "" {
+		cfg.OpenCodeKey = v
 	}
 	if v := getenv("USAGED_GROQ_PROBE"); v != "" {
 		probe, err := parseBool(v)
@@ -395,6 +399,7 @@ func (c Config) Redacted() map[string]any {
 		m["openrouter_keys"] = keys
 	}
 	m["groq_key"] = fmt.Sprintf("set(len=%d)", len(c.GroqKey))
+	m["opencode_key"] = fmt.Sprintf("set(len=%d)", len(c.OpenCodeKey))
 	m["claude_source"] = c.ClaudeSource
 	m["publish_url"] = c.PublishURL
 	m["publish_token"] = fmt.Sprintf("set(len=%d)", len(c.PublishToken))

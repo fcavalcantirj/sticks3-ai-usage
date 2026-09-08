@@ -91,15 +91,15 @@ bool parseSnapshot(const char* json, size_t len, Model& out,
     out.age = (uint32_t)doc["age"].as<unsigned long>(); // ORDER #65: server-computed freshness age
 
     JsonArray providers = doc["providers"].as<JsonArray>();
-    if (providers.size() > 5) {
-        std::snprintf(err, errLen, "too many providers: %u",
-                      (unsigned)providers.size());
-        return false;
+    size_t count = providers.size();
+    if (count > 6) {
+        count = 6;  // clamp: silently drop extras beyond array capacity
     }
-    out.providerCount = (uint8_t)providers.size();
+    out.providerCount = (uint8_t)count;
 
     int pi = 0;
     for (JsonObject p : providers) {
+        if (pi >= (int)count) break;  // respect clamp
         Provider& prov = out.providers[pi];
         copyStr(prov.id, p["id"].as<const char*>(), sizeof(prov.id));
         copyStr(prov.label, p["label"].as<const char*>(), sizeof(prov.label));

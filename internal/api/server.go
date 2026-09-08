@@ -809,6 +809,7 @@ var validKeyProviderIDs = map[string]bool{
 	config.ProviderOpenRouterMain: true,
 	config.ProviderOpenRouterFbk:  true,
 	config.ProviderGroq:           true,
+	config.ProviderOpenCodeGo:     true,
 }
 
 // rebuildFetchers rebuilds the scheduler's fetcher list from the current

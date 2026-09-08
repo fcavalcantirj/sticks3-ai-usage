@@ -1331,13 +1331,13 @@ func TestConfigGetProviders(t *testing.T) {
 	}
 	provs, ok := resp["providers"].([]any)
 	if !ok || len(provs) == 0 {
-		t.Fatalf("providers = %v, want 5", provs)
+		t.Fatalf("providers = %v, want 6", provs)
 	}
-	if len(provs) != 5 {
-		t.Errorf("providers = %d, want 5", len(provs))
+	if len(provs) != 6 {
+		t.Errorf("providers = %d, want 6", len(provs))
 	}
 	// Verify canonical order.
-	expected := []string{"claude", "codex", "openrouter:main", "openrouter:fallback", "groq"}
+	expected := []string{"claude", "codex", "openrouter:main", "openrouter:fallback", "groq", "opencode:go"}
 	for i, e := range expected {
 		p := provs[i].(map[string]any)
 		if p["id"] != e {
