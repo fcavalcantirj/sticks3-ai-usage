@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"usaged/internal/advise"
 	"usaged/internal/config"
 	"usaged/internal/creds"
 	"usaged/internal/format"
@@ -104,6 +105,7 @@ func New(s *sched.Scheduler, cfg config.Config, configPath string, logger *slog.
 	mux.HandleFunc("GET /", srv.handleIndex)
 	mux.HandleFunc("GET /index.html", srv.handleIndex)
 	mux.HandleFunc("GET /healthz", srv.handleHealthz)
+	mux.HandleFunc("GET /v1/advise", srv.handleAdvise)
 	mux.HandleFunc("GET /v1/usage", srv.handleUsage)
 	mux.HandleFunc("GET /v1/usage.txt", srv.handleUsageTxt)
 	mux.HandleFunc("GET /v1/device", srv.handleDevice)
@@ -202,6 +204,19 @@ func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 		UptimeSec: int(time.Since(s.start).Seconds()),
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// handleAdvise serves the provider ranking as JSON. Unlike /v1/usage, this
+// endpoint never uses an ETag or 304: the reset-inside-horizon rule means the
+// answer changes as the clock crosses a boundary even with identical provider
+// data, so a stale If-None-Match result would serve yesterday's winner. It is
+// always 200 with Cache-Control: no-store. Auth follows the standard GET shape —
+// loopback-exempt, token required from the LAN (see auth.go).
+func (s *Server) handleAdvise(w http.ResponseWriter, _ *http.Request) {
+	snap := s.sched.Current()
+	outcome := advise.Rank(snap.Providers, time.Now(), advise.DefaultHorizon)
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, outcome)
 }
 
 // handleUsage serves the current snapshot as compact JSON with an ETag.

@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"usaged/internal/advise"
 	"usaged/internal/config"
 	"usaged/internal/creds"
 	"usaged/internal/format"
@@ -1838,5 +1839,102 @@ func TestConfigProviderOrderReordersSnapshot(t *testing.T) {
 	po, _ := cfgResp["provider_order"].([]any)
 	if len(po) != 2 {
 		t.Errorf("config provider_order = %v, want 2 entries", po)
+	}
+}
+
+// --- /v1/advise API tests ---
+
+// TestAdviseShape verifies the response shape: 200 OK with Cache-Control: no-store,
+// no ETag, body decodes to {winner, recommendations}, and the body contains no
+// dollar sign and no credit/free provider id.
+func TestAdviseShape(t *testing.T) {
+	dir := setupFixtures(t)
+	ts, _, _ := newFixtureServer(t, dir)
+
+	resp, err := http.Get(ts.URL + "/v1/advise")
+	if err != nil {
+		t.Fatalf("GET /v1/advise: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Errorf("Content-Type = %q, want application/json", ct)
+	}
+	if cc := resp.Header.Get("Cache-Control"); cc != "no-store" {
+		t.Errorf("Cache-Control = %q, want no-store", cc)
+	}
+	if etag := resp.Header.Get("ETag"); etag != "" {
+		t.Errorf("ETag = %q, want empty (no ETag for /v1/advise)", etag)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	s := string(body)
+	if strings.Contains(s, "$") {
+		t.Errorf("response body contains a dollar sign: %s", s)
+	}
+	for _, id := range []string{"openrouter:main", "openrouter:fallback", "groq"} {
+		if strings.Contains(s, id) {
+			t.Errorf("response body contains credit/free provider id %q: %s", id, s)
+		}
+	}
+
+	var out advise.Outcome
+	if err := json.Unmarshal(body, &out); err != nil {
+		t.Fatalf("decode advise: %v\n%s", err, body)
+	}
+	if len(out.Recommendations) == 0 {
+		t.Error("recommendations is empty — expected at least the plan providers")
+	}
+	for _, rec := range out.Recommendations {
+		if rec.ID == "" || rec.Label == "" {
+			t.Errorf("recommendation missing id or label: %+v", rec)
+		}
+	}
+}
+
+// TestAdviseCacheControl verifies the endpoint always returns 200 with no ETag
+// and Cache-Control: no-store, even with an If-None-Match header — there is no
+// 304 path for /v1/advise.
+func TestAdviseCacheControl(t *testing.T) {
+	dir := setupFixtures(t)
+	ts, _, _ := newFixtureServer(t, dir)
+
+	resp, err := http.Get(ts.URL + "/v1/advise")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	if cc := resp.Header.Get("Cache-Control"); cc != "no-store" {
+		t.Errorf("Cache-Control = %q, want no-store", cc)
+	}
+	if etag := resp.Header.Get("ETag"); etag != "" {
+		t.Errorf("ETag = %q, want empty", etag)
+	}
+	resp.Body.Close()
+
+	// Second request with If-None-Match must still be 200 (no 304).
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/advise", nil)
+	req.Header.Set("If-None-Match", `"anything"`)
+	resp2, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp2.Body.Close()
+	if resp2.StatusCode != http.StatusOK {
+		t.Errorf("with If-None-Match: status = %d, want 200 (no 304)", resp2.StatusCode)
+	}
+	if cc := resp2.Header.Get("Cache-Control"); cc != "no-store" {
+		t.Errorf("Cache-Control = %q, want no-store", cc)
+	}
+	if etag := resp2.Header.Get("ETag"); etag != "" {
+		t.Errorf("ETag = %q, want empty on repeat", etag)
 	}
 }
