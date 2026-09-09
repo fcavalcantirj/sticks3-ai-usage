@@ -1412,7 +1412,7 @@
       "DO NOT COPY THESE FROM THE DOWNLOADS TREE: spec.json (theirs has 100 tasks, ours has more \u2014 copying it DELETES tasks 101+), .gitignore (theirs carries v0 sandbox entries), firmware/ (identical anyway), and AGENTS.md / GOLDEN_RULES.md / CLAUDE.md / Makefile (verified identical \u2014 nothing was relaxed to make the redesign fit). The Downloads copy predates tasks 100-102.",
       "Verify: `node --test scripts/dashboard.test.mjs` passes and reports its test count. `make verify` exits 0 BOTH with node present and with node masked off PATH (e.g. run it with a PATH that excludes node) \u2014 show BOTH runs, because the skip path is the half that breaks other people's builds."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "verification",

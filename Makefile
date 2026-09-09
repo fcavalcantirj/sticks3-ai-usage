@@ -1,7 +1,7 @@
 VERSION ?= dev
 PIO_ENV ?= m5stack-sticks3
 
-.PHONY: build dist fmt vet lint test verify clean smoke install uninstall fw-test fw-build fw-check-secrets verify-all fw-ota fw-build-ota fw-upload-ota
+.PHONY: build dist fmt vet lint test test-js verify clean smoke install uninstall fw-test fw-build fw-check-secrets verify-all fw-ota fw-build-ota fw-upload-ota
 
 build:
 	@commit=$$(git rev-parse --short HEAD 2>/dev/null || echo none); \
@@ -32,7 +32,14 @@ sync-prices:
 test:
 	go test -count=1 ./...
 
-verify: fmt vet lint test build
+verify: fmt vet lint test test-js build
+
+test-js:
+	@if ! command -v node >/dev/null 2>&1; then \
+		echo "node not installed; skipping JS tests"; \
+	else \
+		node --test scripts/dashboard.test.mjs; \
+	fi
 
 clean:
 	rm -rf bin/
