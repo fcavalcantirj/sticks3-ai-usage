@@ -1348,7 +1348,7 @@
       "(e) REGRESSION CHECK AGAINST THE FROZEN FIXTURES. The ledger's own 2026-09-08 table has codex with both windows at 0% used and the 7d only 0.12% elapsed: raw pace 0, blended 1 + (0-1)*0.0119 = 0.988, then max(1.0, ...) gives 1.0, so the score stays 100.00. THE BLEND MUST NOT CHANGE THAT CASE. Also re-check the divergent A/B test from message 30 (A headroom 60 pace 3.0 scores 20; B headroom 40 pace 0.5 scores 40, B wins) — if its fixtures sit below 10% elapsed the numbers will move, and you must update the fixture deliberately rather than retune the 0.10 constant to keep an old number green.",
       "Verify: `make verify` exits 0 with new internal/advise tests at the boundaries — elapsed 0 (fully neutral), elapsed 5% (half-weighted), elapsed 10% (full pace), elapsed 50% (unchanged) — plus the frozen-fixture regression above. State which existing tests changed and why. Then run THE LANE and prove it on the RUNNING daemon: `curl -s 127.0.0.1:8765/v1/advise | python3 -m json.tool` and recompute the ranking BY HAND from `curl -s 127.0.0.1:8765/v1/usage` at the same moment; paste BOTH. If any provider's binding window is under 10% elapsed, show its raw and effective pace side by side — that is the branch this task exists for. If none is in that state, say so EXPLICITLY: the branch is then [TEST] only and must not be claimed [REAL]."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "host",

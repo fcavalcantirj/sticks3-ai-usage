@@ -21,6 +21,15 @@ const scorePaceThreshold = 1.0
 // paceCap bounds the computed pace when elapsed-fraction data is degenerate.
 const paceCap = 99.9
 
+// paceConfidenceFloor is the elapsed-fraction threshold above which pace is
+// trusted at face value. Below it the pace is blended toward neutral (1.0) in
+// proportion to how little of the window has actually been observed: a window
+// that just reset has only a few minutes of consumption extrapolated across a
+// full week, which is not a burn rate. At elapsed >= paceConfidenceFloor the
+// blend is a no-op, reducing to today's unblended behaviour. This is a
+// continuous blend, not a hard cutoff (task 101).
+const paceConfidenceFloor = 0.10
+
 // minElapsedFraction is the floor on elapsed-fraction when timeElapsed <= 0,
 // which means the reset sits further out than a whole window — corrupt data
 // that must not be scored as pristine.
@@ -73,7 +82,9 @@ type windowResult struct {
 //  2. A window whose reset is at or before now (past or missing) gets NO reset
 //     credit: raw 100-pct headroom, pace 1.0, staleness named in the reason.
 //  3. Otherwise (resets outside the horizon): headroom = 100 - pct, pace =
-//     used_fraction / elapsed_fraction with elapsed clamped to [0.01, 1.0].
+//     used_fraction / elapsed_fraction with elapsed clamped to [0.01, 1.0],
+//     then blended toward 1.0 when elapsed < 10% (confidence blend — see
+//     task 101). PaceRatio reports the effective (blended) pace.
 //  4. Provider-level: headroom = min across windows (binding cap), pace =
 //     the binding window's own pace (not the max — a non-binding window's
 //     pace is irrelevant to the decision).
@@ -199,6 +210,13 @@ func computeWindows(p snapshot.Provider, now time.Time, horizon time.Duration) (
 // elapsed fraction clamped to [minElapsedFraction, 1.0] and the result capped
 // at paceCap. When timeElapsed <= 0 (reset beyond a full window — corrupt
 // data), the floor elapsed fraction keeps pace finite rather than zero.
+//
+// After the raw pace is computed, a confidence blend shrinks it toward 1.0
+// (scorePaceThreshold) when the window is young: a freshly reset window has
+// only a tiny sample of consumption, so extrapolating it across the full
+// window produces a misleadingly large pace. The blend is continuous and
+// reaches full strength (confidence = 1.0) once paceConfidenceFloor (10%) of
+// the window has elapsed — at that point it reduces to the raw pace.
 func computePace(pct int, windowLen, untilReset time.Duration) float64 {
 	timeElapsed := windowLen - untilReset
 	elapsedFraction := float64(timeElapsed) / float64(windowLen)
@@ -209,11 +227,14 @@ func computePace(pct int, windowLen, untilReset time.Duration) float64 {
 		elapsedFraction = 1.0
 	}
 	usedFraction := float64(pct) / 100.0
-	pace := usedFraction / elapsedFraction
-	if pace > paceCap {
-		pace = paceCap
+	paceRaw := usedFraction / elapsedFraction
+	if paceRaw > paceCap {
+		paceRaw = paceCap
 	}
-	return pace
+	// Blend raw pace toward neutral for windows too young to be reliable.
+	confidence := math.Min(1.0, elapsedFraction/paceConfidenceFloor)
+	paceEffective := scorePaceThreshold + (paceRaw-scorePaceThreshold)*confidence
+	return paceEffective
 }
 
 // aggregate reduces per-window results to provider-level metrics.

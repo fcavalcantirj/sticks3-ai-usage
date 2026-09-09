@@ -515,3 +515,162 @@ func TestRankTieBreakLongerWindow(t *testing.T) {
 		t.Errorf("pace %v matches WRONG tie-break (5h should not bind)", rec.PaceRatio)
 	}
 }
+
+// --- Test 14: Confidence blend boundary cases (task 101) ---
+//
+// The blend shrinks pace toward neutral (1.0) when the binding window is too
+// young to be reliable. confidence = min(1.0, elapsedFraction / 0.10).
+// paceEffective = 1.0 + (paceRaw - 1.0) * confidence.
+//
+// We hold pct=50 (usedFraction = 0.50) fixed and use a single 7d window
+// (604800 s) so the elapsed fraction spans 0→0.05→0.10→0.50 without crossing
+// the 4 h horizon or hitting the 99.9 cap.
+
+func TestPaceConfidenceBlendBoundaries(t *testing.T) {
+	// elapsed 0% — floor (0.01). paceRaw = 50.0, confidence = 0.1.
+	// paceEffective = 1.0 + 49.0*0.1 = 5.9.
+	p0 := planProv("p0", "P0", row7d(50, 168*time.Hour))
+	out0 := Rank([]snapshot.Provider{p0}, testNow, DefaultHorizon)
+	r0 := out0.Recommendations[0]
+	approx(t, "0%: pace", r0.PaceRatio, 5.9, 0.01)
+	approx(t, "0%: score", r0.Score, 50.0/5.9, 0.01)
+
+	// elapsed 5% — confidence = 0.5 (half-weighted).
+	// paceRaw = 10.0, paceEffective = 1.0 + 9.0*0.5 = 5.5.
+	// 5% of 7d = 8.4 h → reset in 168 h − 8.4 h = 159.6 h (outside horizon).
+	p5 := planProv("p5", "P5", row7d(50, 159*time.Hour+36*time.Minute))
+	out5 := Rank([]snapshot.Provider{p5}, testNow, DefaultHorizon)
+	r5 := out5.Recommendations[0]
+	approx(t, "5%: pace", r5.PaceRatio, 5.5, 0.01)
+	approx(t, "5%: score", r5.Score, 50.0/5.5, 0.01)
+
+	// elapsed 10% — confidence = 1.0 (full pace, blend is identity).
+	// paceRaw = 5.0, paceEffective = 5.0.
+	// 10% of 7d = 16.8 h → reset in 151.2 h.
+	p10 := planProv("p10", "P10", row7d(50, 151*time.Hour+12*time.Minute))
+	out10 := Rank([]snapshot.Provider{p10}, testNow, DefaultHorizon)
+	r10 := out10.Recommendations[0]
+	approx(t, "10%: pace", r10.PaceRatio, 5.0, 0.01)
+	approx(t, "10%: score", r10.Score, 50.0/5.0, 0.01)
+
+	// elapsed 50% — confidence = 1.0 (unchanged from pre-blend behaviour).
+	// paceRaw = 1.0, paceEffective = 1.0 → max(1.0, 1.0) = 1.0 → score = 50.
+	// 50% of 7d = 84 h → reset in 84 h (still outside the 4 h horizon).
+	p50 := planProv("p50", "P50", row7d(50, 84*time.Hour))
+	out50 := Rank([]snapshot.Provider{p50}, testNow, DefaultHorizon)
+	r50 := out50.Recommendations[0]
+	approx(t, "50%: pace", r50.PaceRatio, 1.0, 0.01)
+	approx(t, "50%: score", r50.Score, 50.0, 0.01)
+}
+
+// --- Test 15: Frozen-fixture regression — codex at 0% used stays score 100 ---
+//
+// From the 2026-09-08 live table: codex both windows 0% used. paceRaw = 0
+// regardless of elapsed, so paceEffective = 1.0 + (0−1.0)*confidence ≤ 1.0,
+// max(1.0, …) = 1.0, and the score is 100. The blend must not disturb this.
+func TestPaceConfidenceZeroUsedUnchanged(t *testing.T) {
+	codex := planProv("codex", "ChatGPT",
+		row5h(0, 5*time.Hour),   // elapsed floor 0.01, paceRaw 0
+		row7d(0, 168*time.Hour), // elapsed floor 0.01, paceRaw 0
+	)
+	out := Rank([]snapshot.Provider{codex}, testNow, DefaultHorizon)
+	rec := out.Recommendations[0]
+	approx(t, "headroom", float64(rec.EffectiveHeadroomPct), 100, 0.01)
+	// raw pace 0 → blended 0.9 → max(1.0, 0.9) = 1.0 → score 100.
+	approx(t, "pace", rec.PaceRatio, 0.9, 0.01)
+	approx(t, "score", rec.Score, 100.0, 0.01)
+}
+
+// --- Test 16: Live-fix scenario — codex 7d just reset, winner flips (task 101) ---
+//
+// Reproduces the 2026-09-09 capture at now=1788978007 where codex's 7d window
+// had just reset (pct=16, ~1.6% elapsed → raw pace ≈ 9.92) and claude's 7d at
+// 34.7% elapsed (raw pace ≈ 1.93) was ranked higher. Pre-blend codex scored
+// 8.47 (loser to claude's 17.10); the confidence blend shrinks codex's pace to
+// ≈ 2.44 and flips the winner to codex.
+
+func TestPaceConfidenceLiveFix(t *testing.T) {
+	now := time.Unix(1788978007, 0).UTC()
+	horizon := DefaultHorizon
+
+	// 7 d = 604 800 s. 1.6% elapsed → timeElapsed ≈ 9 751 s → untilReset ≈ 595 049 s.
+	codexReset7d := time.Duration(595049) * time.Second
+	// 7 d, 1.6% elapsed: paceRaw = 0.16 / 0.01613 ≈ 9.92.
+	// confidence = 0.01613 / 0.10 = 0.1613.
+	// paceEffective = 1.0 + (9.92−1.0) × 0.1613 ≈ 2.44.
+	// score = 84 / 2.44 ≈ 34.4.
+	codex := planProv("codex", "ChatGPT",
+		row5hAt(now, 100, 2*time.Hour+30*time.Minute), // 5h pct=100, resets inside horizon → full budget
+		row7dAt(now, 16, codexReset7d),
+	)
+
+	// claude 5h pct=5 resets inside horizon → full budget.
+	// claude 7d pct=67, ~34.7% elapsed: paceRaw ≈ 1.93, confidence 1.0 → unchanged.
+	claude := planProv("claude", "Claude",
+		row5hAt(now, 5, 30*time.Minute),                // inside horizon
+		row7dAt(now, 67, 109*time.Hour+42*time.Minute), // ~34.7% elapsed
+	)
+
+	// opencode:go 7d pct=99, ~39.5% elapsed: paceRaw ≈ 2.51, confidence 1.0.
+	opencode := planProv("opencode:go", "OpenCode Go",
+		row7dAt(now, 99, 101*time.Hour+37*time.Minute),
+	)
+
+	providers := []snapshot.Provider{claude, codex, opencode}
+	out := Rank(providers, now, horizon)
+
+	if out.Winner == nil || *out.Winner != "codex" {
+		t.Fatalf("winner: got %v, want codex (pace blend should flip the winner)", out.Winner)
+	}
+	if len(out.Recommendations) != 3 {
+		t.Fatalf("recommendations: got %d, want 3", len(out.Recommendations))
+	}
+
+	// Ranking: codex > claude > opencode:go.
+	if out.Recommendations[0].ID != "codex" {
+		t.Errorf("rank[0]: got %s, want codex", out.Recommendations[0].ID)
+	}
+	if out.Recommendations[1].ID != "claude" {
+		t.Errorf("rank[1]: got %s, want claude", out.Recommendations[1].ID)
+	}
+	if out.Recommendations[2].ID != "opencode:go" {
+		t.Errorf("rank[2]: got %s, want opencode:go", out.Recommendations[2].ID)
+	}
+
+	codexRec := out.Recommendations[0]
+	claudeRec := out.Recommendations[1]
+	ocRec := out.Recommendations[2]
+
+	// codex: headroom 84, effective pace ≈ 2.44 (NOT 9.92), score ≈ 34.4.
+	if codexRec.EffectiveHeadroomPct != 84 {
+		t.Errorf("codex headroom: got %d, want 84", codexRec.EffectiveHeadroomPct)
+	}
+	approx(t, "codex pace", codexRec.PaceRatio, 2.44, 0.05)
+	approx(t, "codex score", codexRec.Score, 34.48, 0.5)
+
+	// claude: headroom 33, pace ≈ 1.93 (elapsed > 10%, blend is identity), score ≈ 17.10.
+	if claudeRec.EffectiveHeadroomPct != 33 {
+		t.Errorf("claude headroom: got %d, want 33", claudeRec.EffectiveHeadroomPct)
+	}
+	approx(t, "claude pace", claudeRec.PaceRatio, 1.93, 0.02)
+	approx(t, "claude score", claudeRec.Score, 17.10, 0.05)
+
+	// opencode:go: headroom 1, pace ≈ 2.51 (elapsed > 10%, unchanged), score ≈ 0.40.
+	if ocRec.EffectiveHeadroomPct != 1 {
+		t.Errorf("opencode:go headroom: got %d, want 1", ocRec.EffectiveHeadroomPct)
+	}
+	approx(t, "opencode:go pace", ocRec.PaceRatio, 2.51, 0.05)
+	approx(t, "opencode:go score", ocRec.Score, 0.40, 0.05)
+}
+
+// row5hAt / row7dAt build a quota row at a given reference time (instead of the
+// package-level testNow) with a reset at now+dur. Needed for tests that use a
+// different clock than testNow.
+func row5hAt(now time.Time, pct int, dur time.Duration) snapshot.Row {
+	r := now.Add(dur)
+	return snapshot.Row{K: "5h", Label: "5h", Pct: iptr(pct), ResetAt: i64ptr(r.Unix())}
+}
+func row7dAt(now time.Time, pct int, dur time.Duration) snapshot.Row {
+	r := now.Add(dur)
+	return snapshot.Row{K: "7d", Label: "7d", Pct: iptr(pct), ResetAt: i64ptr(r.Unix())}
+}
