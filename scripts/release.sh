@@ -23,7 +23,8 @@ case "$VERSION" in
     *) echo "usage: sh scripts/release.sh vX.Y.Z [--dry-run]" >&2; exit 2 ;;
 esac
 BARE="${VERSION#v}"
-FW_BIN="firmware/.pio/build/m5stack-sticks3/firmware.bin"
+FW_BUILD_DIR="firmware/.pio/build/m5stack-sticks3"
+FW_BIN="$FW_BUILD_DIR/firmware.bin"
 ASSET="dist/ai-usage-firmware-${VERSION}-m5sticks3.bin"
 TARBALL="dist/ai-usage-${VERSION}-darwin-universal.tar.gz"
 
@@ -71,17 +72,39 @@ if [ "$FW_REPORTED" != "$BARE" ]; then
     die "firmware reports '$FW_REPORTED' but the tag is '$VERSION' — they must match"
 fi
 
-# Capture the asset NOW, straight off the tagged build. Doing this later let
-# another build step swap firmware.bin underneath the check and produce a
-# mismatch that was not real.
+# PUBLISH A MERGED, BOOTABLE IMAGE — NOT firmware.bin.
+#
+# v0.2.0 shipped .pio/build/<env>/firmware.bin, which is the APPLICATION IMAGE
+# ONLY and belongs at offset 0x10000. M5Burner writes what you give it starting
+# at 0x0, so the ROM found no bootloader and the device died with
+# "Invalid image block, can't boot. ets_main.c 329". firmware.bin is the right
+# artifact for ArduinoOTA (which writes the app partition) and the wrong one for
+# anything that flashes at 0x0.
 mkdir -p dist
-cp "$FW_BIN" "$ASSET"
+BOOT_APP0="$HOME/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin"
+PIO_PY="$(ls "$HOME"/.platformio/penv/bin/python 2>/dev/null || command -v python3)"
+[ -f "$BOOT_APP0" ] || die "boot_app0.bin not found — cannot build a bootable image"
+"$PIO_PY" -m esptool --chip esp32s3 merge_bin -o "$ASSET" \
+    --flash_mode dio --flash_freq 80m --flash_size 8MB \
+    0x0     "$FW_BUILD_DIR/bootloader.bin" \
+    0x8000  "$FW_BUILD_DIR/partitions.bin" \
+    0xe000  "$BOOT_APP0" \
+    0x10000 "$FW_BIN" >/dev/null || die "esptool merge_bin failed"
+
+# Both an app-only image and a merged one start with 0xE9, so the magic byte
+# does NOT tell them apart. The partition table at 0x8000 does: 0xAA50.
+PT_MAGIC=$(xxd -s 0x8000 -l 2 -p "$ASSET")
+[ "$PT_MAGIC" = "aa50" ] || die "the asset has no partition table at 0x8000 (got $PT_MAGIC) — it is not bootable at 0x0"
 strings "$ASSET" | grep -qxF "$BARE" || die "the firmware asset does not contain the version string $BARE"
-echo "   firmware asset reports $BARE"
+echo "   firmware asset: bootable (partition table at 0x8000), reports $BARE, $(wc -c < "$ASSET" | tr -d ' ') bytes"
 
 step "6/8  package"
 make dist VERSION="$VERSION"
-cp "$FW_BIN" "$ASSET"   # dist.sh clears dist/, so restore the asset it wiped
+# dist.sh clears dist/, so rebuild the merged asset it wiped
+"$PIO_PY" -m esptool --chip esp32s3 merge_bin -o "$ASSET" \
+    --flash_mode dio --flash_freq 80m --flash_size 8MB \
+    0x0 "$FW_BUILD_DIR/bootloader.bin" 0x8000 "$FW_BUILD_DIR/partitions.bin" \
+    0xe000 "$BOOT_APP0" 0x10000 "$FW_BIN" >/dev/null || die "esptool merge_bin failed"
 ( cd dist && shasum -a 256 "$(basename "$TARBALL")" "$(basename "$ASSET")" > SHA256SUMS )
 # install.sh greps SHA256SUMS by filename rather than running `shasum -c`,
 # so extra lines are fine — but the tarball line must be present and correct.
