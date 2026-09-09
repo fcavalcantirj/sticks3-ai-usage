@@ -106,7 +106,37 @@ dependency fails the task.
 One task at a time, in `spec.json` ledger order: take the first entry with `passes: false` whose description is NOT prefixed `[WITHDRAWN]`, `[DEFERRED]` or `[BLOCKED`. Those three are not yours to run. Each task ends by running its own Verify steps.
 `passes` is flipped to true only on real evidence. `progress.txt` is append-only.
 Every firmware task: fresh-clone build check (`git clone . /tmp/c && make verify-all`).
-There is no Solvr room and no relay — you report to Felipe directly.
+Reporting: by default you report to Felipe directly. A Solvr room MAY be in use —
+`ai-usage-prod-readiness` drove the 2026-09-07/08 build with a Claude planner and a
+kimi-code executor. If you are an executor in that arrangement: post a DONE report
+BEFORE you commit, and run every solvr command with your own
+`SOLVR_CONFIG_DIR` or you will post under the planner's identity.
+
+## Releasing
+
+Use `sh scripts/release.sh vX.Y.Z` (`--dry-run` first). Never assemble a release
+by hand. Three failures are baked into its checks:
+
+- **Publish a MERGED firmware image, never `.pio/build/<env>/firmware.bin`.**
+  That file is the application image (offset `0x10000`). M5Burner flashes at
+  `0x0`, so it dies with `Invalid image block, can't boot. ets_main.c 329`.
+  v0.2.0 shipped it and bricked a device. Merge bootloader `0x0` + partitions
+  `0x8000` + `boot_app0` `0xe000` + app `0x10000`. Byte 0 is `0xE9` in BOTH, so
+  test the partition table at `0x8000` instead: merged `aa50`, app-only `0342`.
+  `firmware.bin` remains correct for ArduinoOTA — OTA success proves nothing
+  about a `0x0` flash.
+- **The firmware version is derived from the git tag** by
+  `firmware/scripts/build_id.py`. Never hardcode it; the script refuses to tag
+  when the tag and the firmware's reported version disagree.
+- **Uploading to M5Burner is a human step** the script cannot do. It prints an
+  explicit block saying so. A stale upload plus a newer daemon is not cosmetic:
+  the daemon always serves six providers, and firmware older than the
+  `providers[6]` clamp writes past the end of its array.
+
+If a `fw-publish-check` is ever interrupted, confirm
+`firmware/include/secrets.h` exists — its trap restores on EXIT/INT/TERM but not
+SIGKILL, and the stashed copy (`secrets.h.publishcheck`) is not gitignored.
+
 
 ## Status
 

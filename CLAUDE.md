@@ -1,21 +1,73 @@
 # usaged — AI usage monitor (M5StickS3 + Mac agent)
 
-**Status: ACTIVE. Start at `spec.json` task 85 — the prod-readiness group.**
+**Status: SHIPPED. v0.2.1 is released and confirmed working end to end.**
 
-95 tasks, 82 passing. `spec.json` is both the acceptance ledger and the
-executable build order: take the first entry with `passes: false`.
+95 tasks, 91 passing. `spec.json` is both the acceptance ledger and the
+executable build order: take the first entry with `passes: false` whose
+description is not prefixed `[WITHDRAWN]`, `[DEFERRED]` or `[BLOCKED`.
 
-The device works. A stranger can flash from M5Burner, run one curl command and
-click once to set it up — proven end to end on hardware, 2026-09-07. What is not
-ready is everything around it: an audit found twenty confirmed findings and the
-dashboard still renders controls wired to nothing. **The open work is tasks
-85-95: fix those until nothing on the page lies.** Every one of them comes from
-`docs/handovers/2026-09-07-prod-readiness/` — read `AUDIT.md` there for the
-reproduction command behind each.
+The 2026-09-07 prod-readiness group (tasks 85-93) is **done and approved**:
+OpenCode Go as a sixth provider, working alert thresholds, user-chosen provider
+order, honest Models-tab columns, the `/v1/netcfg` and pair-window removals, and
+the firmware provider-array clamp. Everything it fixed came from
+`docs/handovers/2026-09-07-prod-readiness/` — `AUDIT.md` there still holds the
+reproduction command behind each finding.
 
-Outside that group: task 77 (SoftAP captive portal) is still open, and task 83
-(task-hub rows) is deferred by decision — leave it. Tasks 78 and 79 are being
-WITHDRAWN by 87, 90 and 91 rather than built, on Felipe's 2026-09-07 call.
+**Confirmed on hardware 2026-09-08**: flashed from M5Burner through the normal
+user path, booted, fetched, and rendered six providers across four pages.
+
+### What is left, and none of it is a coding task
+
+| task | state |
+|---|---|
+| 77 | `[BLOCKED]` — needs Felipe's hardware UAT of the captive portal from a phone |
+| 83 | `[DEFERRED]` — task-hub rows, parked by his decision |
+| 94 | `[BLOCKED]` — OpenCode Zen credit provider; **no balance API exists** (~45 paths probed; the console value comes from a session-authenticated server function, and a cookie scraper is forbidden) |
+| 95 | the closing sweep — **Felipe's to close**, never self-certified |
+
+Two loose ends outside the ledger: **`OTA_PASS` in `secrets.h` should be
+rotated** (it was leaked into a transcript by passing `-d` to `espota.py`), and
+**Groq reads `off`** because `GROQ_API_KEY` lives only in `.env` — see the
+Keychain fact below.
+
+## Releasing — use the script, never by hand
+
+`sh scripts/release.sh vX.Y.Z` (add `--dry-run` first). It runs the full suite,
+builds the firmware, checks it carries no credentials, **refuses to tag when the
+git tag and the firmware's own reported version disagree**, packages, publishes,
+confirms the install one-liner returns 200, and ends by telling you the firmware
+still has to reach M5Burner by hand.
+
+Three facts it encodes, each of which cost a real failure:
+
+- **PUBLISH A MERGED IMAGE, NEVER `firmware.bin`.** `.pio/build/<env>/firmware.bin`
+  is the application image and belongs at `0x10000`. M5Burner writes at `0x0`, so
+  it boots to `Invalid image block, can't boot. ets_main.c 329` — v0.2.0 shipped
+  that and bricked a stick. The published image must merge bootloader `0x0`,
+  partitions `0x8000`, `boot_app0` `0xe000`, app `0x10000`.
+  **Byte 0 is `0xE9` in BOTH artifacts**, so the magic byte cannot tell them
+  apart; the partition table at `0x8000` can — merged reads `aa50`, app-only
+  reads `0342`. Sizes: merged ~1,762,528 vs app-only ~1,696,992.
+  `firmware.bin` IS correct for ArduinoOTA, which writes the app partition — so
+  "it worked over OTA" proves nothing about flashing at `0x0`.
+- **The firmware version comes from the git tag**, injected by
+  `firmware/scripts/build_id.py` as `USAGED_FW_VERSION`. It used to be a literal
+  in `main.cpp`; the stick shipped reporting `fw=1.0.0` while the project was on
+  v0.1.9. There is nothing left to bump by hand.
+- **A publish-check killed with SIGKILL leaves `secrets.h` stashed** as
+  `secrets.h.publishcheck`, which is NOT gitignored. Its trap restores on
+  EXIT/INT/TERM only. If a build is interrupted, check that file exists before
+  doing anything else.
+
+## The daemon reads keys from the Keychain, NOT `.env`
+
+Measured: the running daemon's process environment holds only `USAGED_LISTEN`
+and `USAGED_DEVICE_TOKEN`, the launchd plist declares only those plus `PATH`,
+and no Go code parses a dotenv file. Every provider key resolves from the macOS
+Keychain (service `usaged`, account = provider id). That is why OpenRouter works
+and Groq says "no key" while `GROQ_API_KEY` sits in `.env`. `.env` only matters
+for `usaged once` run from a shell that sourced it. Store keys through the
+dashboard.
 
 ### You are both planner and builder
 
