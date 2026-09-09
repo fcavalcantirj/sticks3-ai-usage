@@ -1284,7 +1284,7 @@
       "SCOPE FENCE: internal/web only. No Go logic changes, no firmware. If you find yourself computing a threshold or a ranking in JavaScript, stop — that is the second-spelling bug this project spent a day removing, and the daemon already did the work.",
       "Verify: `make verify` exits 0 with the web_test pins for the new card. Then run THE LANE and OPEN http://127.0.0.1:8765/ IN A BROWSER: the card must name the SAME winner as `curl -s 127.0.0.1:8765/v1/advise`, the console must be clean on every tab, and paging/other cards must be unaffected. Paste the endpoint's winner beside what the card displayed, and say plainly that you looked at the page — a curl grep does not prove it renders."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "firmware",

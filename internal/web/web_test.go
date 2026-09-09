@@ -355,3 +355,35 @@ func TestIndexHTMLJavaScriptParses(t *testing.T) {
 		t.Fatalf("the dashboard script does not parse — the page would be dead:\n%s", out)
 	}
 }
+
+// TestIndexHTMLAdviseCard verifies the dashboard "use this next" card renders
+// the /v1/advise winner and the per-plan table (task 97). The daemon is the
+// single source of truth — the card only names what the endpoint returned.
+func TestIndexHTMLAdviseCard(t *testing.T) {
+	html := string(IndexHTML)
+	for _, want := range []string{
+		`id="advise-card"`,
+		`/v1/advise`,
+		`loadAdvise`,
+		`renderAdvise`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("index.html missing advise element %q", want)
+		}
+	}
+	// The card must sit above the provider grid it annotates.
+	cardIdx := strings.Index(html, `id="advise-card"`)
+	cardsIdx := strings.Index(html, `id="cards"`)
+	if cardIdx < 0 || cardsIdx < 0 {
+		t.Fatal("missing advise-card or #cards marker")
+	}
+	if cardIdx > cardsIdx {
+		t.Error(`advise-card renders after #cards — it must be above the provider grid`)
+	}
+	// Guard: a provider-id typo ("opencache" for "opencode") is silent data loss on
+	// a 240x135 screen — room message 36 flagged one. The card must only ever print
+	// an id the endpoint named, so the typo is banned from the markup entirely.
+	if strings.Contains(html, "opencache") {
+		t.Error(`index.html contains "opencache" — provider ids must come from the endpoint, never be retyped`)
+	}
+}

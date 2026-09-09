@@ -149,6 +149,20 @@
     .chip-stale { background: rgba(100,116,140,0.15); color: var(--muted); }
     .device-accent { background: rgba(59,130,246,0.04); border-radius: 6px; margin: 4px 0 8px 0; }
 
+    /* --- Advise card (task 97) --- */
+    .advise-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;
+    }
+    .advise-card .advise-winner { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+    .advise-card .advise-reason { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+    .advise-card .advise-error { color: var(--crit); }
+    .advise-card table.advise-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .advise-card table.advise-table th,
+    .advise-card table.advise-table td { padding: 4px 8px; border-bottom: 1px solid var(--border); color: var(--muted); }
+    .advise-card table.advise-table td.num { text-align: right; color: var(--text); }
+    .advise-card table.advise-table th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+
     /* --- Footer --- */
     .footer-bar { margin-top: 20px; display: flex; justify-content: space-between; align-items: center; }
     .footer-bar .info { font-size: 12px; color: var(--muted); }
@@ -301,6 +315,19 @@
     <button id="tab-models-tab" role="tab" aria-controls="tab-models" aria-selected="false">Models</button>
     <button id="tab-attention-tab" role="tab" aria-controls="tab-attention" aria-selected="false">Needs attention</button>
     <button id="tab-settings-tab" role="tab" aria-controls="tab-settings" aria-selected="false">Settings</button>
+  </div>
+
+  <!-- Advise card (task 97 — renders /v1/advise). The daemon is the single
+       source of truth: the card only names what the endpoint already computed.
+       IDs and labels come from the JSON, never retyped. -->
+  <div id="advise-card" class="advise-card" style="display:none;">
+    <div class="advise-winner"></div>
+    <div class="advise-reason"></div>
+    <table class="advise-table">
+      <thead><tr><th>Provider</th><th>Pace</th><th>Headroom</th><th>Score</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="advise-error" style="display:none;"></div>
   </div>
 
   <!-- Quota tab: provider cards -->
@@ -517,6 +544,7 @@ var cfg_tz_cache = "";       // tz from last GET /v1/config
 var currentDeviceState = null;  // from GET /v1/device (no ETag, polled separately)
 var currentSnap = null;         // latest /v1/usage snapshot (for attention re-render)
 var planPresets = {};           // published plan tiers from GET /v1/config
+var currentAdvise = null;       // latest /v1/advise outcome (drives the advise card)
 
 // ---- Fetch ----
 
@@ -541,6 +569,18 @@ function loadDevice() {
     if (!resp.ok) return null;
     return resp.json();
   });
+}
+
+// loadAdvise fetches /v1/advise on the SAME poll cycle as /v1/usage — no second
+// timer, no second fetch loop. No If-None-Match is sent: the winner can change
+// as the clock crosses a reset boundary with identical provider data, so caching
+// advice (a stale 304) would render a winner the endpoint no longer endorses.
+function loadAdvise() {
+  return fetch("/v1/advise", { headers: authHeaders() }).then(function(resp) {
+    if (resp.status === 401) { showTokenInput(); return null; }
+    if (!resp.ok) return null;
+    return resp.json();
+  }).catch(function() { return null; });
 }
 
 function loadStats() {
@@ -1329,6 +1369,73 @@ function renderSnapshot(snap) {
   updateFooter(snap);
 }
 
+// renderAdvise paints the top-of-page "use this next" card from the /v1/advise
+// outcome. The daemon already ranked the plans and chose the winner; this is
+// pure presentation. Three states:
+//  - null: endpoint unreachable (network/5xx) or 401 (token already prompted).
+//    No stale winner is rendered — whatever was shown is cleared.
+//  - winner set: name the winning label + its reason + the per-plan table.
+//  - winner null: every plan is exhausted. No credit text (credit is out of
+//    this feature by Felipe's 2026-09-08 decision).
+// Provider IDs and labels are copied from the JSON — never retyped (a typo is
+// silent data loss, and would ship to the 240x135 screen in task 98).
+function renderAdvise(outcome) {
+  var card = document.getElementById("advise-card");
+  if (!card) return;
+  var winnerEl = card.querySelector(".advise-winner");
+  var reasonEl = card.querySelector(".advise-reason");
+  var errEl    = card.querySelector(".advise-error");
+  var tbody    = card.querySelector(".advise-table tbody");
+
+  // Unreachable / 401 / non-ok: do NOT render a stale winner.
+  if (!outcome) {
+    winnerEl.style.display = "none";
+    reasonEl.style.display = "none";
+    tbody.innerHTML = "";
+    errEl.style.display = "block";
+    errEl.textContent = "Could not reach /v1/advise — recommendation unavailable.";
+    return;
+  }
+
+  currentAdvise = outcome;
+  errEl.style.display = "none";
+  card.style.display = "block";
+
+  // Per-plan table: Provider | Pace | Headroom | Score. Every value is taken
+  // verbatim from the endpoint.
+  tbody.innerHTML = "";
+  var recs = outcome.recommendations || [];
+  recs.forEach(function(r) {
+    var tr = document.createElement("tr");
+    tr.innerHTML =
+      '<td>' + esc(r.label || r.id) + '</td>' +
+      '<td class="num">' + r.pace_ratio.toFixed(2) + 'x</td>' +
+      '<td class="num">' + r.effective_headroom_pct + '%</td>' +
+      '<td class="num">' + r.score.toFixed(2) + '</td>';
+    tbody.appendChild(tr);
+  });
+
+  // The winner field is a provider ID. Look up its label from the
+  // recommendations so we never retype an id.
+  var winRec = null;
+  for (var i = 0; i < recs.length; i++) {
+    if (recs[i].id === outcome.winner) { winRec = recs[i]; break; }
+  }
+  winnerEl.style.display = "block";
+  reasonEl.style.display = "block";
+  if (outcome.winner && winRec) {
+    winnerEl.textContent = "Use " + winRec.label + " next";
+    reasonEl.textContent = winRec.reason || "";
+  } else if (outcome.winner) {
+    winnerEl.textContent = "Use " + outcome.winner + " next";
+    reasonEl.textContent = "";
+  } else {
+    // winner: null — no plan has positive headroom. Show nothing about credit.
+    winnerEl.textContent = "Every plan is exhausted";
+    reasonEl.textContent = "";
+  }
+}
+
 function cardElHtml(p) {
   return '<div id="card-' + esc(p.id) + '" class="card' +
     (p.status === "stale" ? " stale" : "") + '">' + cardInner(p) + '</div>';
@@ -1659,6 +1766,7 @@ function saveToken() {
     document.getElementById("auth-error").style.display = "none";
     loadUsage().then(function(snap) { if (snap) renderSnapshot(snap); });
     loadStats().then(function(rep) { if (rep) renderStats(rep); });
+    loadAdvise().then(renderAdvise);
   }
 }
 
@@ -1720,6 +1828,7 @@ function init() {
   setupTabs();
   loadConfig();
   loadUsage().then(function(snap) { if (snap) { currentSnap = snap; renderSnapshot(snap); } });
+  loadAdvise().then(renderAdvise);
   loadStats().then(function(rep) { if (rep) renderStats(rep); });
   loadDevice().then(function(ds) { if (ds) { currentDeviceState = ds; renderAttention(currentSnap, null); } });
   renderAttention(null, null);
@@ -1755,6 +1864,7 @@ function pollUsage() {
       renderAttention(snap, null);
     }
   });
+  loadAdvise().then(renderAdvise);
 }
 
 // pollDevice fetches /v1/device on its own 5s timer (ORDER #66 task 67).
