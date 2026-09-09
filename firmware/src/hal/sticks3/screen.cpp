@@ -535,4 +535,89 @@ void drawBleSetup(BleProvState state, const char* name, const char* passkey,
     bleCentered(112, 1, TFT_ORANGE, message);
 }
 
+// --- advise overlay (ORDER #72 task 98) -----------------------------------------
+
+// drawAdviseStatus paints a brief "fetching advise…" interstitial while the
+// /v1/advise request blocks the loop (same discipline as drawRefreshStatus).
+void drawAdviseStatus() {
+    M5.Display.fillScreen(TFT_BLACK);
+    M5.Display.setTextSize(2);
+    M5.Display.setTextColor(TFT_WHITE);
+    const char* msg = "fetching advise...";
+    int16_t w = M5.Display.width();
+    int16_t h = M5.Display.height();
+    int16_t tw = M5.Display.textWidth(msg);
+    int16_t th = M5.Display.fontHeight();
+    M5.Display.setCursor((w - tw) / 2, (h - th) / 2);
+    M5.Display.println(msg);
+}
+
+// drawAdviseOverlay renders the full /v1/advise ranking as a transient overlay.
+// Layout on the 240×135 screen (textSize 1 ≈ 6 px/char, ≈10 px row height):
+//   y=4   title "ADVISE"        (size 2, centred)
+//   y=28  winner: "USE: <label>" (green, centred) + reason (white, centred)
+//   y~44  up to 5 recommendation rows (id  label  pct%  pace×)
+//   y=116 hint "any button to dismiss" (amber, right-aligned)
+void drawAdviseOverlay(const usage::AdvisePlan& plan) {
+    M5.Display.fillScreen(TFT_BLACK);
+    int16_t W = M5.Display.width();
+
+    M5.Display.setTextSize(1);
+    M5.Display.setTextColor(TFT_WHITE);
+
+    // --- title (size 2, centred) ---
+    M5.Display.setTextSize(2);
+    const char* title = "ADVISE";
+    int16_t tw = M5.Display.textWidth(title);
+    M5.Display.setCursor((W - tw) / 2, 4);
+    M5.Display.println(title);
+
+    M5.Display.setTextSize(1);
+    int16_t y = 28;
+
+    // --- winner line ---
+    if (plan.hasWinner && plan.winnerLabel[0] != '\0') {
+        char winnerBuf[48];
+        std::snprintf(winnerBuf, sizeof(winnerBuf), "use: %s", plan.winnerLabel);
+        tw = M5.Display.textWidth(winnerBuf);
+        M5.Display.setTextColor(TFT_GREEN);
+        M5.Display.setCursor((W - tw) / 2, y);
+        M5.Display.println(winnerBuf);
+        y += 12;
+    }
+
+    // --- reason ---
+    if (plan.reason[0] != '\0') {
+        M5.Display.setTextColor(TFT_WHITE);
+        tw = M5.Display.textWidth(plan.reason);
+        M5.Display.setCursor((W - tw) / 2, y);
+        M5.Display.println(plan.reason);
+        y += 12;
+    }
+
+    y += 4; // gap before recommendation rows
+
+    // --- recommendation rows ---
+    for (uint8_t i = 0; i < plan.recCount && i < usage::kMaxRecs; i++) {
+        const usage::AdviseRec& rec = plan.recs[i];
+        char line[64];
+        std::snprintf(line, sizeof(line), "%s  %d%%  %.1fx",
+                      rec.label,
+                      rec.effectiveHeadroomPct,
+                      (double)rec.paceRatio);
+        M5.Display.setCursor(5, y);
+        M5.Display.println(line);
+        y += 12;
+    }
+
+    // --- hint at bottom-right (amber) ---
+    M5.Display.setTextColor(0xFD20);
+    const char* hint = "any button to dismiss";
+    int16_t hintW = M5.Display.textWidth(hint);
+    int16_t fontH = M5.Display.fontHeight();
+    int16_t baseline = usage::centerTextY(116, 16, fontH);
+    M5.Display.setCursor(W - hintW - 4, baseline);
+    M5.Display.println(hint);
+}
+
 } // namespace sticks3

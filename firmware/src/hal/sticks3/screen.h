@@ -4,6 +4,7 @@
 #include "hal/sticks3/bleprov.h"
 #include "usage/battery.h"
 #include "usage/render_plan.h"
+#include "usage/advise_view.h"
 
 namespace sticks3 {
 
@@ -65,5 +66,14 @@ void drawBrightnessGauge(uint8_t currentRaw, uint8_t currentPercent,
 // `declared` are progress only, never content.
 void drawBleSetup(BleProvState state, const char* name, const char* passkey,
                   const char* message, uint16_t received, uint16_t declared);
+
+// Full-screen advise overlay (ORDER #72 task 98).  Shows the use-this-next
+// ranking: the winner, its reason, and the ranked provider recommendations.
+// It is TRANSIENT — not a page in the cycle — and is dismissed by any button.
+void drawAdviseOverlay(const usage::AdvisePlan& plan);
+
+// Brief "fetching advise…" interstitial shown while the /v1/advise request is
+// in flight (the fetch is synchronous, same as doDeviceRefresh/drawRefreshStatus).
+void drawAdviseStatus();
 
 } // namespace sticks3

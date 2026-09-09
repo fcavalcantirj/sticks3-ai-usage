@@ -56,6 +56,20 @@ int fmtFetch(char* out, size_t n, int code, const char* rev,
                          static_cast<unsigned int>(ms));
 }
 
+// fmtFetchAdvise formats an /v1/advise fetch result.  The endpoint emits no
+// ETag and is never 304, so the line omits rev and seq:
+//   200 (has body):  [FETCH] advise code=200 ms=310
+//   <0  (error):     [FETCH] advise code=-1 err=timeout ms=8000
+int fmtFetchAdvise(char* out, size_t n, int code, const char* err, uint32_t ms) {
+    const char* desc = err != nullptr ? err : "";
+    if (code < 0) {
+        return std::snprintf(out, n, "[FETCH] advise code=%d err=%s ms=%u",
+                             code, desc, static_cast<unsigned int>(ms));
+    }
+    return std::snprintf(out, n, "[FETCH] advise code=%d ms=%u",
+                         code, static_cast<unsigned int>(ms));
+}
+
 // fmtRefresh formats a /v1/refresh POST result (ORDER #38):
 //   200 (immediate):    [REFRESH] code=200 ms=310
 //   202 (poll running):  [REFRESH] code=202 retry

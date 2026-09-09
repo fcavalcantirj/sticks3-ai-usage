@@ -45,4 +45,11 @@ bool fetchUsage(const char* lastRev, FetchResult& out, uint32_t ageS = 0);
 // is empty.
 bool refreshUpstream(FetchResult& out);
 
+// GET /v1/advise — the use-this-next ranking (ORDER #72 / task 98).  The
+// endpoint is Cache-Control: no-store, emits no ETag, and is never 304, so
+// there is no conditional request.  Emits a [FETCH] advise line via
+// serial_proto.  Returns true on 200 (body populated), false on error or
+// non-200 HTTP codes.
+bool fetchAdvise(FetchResult& out);
+
 } // namespace sticks3

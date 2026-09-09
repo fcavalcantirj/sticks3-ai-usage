@@ -66,6 +66,12 @@ int fmtGesture(char* out, size_t n, uint8_t rot);
 //   [BTN] gpio=12 click refresh
 int fmtBtn(char* out, size_t n, int gpio, const char* action);
 
+// fmtFetchAdvise formats an /v1/advise fetch result.  The endpoint emits no
+// ETag and is never 304, so the line omits rev and seq:
+//   200 (has body):  [FETCH] advise code=200 ms=310
+//   <0  (error):     [FETCH] advise code=-1 err=timeout ms=8000
+int fmtFetchAdvise(char* out, size_t n, int code, const char* err, uint32_t ms);
+
 // fmtRefresh formats a /v1/refresh POST result (ORDER #38):
 //   200 (immediate):    [REFRESH] code=200 ms=310
 //   202 (poll running):  [REFRESH] code=202 retry

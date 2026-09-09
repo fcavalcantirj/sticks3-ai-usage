@@ -108,6 +108,13 @@ TEST(hold_boundary_at_1499_no_flip) {
     ASSERT_EQ(FlipAction::none, det.feed(true, 1499));   // just under threshold, hint already shown
 }
 
+// ORDER #72 task 98: the shared hold threshold is 1500 ms, matching both BtnA
+// (now bound to the advise overlay) and BtnB (hold-to-flip).  board.cpp sets
+// both thresholds to this value.
+TEST(hold_threshold_is_1500) {
+    ASSERT_EQ(1500u, HoldFlipDetector::kHoldThresholdMs);
+}
+
 // Holding without release never emits click.
 TEST(hold_held_3s_no_click) {
     HoldFlipDetector det;

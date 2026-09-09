@@ -5,6 +5,8 @@
 #define USAGED_BUILD_ID "unknown"
 #endif
 
+#include "usage/hold_flip.h"  // kHoldThresholdMs — pure C++17, no M5/Arduino deps
+
 #include <M5Unified.h>
 #include <Preferences.h>
 
@@ -44,8 +46,16 @@ void boardInit() {
     // ORDER #60 (task 63): brightness is set in setup() AFTER reading the wake
     // cause.  A timer wake must not raise the backlight.
 
-    M5.BtnA.setHoldThresh(600);
-    M5.BtnB.setHoldThresh(1500);  // ORDER #53 REVISED: hold-to-flip
+    // ORDER #98 task 98: BtnA hold threshold raised from 600 ms to 1500 ms,
+    // matching BtnB (board.cpp:48).  The old 600 ms was too short — the click
+    // detector consumed the event before M5.BtnA.wasHold() could fire (the
+    // 600 ms click window swallowed the hold).  1500 ms is hold_flip::
+    // kHoldThresholdMs (HoldFlipDetector::kHoldThresholdMs), the shared click/hold boundary the pure state machine
+    // uses for BtnB too.  BtnA hold is now a deliberate gesture that shows the
+    // use-next advise overlay (wasHold() never also fires wasSingleClicked,
+    // so single-click paging is untouched).
+    M5.BtnA.setHoldThresh(sticks3::holdflip::HoldFlipDetector::kHoldThresholdMs);
+    M5.BtnB.setHoldThresh(1500);  // ORDER #53 REVISED: hold-to-flip — now matches BtnA
 }
 
 int boardId() {

@@ -9,7 +9,7 @@
 //   now = nowMs()
 //   netUpdate(now)           — Wi-Fi state machine + [NET] lines
 //   pollUpdate(now)          — first fetch / periodic poll / backoff
-//   buttonsUpdate(now)       — BtnA(gpio11) page/double=brightness, HOLD reserved,
+//   buttonsUpdate(now)       — BtnA(gpio11) page/double=brightness/HOLD advise,
 //                              BtnB(gpio12) refresh/stepdown/hold=flip
 //   updateBrightness(now)    — dim after 30 min idle, full in brightness mode
 //   heapWatchdog(now)        — [HEAP] line every 60 s
@@ -36,6 +36,7 @@
 #include "usage/freshness.h"
 #include "usage/brightness.h"
 #include "usage/provision.h"
+#include "usage/advise_view.h"
 
 #include <cstdio>
 #include <cstring>
@@ -145,6 +146,13 @@ static uint32_t g_lastFetchMs = 0;      // millis() at last 200 fetch
 RTC_DATA_ATTR uint32_t g_effectiveAgeAtSleep = 0; // full effective age at last powerSleep()
 RTC_DATA_ATTR uint32_t g_rtcSleepStartSec = 0;    // RTC epoch sec at powerSleep entry (task 65)
 RTC_DATA_ATTR bool g_justSlept = false;           // true after powerSleep(), consumed on wake
+
+// ORDER #72 task 98: transient advise overlay.  Shown on BtnA hold (fetches
+// /v1/advise and renders the use-this-next ranking).  NOT a page in the cycle —
+// single-click paging is untouched.  Any button click or hold dismisses it,
+// restoring the underlying usage page on the next redraw.
+static bool              g_adviseActive = false;
+static usage::AdvisePlan g_advisePlan;
 
 // --- provisioning (tasks 76/77) ----------------------------------------------
 // The single place the portal-vs-join decision is made.  The rule lives in the
@@ -307,6 +315,20 @@ static uint32_t pollInterval() {
 
 // Full-screen redraw: build plan, draw, emit [RENDER], clear the flag.
 static void redraw() {
+    // ORDER #98 task 98: transient advise overlay takes priority over everything
+    // else — it is not a page in the cycle, and any button dismisses it.
+    if (g_adviseActive) {
+        drawAdviseOverlay(g_advisePlan);
+        char buf[64];
+        std::snprintf(buf, sizeof(buf), "[RENDER] advise recs=%u",
+                      (unsigned)g_advisePlan.recCount);
+        serialLine(buf);
+        g_view.needsRedraw = false;
+        g_lastActivity = nowMs();
+        g_graceActive = true;
+        return;
+    }
+
     // ORDER #72 task 72: in brightness adjustment mode, draw the gauge overlay
     // instead of the usage plan.
     if (g_brightCtrl.inMode()) {
@@ -530,22 +552,36 @@ static void pollUpdate(uint32_t now) {
 static void drawFlipHint();
 
 // Buttons: BtnA (GPIO 11) single-click cycles pages, double-click enters
-// brightness mode.  BtnB (GPIO 12) click refreshes (or steps brightness down
-// in mode), hold (>= 1500 ms) flips the screen.
+// brightness mode, HOLD (>= 1500 ms) fetches /v1/advise and renders the
+// use-this-next overlay (transient — any button dismisses).
 // ORDER #53 REVISED: one threshold governs click and hold on BtnB.
 // ORDER #72 task 72: brightness mode entered via double-click, exited via
 // 5 s inactivity timeout.  Inside mode, BtnA click = step up, BtnB click = step down.
-// ORDER #72: BtnA HOLD is RESERVED for a future AI-agent action.  It is not
-// bound to any handler here.  Felipe reported blue-hold "does nothing" — the
-// root cause is a 600 ms hold threshold (board.cpp:47), too short for a
-// deliberate hold: the click detector fires first and consumes the event
-// before wasHold() can.  A 1500 ms threshold (matching BtnB) would fix it,
-// but the hold now belongs to the agent, so the branch is simply removed.
+// ORDER #72 task 98: BtnA HOLD was RESERVED (600 ms threshold, task 72) but the
+// 600 ms threshold let the click detector consume the event before wasHold().
+// Raised to 1500 ms in board.cpp (HoldFlipDetector::kHoldThresholdMs) so the hold
+// now fires reliably.  The overlay is transient — not a page in the cycle — so
+// single-click paging is untouched.  Any button click or hold dismisses it.
 // ORDER #49: emit [BTN] gpio=N <action> for physical-button clarity.
 // Step 8 fix: [BTN] line emitted outside netUp() gate so button activity is
 // always logged.
 static void buttonsUpdate(uint32_t now) {
     bool inBrightMode = g_brightCtrl.inMode();
+
+    // ORDER #98 task 98: transient advise overlay — any button click or hold
+    // dismisses it.  No other button logic runs while it is up.
+    if (g_adviseActive) {
+        if (M5.BtnA.wasSingleClicked() || M5.BtnA.wasDoubleClicked() || M5.BtnA.wasHold() ||
+            M5.BtnB.wasSingleClicked() || M5.BtnB.wasDoubleClicked() || M5.BtnB.wasHold()) {
+            g_adviseActive = false;
+            g_view.needsRedraw = true;
+            g_lastActivity = now;
+            char buf[64];
+            usage::fmtBtn(buf, sizeof(buf), 0, "advise dismiss");
+            serialLine(buf);
+        }
+        return;
+    }
 
     // --- BtnA: behavior depends on brightness mode ---
     if (inBrightMode) {
@@ -558,7 +594,7 @@ static void buttonsUpdate(uint32_t now) {
             usage::fmtBtn(buf, sizeof(buf), 11, "step up");
             serialLine(buf);
         }
-        // BtnA HOLD is reserved (ORDER #72) — no handler here.
+        // BtnA HOLD is reserved in brightness mode — not bound to any handler.
     } else {
         // Normal mode: wasSingleClicked = page cycle (disambiguates from
         // double-click for brightness entry — ~250 ms latency tradeoff).
@@ -580,8 +616,35 @@ static void buttonsUpdate(uint32_t now) {
             usage::fmtBtn(buf, sizeof(buf), 11, "brightness enter");
             serialLine(buf);
         }
-        // BtnA HOLD is reserved (ORDER #72) — no handler here;
-        // refresh is triggered by BtnB click or POST /v1/refresh on the web page.
+        // ORDER #72 task 98: BtnA HOLD fetches /v1/advise and shows the overlay.
+        // The hold threshold is 1500 ms (board.cpp), so wasHold() fires without
+        // being stolen by the click detector.  wasHold() never also fires
+        // wasSingleClicked, so single-click paging is untouched.
+        if (M5.BtnA.wasHold() && g_hasModel && netUp()) {
+            drawAdviseStatus();
+            FetchResult result;
+            if (fetchAdvise(result) && result.code == 200) {
+                usage::AdvisePlan plan;
+                char err[256];
+                if (usage::parseAdvise(result.body.c_str(),
+                                       result.body.length(),
+                                       plan, err, sizeof(err))) {
+                    usage::buildAdviseLayout(plan);
+                    g_advisePlan = plan;
+                    g_adviseActive = true;
+                    g_view.needsRedraw = true;
+                    g_lastActivity = now;
+                    char buf[64];
+                    usage::fmtBtn(buf, sizeof(buf), 11, "hold advise");
+                    serialLine(buf);
+                } else {
+                    char buf[80];
+                    usage::fmtErr(buf, sizeof(buf), err);
+                    serialLine(buf);
+                }
+            }
+            // On fetch/parse failure the overlay stays inactive — screen unchanged.
+        }
     }
 
     // --- BtnB: hold_flip detector disambiguates click vs hold ---

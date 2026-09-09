@@ -160,6 +160,77 @@ bool fetchUsage(const char* lastRev, FetchResult& out, uint32_t ageS) {
     return false;
 }
 
+// --- GET /v1/advise (ORDER #72 task 98) -----------------------------------------
+
+bool fetchAdvise(FetchResult& out) {
+    out.code = 0;
+    out.rev[0] = '\0';
+    out.ms = 0;
+    out.body = "";
+
+    WiFiClient client;
+    HTTPClient http;
+    http.setTimeout(8000);
+    http.setReuse(false);
+
+    char url[128];
+    std::snprintf(url, sizeof(url), "http://%s:%d/v1/advise",
+                  g_host, (int)g_port);
+    http.begin(client, url);
+
+    // User-Agent so the server classifies this HTTP client as the StickS3
+    // device (ORDER #63 task 64).  Must use setUserAgent, not addHeader.
+    char ua[64];
+    std::snprintf(ua, sizeof(ua), "sticks3-usage/%s", buildId());
+    http.setUserAgent(ua);
+
+    // Device-token header (always sent to the usaged server).  No ETag /
+    // If-None-Match: the /v1/advise endpoint is Cache-Control: no-store.
+    http.addHeader("X-Device-Token", g_token);
+
+    uint32_t startMs = nowMs();
+    int code = http.GET();
+    out.ms = nowMs() - startMs;
+
+    if (code < 0) {
+        const char* errDesc = (code <= -4) ? "timeout" : "conn";
+        char buf[64];
+        usage::fmtFetchAdvise(buf, sizeof(buf), code, errDesc, out.ms);
+        serialLine(buf);
+        out.code = code;
+        http.end();
+        return false;
+    }
+
+    if (code == 200) {
+        String body = http.getString();
+        if (body.length() > 8192) {
+            char buf[64];
+            usage::fmtFetchAdvise(buf, sizeof(buf), -1, "body too large", out.ms);
+            serialLine(buf);
+            out.code = -1;
+            http.end();
+            return false;
+        }
+        out.body = body;
+        out.code = code;
+        char buf[64];
+        usage::fmtFetchAdvise(buf, sizeof(buf), code, nullptr, out.ms);
+        serialLine(buf);
+        http.end();
+        return true;
+    }
+
+    // Other HTTP status codes (401, 403, 500, ...).
+    const char* errDesc = "http";
+    char buf[64];
+    usage::fmtFetchAdvise(buf, sizeof(buf), code, errDesc, out.ms);
+    serialLine(buf);
+    out.code = code;
+    http.end();
+    return false;
+}
+
 // --- ORDER #38: POST /v1/refresh -----------------------------------------------
 
 bool refreshUpstream(FetchResult& out) {

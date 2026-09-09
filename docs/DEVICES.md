@@ -106,15 +106,21 @@ single-sourced from `render_plan.cpp:kBindings` — the instructions page
 |--------------|---------------------|------|
 | single-click | cycle pages         | both |
 | double-click | enter/exit brightness mode | normal → brightness |
-| **HOLD**     | **reserved**        | —    |
+| **HOLD** (≥1500 ms) | fetch /v1/advise, show use-this-next overlay | normal |
 
-**BtnA HOLD is RESERVED** for a future AI-agent action (ORDER #72, task 72).
-It is not bound to any handler in the firmware. Felipe reported blue-hold
-"does nothing" — the root cause is that the 600 ms hold threshold (set in
-`board.cpp`) is too short for a deliberate hold: the click detector fires
-first and consumes the event before `M5.BtnA.wasHold()` can. A 1500 ms
-threshold (matching BtnB) would fix it, but the hold now belongs to the
-agent, not to refresh.
+**BtnA HOLD (≥1500 ms)** fetches `/v1/advise` and renders a transient
+overlay showing the winner, reason, and ranked recommendations. Any button
+click or hold dismisses it, restoring the underlying page. It is NOT a new
+page in the cycle — single-click paging behaves exactly as before.
+
+The hold threshold was **600 ms → 1500 ms** (matching BtnB). The old 600 ms
+was too short: the click detector consumed the event before
+`M5.BtnA.wasHold()` could fire (the 600 ms click window swallowed the hold),
+so Felipe reported blue-hold "does nothing." The fix lives in
+`board.cpp:boardInit()` and uses `HoldFlipDetector::kHoldThresholdMs`.
+ORDER #72 (task 72) had reserved this gesture for "a future AI-agent action"
+— this is that action, and the reservation note in `main.cpp` is updated to
+reflect the binding rather than leaving it claiming the hold is unbound.
 
 #### BtnB (GPIO 12, the side button)
 

@@ -71,6 +71,29 @@ TEST(serial_fetch_error) {
     ASSERT_EQ(r, (int)std::strlen(buf));
 }
 
+// --- fmtFetchAdvise (ORDER #72 task 98) ---------------------------------------
+
+TEST(serial_advise_fetch_200) {
+    char buf[64];
+    int r = usage::fmtFetchAdvise(buf, sizeof(buf), 200, nullptr, 310);
+    ASSERT_STREQ("[FETCH] advise code=200 ms=310", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+TEST(serial_advise_fetch_error) {
+    char buf[64];
+    int r = usage::fmtFetchAdvise(buf, sizeof(buf), -1, "timeout", 8000);
+    ASSERT_STREQ("[FETCH] advise code=-1 err=timeout ms=8000", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
+TEST(serial_advise_fetch_null_err) {
+    char buf[64];
+    int r = usage::fmtFetchAdvise(buf, sizeof(buf), 200, nullptr, 500);
+    ASSERT_STREQ("[FETCH] advise code=200 ms=500", buf);
+    ASSERT_EQ(r, (int)std::strlen(buf));
+}
+
 // --- fmtRender -------------------------------------------------------------
 
 TEST(serial_render_basic) {
