@@ -1396,7 +1396,7 @@
       "DO NOT COPY THESE FROM THE DOWNLOADS TREE: spec.json (theirs has 100 tasks, ours has more \u2014 copying it DELETES tasks 101+), .gitignore (theirs carries v0 sandbox entries), firmware/ (identical anyway), and AGENTS.md / GOLDEN_RULES.md / CLAUDE.md / Makefile (verified identical \u2014 nothing was relaxed to make the redesign fit). The Downloads copy predates tasks 100-102.",
       "Verify: `make verify` exits 0 including the new dashboard_headers_test. Then run THE LANE and prove it on the RUNNING daemon: `curl -sI 127.0.0.1:8765/` must show all FOUR headers. Paste the real header block \u2014 a passing unit test does not prove the deployed binary sets them."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "web",
