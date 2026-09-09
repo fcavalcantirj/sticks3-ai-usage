@@ -6,10 +6,12 @@ import (
 	"unicode/utf8"
 )
 
-// canonicalProviderOrder is the default display order used when no
-// user-chosen order is configured. It is also the SET of known provider ids:
-// ids not in this list are rejected by Validate. Providers may appear in any
-// order in a snapshot; the user controls display order via config/ProviderOrder.
+// canonicalProviderOrder is the default display order used for credit/free
+// providers when no user-chosen order is configured. It is also the SET of
+// known provider ids: ids not in this list are rejected by Validate.
+// Plan providers (claude, codex, opencode:go) are grouped first and sorted
+// within that group by descending advise score (task 102), so the canonical
+// sequence does not dictate their display order — only that of credit/free.
 // Missing ids are allowed (a subset is valid); unknown ids are rejected.
 var canonicalProviderOrder = []string{
 	"claude", "codex", "openrouter:main", "openrouter:fallback", "groq", "opencode:go",
@@ -62,7 +64,7 @@ type Snapshot struct {
 	GeneratedAt int64      `json:"generated_at"` // unix s of last CHANGE
 	CheckedAt   int64      `json:"checked_at"`   // unix s of last poll attempt
 	NextSec     int        `json:"next_sec"`     // 900
-	Providers   []Provider `json:"providers"`    // sorted in user-chosen display order (default: canonical)
+	Providers   []Provider `json:"providers"`    // grouped by kind: plans (by score), then credit/free (by user order)
 }
 
 // Validate enforces the v1 contract rules.
@@ -80,7 +82,8 @@ func (s *Snapshot) Validate() error {
 		seen[p.ID] = true
 
 		// Known-id check against the canonical set (order is NOT enforced —
-		// the user may choose any display order via config.ProviderOrder).
+		// the scheduler applies a two-level sort: plans by score, credit/free
+		// by config.ProviderOrder).
 		known := false
 		for _, id := range canonicalProviderOrder {
 			if p.ID == id {

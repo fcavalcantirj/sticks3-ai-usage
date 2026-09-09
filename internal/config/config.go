@@ -70,8 +70,9 @@ type Config struct {
 	// is dropped from the snapshot entirely.
 	ProviderConfigs map[string]YamlProvider
 
-	// ProviderOrder is the user-chosen display order of provider ids. When
-	// empty, the scheduler falls back to config.DefaultProviderOrder.
+	// ProviderOrder is the user-chosen display order of provider ids, used for
+	// credit and free providers. Plan providers are always ordered by score
+	// (task 102). When empty, the scheduler falls back to DefaultProviderOrder.
 	ProviderOrder []string
 }
 

@@ -1364,7 +1364,7 @@
       "(d) WHY THIS IS CHEAP, and the trap it looks like but is not: task 96 deliberately kept the advice OUT of /v1/usage because scores move on nearly every poll and snapshot.Rev would churn, forcing the device to redraw constantly. THAT REASONING DOES NOT APPLY HERE. internal/snapshot/hash.go Rev() hashes an ORDERED array of provider blocks, so rev changes only when the ORDER ACTUALLY FLIPS — far rarer than score movement. Reordering is cheap; embedding scores would not be. Compute the ranking by calling the SAME internal/advise.Rank the endpoint uses, with the same fixed 4-hour horizon. NEVER re-derive a score inside the scheduler.",
       "(e) EDGE CASES: a plan provider that Rank excludes (status \"off\", or no usable window rows) MUST still appear — place unranked plans after ranked ones, in user-chosen order. On an exact score tie, fall back to the user-chosen order so the display is deterministic. With a single plan enabled the order is trivially itself and must not error or blank. DOCUMENTATION IS PART OF THIS TASK: task 93 sold drag-to-reorder as controlling display order, and after this it no longer does for plans — update the Settings copy and docs/DEVICES.md to say plans are ordered by recommendation while the manual order governs credit and free providers. Leaving the UI implying otherwise is the same silent-lie defect as a blank cost card."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "web",

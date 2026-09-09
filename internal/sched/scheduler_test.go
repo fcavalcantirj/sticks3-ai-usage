@@ -482,3 +482,206 @@ type snapView struct {
 		ID string `json:"id"`
 	} `json:"providers"`
 }
+
+// --- Task 102: orderProviders two-level sort ---
+
+// orderTestNow is the fixed clock for ordering tests.
+var orderTestNow = time.Date(2026, 9, 8, 12, 0, 0, 0, time.UTC)
+
+// planProv2 builds a plan-kind provider with a single 5h row.
+func planProv2(id, label string, pct int, resetDur time.Duration) snapshot.Provider {
+	r := orderTestNow.Add(resetDur).Unix()
+	return snapshot.Provider{
+		ID:        id,
+		Label:     label,
+		Kind:      "plan",
+		Plan:      "test",
+		Status:    "ok",
+		Severity:  "ok",
+		FetchedAt: orderTestNow.Unix(),
+		Rows: []snapshot.Row{{
+			K: "5h", Label: "5h", Pct: &pct, Txt: "05:09",
+			Tier: "ok", ResetAt: &r,
+		}},
+	}
+}
+
+// creditProv builds a credit-kind provider.
+func creditProv(id, label string) snapshot.Provider {
+	return snapshot.Provider{
+		ID: id, Label: label, Kind: "credit", Plan: "paid",
+		Status: "ok", Severity: "ok", FetchedAt: orderTestNow.Unix(),
+		Rows: []snapshot.Row{{K: "bal", Label: "BAL", Txt: "$0.50", Tier: "ok"}},
+	}
+}
+
+// freeProv builds a free-kind provider.
+func freeProv(id, label string) snapshot.Provider {
+	return snapshot.Provider{
+		ID: id, Label: label, Kind: "free",
+		Status: "ok", Severity: "ok", FetchedAt: orderTestNow.Unix(),
+		Rows: []snapshot.Row{{K: "5h", Label: "5h", Pct: intPtr(0), Txt: "ok", Tier: "ok",
+			ResetAt: int64Ptr(orderTestNow.Add(5 * time.Hour).Unix())}},
+	}
+}
+
+func intPtr(n int) *int       { return &n }
+func int64Ptr(n int64) *int64 { return &n }
+
+// planIDs extracts the ordered list of provider IDs.
+func planIDs(provs []snapshot.Provider) []string {
+	out := make([]string, len(provs))
+	for i, p := range provs {
+		out[i] = p.ID
+	}
+	return out
+}
+
+// TestOrderPlansScoredHighToLow: pct=0 inside horizon → score 100; pct=20 at
+// 10% elapsed → score 40; pct=50 at 10% elapsed → score 10.
+//
+// 5h, pct=0, reset in 3h  → inside horizon (≤4h) → headroom 100, pace 1.0, score 100
+// 5h, pct=20, reset in 4h30m → outside horizon, elapsed 10%, pace 2.0, score 40
+// 5h, pct=50, reset in 4h30m → outside horizon, elapsed 10%, pace 5.0, score 10
+
+func TestOrderProvidersGroupsByKind(t *testing.T) {
+	// Input in jumbled kind order: credit, plan, free, plan.
+	providers := []snapshot.Provider{
+		creditProv("openrouter:main", "OR main"),
+		planProv2("codex", "ChatGPT", 20, 4*time.Hour+30*time.Minute), // score ~40
+		freeProv("groq", "Groq"),
+		planProv2("claude", "Claude", 0, 3*time.Hour), // score 100
+	}
+	ordered := orderProviders(providers, nil, orderTestNow)
+	ids := planIDs(ordered)
+	// Plans first (sorted by score desc: claude 100 > codex 40), then credit, then free.
+	want := []string{"claude", "codex", "openrouter:main", "groq"}
+	if !equalStrSlices(ids, want) {
+		t.Errorf("order: got %v, want %v", ids, want)
+	}
+	// Verify kind grouping explicitly.
+	for _, p := range ordered {
+		t.Logf("  %s kind=%s", p.ID, p.Kind)
+	}
+	// Plans must come before all non-plans.
+	firstNonPlan := -1
+	for i, p := range ordered {
+		if p.Kind != "plan" {
+			firstNonPlan = i
+			break
+		}
+	}
+	if firstNonPlan < 0 {
+		return // all plans, fine
+	}
+	for i := firstNonPlan; i < len(ordered); i++ {
+		if ordered[i].Kind == "plan" {
+			t.Errorf("plan %s appears after non-plan providers at index %d", ordered[i].ID, i)
+		}
+	}
+}
+
+func TestOrderProvidersPlansByScoreDesc(t *testing.T) {
+	providers := []snapshot.Provider{
+		planProv2("low", "Low", 50, 4*time.Hour+30*time.Minute), // score ~10
+		planProv2("high", "High", 0, 3*time.Hour),               // score 100
+		planProv2("med", "Med", 20, 4*time.Hour+30*time.Minute), // score ~40
+	}
+	ordered := orderProviders(providers, nil, orderTestNow)
+	ids := planIDs(ordered)
+	want := []string{"high", "med", "low"}
+	if !equalStrSlices(ids, want) {
+		t.Errorf("plan score order: got %v, want %v (descending)", ids, want)
+	}
+}
+
+func TestOrderProvidersUnrankedPlansAfterRanked(t *testing.T) {
+	// "off" status plan is excluded from Rank → unranked → sorts after ranked.
+	ranked := planProv2("active", "Active", 0, 3*time.Hour) // score 100
+	off := snapshot.Provider{
+		ID: "disabled", Label: "Disabled", Kind: "plan", Plan: "test",
+		Status: "off", Severity: "ok", FetchedAt: orderTestNow.Unix(),
+		Rows: []snapshot.Row{{K: "5h", Label: "5h", Pct: intPtr(50), Txt: "?",
+			Tier: "ok", ResetAt: int64Ptr(orderTestNow.Add(4*time.Hour + 30*time.Minute).Unix())}},
+	}
+	providers := []snapshot.Provider{off, ranked}
+	ordered := orderProviders(providers, []string{"disabled", "active"}, orderTestNow)
+	ids := planIDs(ordered)
+	// "active" is ranked (score 100), "disabled" is unranked → active first.
+	if ids[0] != "active" {
+		t.Errorf("expected ranked plan first, got %s", ids[0])
+	}
+	if ids[1] != "disabled" {
+		t.Errorf("expected unranked plan second, got %s", ids[1])
+	}
+}
+
+func TestOrderProvidersTieBreakUserOrder(t *testing.T) {
+	// Two plans with identical pct=0 and inside-horizon resets → both score 100.
+	a := planProv2("a", "A", 0, 3*time.Hour)
+	b := planProv2("b", "B", 0, 3*time.Hour)
+	// User order: b before a.
+	userOrder := []string{"b", "a"}
+	ordered := orderProviders([]snapshot.Provider{a, b}, userOrder, orderTestNow)
+	ids := planIDs(ordered)
+	want := []string{"b", "a"}
+	if !equalStrSlices(ids, want) {
+		t.Errorf("tie-break order: got %v, want %v (user order)", ids, want)
+	}
+}
+
+func TestOrderProvidersCreditFreeKeepUserOrder(t *testing.T) {
+	c1 := creditProv("cr1", "Credit 1")
+	c2 := creditProv("cr2", "Credit 2")
+	f1 := freeProv("fr1", "Free 1")
+	// User order deliberately differs from input order.
+	userOrder := []string{"cr2", "cr1", "fr1"}
+	providers := []snapshot.Provider{c1, c2, f1}
+	ordered := orderProviders(providers, userOrder, orderTestNow)
+	ids := planIDs(ordered)
+	// All credit/free, sorted purely by user order.
+	want := []string{"cr2", "cr1", "fr1"}
+	if !equalStrSlices(ids, want) {
+		t.Errorf("credit/free order: got %v, want %v", ids, want)
+	}
+}
+
+func TestOrderProvidersSinglePlan(t *testing.T) {
+	providers := []snapshot.Provider{planProv2("only", "Only", 0, 3*time.Hour)}
+	ordered := orderProviders(providers, nil, orderTestNow)
+	if len(ordered) != 1 {
+		t.Fatalf("expected 1 provider, got %d", len(ordered))
+	}
+	if ordered[0].ID != "only" {
+		t.Errorf("got %s, want only", ordered[0].ID)
+	}
+}
+
+// TestOrderProvidersPlanScoreReported — verifies the plan block's score is
+// reflected in the snapshot ordering. Two plans with clearly different scores.
+func TestOrderProvidersPlanScoreReported(t *testing.T) {
+	providers := []snapshot.Provider{
+		planProv2("codex", "ChatGPT", 50, 4*time.Hour+30*time.Minute), // score ~10
+		planProv2("claude", "Claude", 0, 3*time.Hour),                 // score 100
+	}
+	ordered := orderProviders(providers, nil, orderTestNow)
+	ids := planIDs(ordered)
+	if ids[0] != "claude" {
+		t.Errorf("high-score plan should rank first: got %s", ids[0])
+	}
+	if ids[1] != "codex" {
+		t.Errorf("low-score plan should rank second: got %s", ids[1])
+	}
+}
+
+func equalStrSlices(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}

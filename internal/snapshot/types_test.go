@@ -227,7 +227,7 @@ func TestValidateRejectsDuplicateIDs(t *testing.T) {
 }
 
 // TestValidateAcceptsNonCanonicalOrder — Validate must not enforce the
-// canonical sequence; the display order is now user-controlled.
+// canonical sequence; the scheduler applies a two-level sort (task 102).
 func TestValidateAcceptsNonCanonicalOrder(t *testing.T) {
 	snap := Snapshot{
 		V: 1,

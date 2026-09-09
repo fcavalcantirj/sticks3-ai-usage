@@ -39,6 +39,8 @@ var fixtureFiles = []string{
 	"codex_usage.json",
 	"codex_auth.json",
 	"keychain.json",
+	"openrouter_credits.json",
+	"openrouter_key.json",
 }
 
 const fixturesRoot = "../../testdata/fixtures"
@@ -1733,8 +1735,10 @@ func TestDashboardWorksOnLoopbackWithNoToken(t *testing.T) {
 }
 
 // TestConfigProviderOrderReordersSnapshot verifies that PUT /v1/config with a
-// provider_order list causes the scheduler to re-order providers in the next
-// snapshot, producing a different rev.
+// provider_order list causes the scheduler to re-order credit/free providers
+// in the next snapshot. Plan providers are ordered by score (task 102), so
+// provider_order only reorders credit/free providers — the rev must change
+// when a credit provider's position changes.
 func TestConfigProviderOrderReordersSnapshot(t *testing.T) {
 	dir := setupFixtures(t)
 	cfg := config.Config{
@@ -1749,6 +1753,8 @@ func TestConfigProviderOrderReordersSnapshot(t *testing.T) {
 	fetchers := []providers.Fetcher{
 		providers.NewClaude(client, runner, "testuser", testLoc, format.DefaultAlerts()),
 		providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc, format.DefaultAlerts()),
+		providers.NewOpenRouter(client, config.ProviderOpenRouterMain, "OpenRouter main", "test-key", format.DefaultAlerts(), 10),
+		providers.NewOpenRouter(client, config.ProviderOpenRouterFbk, "OpenRouter fallback", "test-key", format.DefaultAlerts(), 10),
 	}
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
@@ -1765,6 +1771,10 @@ func TestConfigProviderOrderReordersSnapshot(t *testing.T) {
 				out = append(out, providers.NewClaude(client, runner, "testuser", testLoc, format.DefaultAlerts()))
 			case config.ProviderCodex:
 				out = append(out, providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc, format.DefaultAlerts()))
+			case config.ProviderOpenRouterMain:
+				out = append(out, providers.NewOpenRouter(client, p.ID, p.Label, "test-key", format.DefaultAlerts(), 10))
+			case config.ProviderOpenRouterFbk:
+				out = append(out, providers.NewOpenRouter(client, p.ID, p.Label, "test-key", format.DefaultAlerts(), 10))
 			}
 		}
 		return out
@@ -1776,7 +1786,8 @@ func TestConfigProviderOrderReordersSnapshot(t *testing.T) {
 	}
 	handler := srv.Handler
 
-	// Baseline: default order (claude, codex).
+	// Baseline: default order — plans first (sorted by score), then credit
+	// (in default user-chosen order). At fixedNow claude scores above codex.
 	req := httptest.NewRequest(http.MethodGet, "/v1/usage", nil)
 	req.RemoteAddr = "127.0.0.1:12345"
 	rec := httptest.NewRecorder()
@@ -1787,12 +1798,22 @@ func TestConfigProviderOrderReordersSnapshot(t *testing.T) {
 	var snap1 snapshot.Snapshot
 	json.Unmarshal(rec.Body.Bytes(), &snap1)
 	if snap1.Providers[0].ID != "claude" {
-		t.Fatalf("baseline providers[0] = %q, want claude", snap1.Providers[0].ID)
+		t.Fatalf("baseline providers[0] = %q, want claude (plan sorted by score)", snap1.Providers[0].ID)
+	}
+	if snap1.Providers[1].ID != "codex" {
+		t.Fatalf("baseline providers[1] = %q, want codex (plan sorted by score)", snap1.Providers[1].ID)
+	}
+	if snap1.Providers[2].ID != "openrouter:main" {
+		t.Errorf("baseline providers[2] = %q, want openrouter:main", snap1.Providers[2].ID)
+	}
+	if snap1.Providers[3].ID != "openrouter:fallback" {
+		t.Errorf("baseline providers[3] = %q, want openrouter:fallback", snap1.Providers[3].ID)
 	}
 	rev1 := snap1.Rev
 
-	// PUT with reordered provider_order: codex first.
-	body := `{"providers":[],"provider_order":["codex","claude"]}`
+	// PUT with reordered provider_order: swap the credit providers so
+	// fallback comes before main. Plan order should NOT change (score-based).
+	body := `{"providers":[],"provider_order":["claude","codex","openrouter:fallback","openrouter:main"]}`
 	req2 := httptest.NewRequest(http.MethodPut, "/v1/config", strings.NewReader(body))
 	req2.Header.Set("Content-Type", "application/json")
 	req2.RemoteAddr = "127.0.0.1:12345"
@@ -1810,23 +1831,33 @@ func TestConfigProviderOrderReordersSnapshot(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	// The snapshot should now have codex first, with a different rev.
+	// Plans should still be score-sorted (unchanged); credit providers should
+	// now follow the user-chosen order (fallback before main).
 	req3 := httptest.NewRequest(http.MethodGet, "/v1/usage", nil)
 	req3.RemoteAddr = "127.0.0.1:12345"
 	rec3 := httptest.NewRecorder()
 	handler.ServeHTTP(rec3, req3)
 	var snap2 snapshot.Snapshot
 	json.Unmarshal(rec3.Body.Bytes(), &snap2)
-	if snap2.Providers[0].ID != "codex" {
+	if snap2.Providers[0].ID != "claude" {
+		t.Errorf("after reorder, providers[0] = %q, want claude (plan order is score-based, not user-chosen)", snap2.Providers[0].ID)
+	}
+	if snap2.Providers[1].ID != "codex" {
+		t.Errorf("after reorder, providers[1] = %q, want codex (plan order is score-based, not user-chosen)", snap2.Providers[1].ID)
+	}
+	if snap2.Providers[2].ID != "openrouter:fallback" {
 		ids := []string{}
 		for _, p := range snap2.Providers {
 			ids = append(ids, p.ID)
 		}
-		t.Errorf("after reorder, providers[0] = %q, want codex; order=%v",
-			snap2.Providers[0].ID, ids)
+		t.Errorf("after reorder, providers[2] = %q, want openrouter:fallback; order=%v",
+			snap2.Providers[2].ID, ids)
+	}
+	if snap2.Providers[3].ID != "openrouter:main" {
+		t.Errorf("after reorder, providers[3] = %q, want openrouter:main", snap2.Providers[3].ID)
 	}
 	if snap2.Rev == rev1 {
-		t.Error("rev unchanged after reordering providers")
+		t.Error("rev unchanged after reordering credit providers")
 	}
 
 	// Verify the order is persisted in the in-memory config.
@@ -1837,8 +1868,8 @@ func TestConfigProviderOrderReordersSnapshot(t *testing.T) {
 	var cfgResp map[string]any
 	json.Unmarshal(rec4.Body.Bytes(), &cfgResp)
 	po, _ := cfgResp["provider_order"].([]any)
-	if len(po) != 2 {
-		t.Errorf("config provider_order = %v, want 2 entries", po)
+	if len(po) != 4 {
+		t.Errorf("config provider_order = %v, want 4 entries", po)
 	}
 }
 

@@ -384,6 +384,11 @@
       <div class="settings-card">
         <div class="card-header"><span class="card-title">Providers</span></div>
         <div id="provider-list" class="provider-grid"></div>
+        <div class="hint" style="font-size:11px;color:var(--muted);margin-top:6px;">
+          Plan providers are always ordered by the current usage recommendation
+          (best first); the up/down buttons below plan cards have no effect.
+          Drag-to-reorder only applies to credit and free providers.
+        </div>
       </div>
       <div class="field-error" id="settings-error" style="display:none;"></div>
       <div class="row">
@@ -758,12 +763,15 @@ function createProviderCard(p) {
   chevron.textContent = "\u25b6";  // ▶
   header.appendChild(chevron);
 
-  // Up/down buttons for reordering provider display order
+  // Up/down buttons for reordering provider display order. Disabled for plan
+  // providers (those with a plan) — task 102: plans are ordered by score, so
+  // manual reordering has no effect and must not be offered.
   var moveUpBtn = document.createElement("button");
   moveUpBtn.className = "btn-small";
   moveUpBtn.textContent = "\u25b2";  // ▲
   moveUpBtn.setAttribute("title", "Move up");
   moveUpBtn.onclick = function(e) { e.stopPropagation(); moveCardUp(card); };
+  if (p.plan) { moveUpBtn.disabled = true; moveUpBtn.title = "Ordered by recommendation score"; }
   header.appendChild(moveUpBtn);
 
   var moveDownBtn = document.createElement("button");
@@ -771,6 +779,7 @@ function createProviderCard(p) {
   moveDownBtn.textContent = "\u25bc";  // ▼
   moveDownBtn.setAttribute("title", "Move down");
   moveDownBtn.onclick = function(e) { e.stopPropagation(); moveCardDown(card); };
+  if (p.plan) { moveDownBtn.disabled = true; moveDownBtn.title = "Ordered by recommendation score"; }
   header.appendChild(moveDownBtn);
 
   header.onclick = function() { toggleProviderCard(card); };

@@ -8,9 +8,11 @@ import (
 	"log/slog"
 	"math/rand/v2"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 
+	"usaged/internal/advise"
 	"usaged/internal/config"
 	"usaged/internal/format"
 	"usaged/internal/providers"
@@ -173,7 +175,7 @@ func (s *Scheduler) pollOnce(ctx context.Context) {
 
 	wg.Wait()
 
-	// Collect blocks in fetcher order, then sort into canonical order.
+	// Collect blocks in fetcher order, then sort into display order.
 	var blockList []snapshot.Provider
 	for _, f := range s.Fetchers {
 		if r, ok := results[f.ID()]; ok {
@@ -181,21 +183,11 @@ func (s *Scheduler) pollOnce(ctx context.Context) {
 		}
 	}
 
-	ids := make([]string, len(blockList))
-	for i, p := range blockList {
-		ids[i] = p.ID
-	}
-	sortedIDs := snapshot.Order(ids, s.ProviderOrder)
-	byID := make(map[string]snapshot.Provider, len(blockList))
-	for _, p := range blockList {
-		byID[p.ID] = p
-	}
-	ordered := make([]snapshot.Provider, 0, len(sortedIDs))
-	for _, id := range sortedIDs {
-		if p, ok := byID[id]; ok {
-			ordered = append(ordered, p)
-		}
-	}
+	// LEVEL 1 — group by kind (plan, credit, free) so the web matches the
+	// firmware's kKindOrder. LEVEL 2 — within plans, sort by descending
+	// advise score; within credit/free, keep user-chosen order. One sort,
+	// one code path for every surface (web, device, /v1/usage). (spec task 102)
+	ordered := orderProviders(blockList, s.ProviderOrder, now)
 
 	s.mu.Lock()
 	seqBefore := s.State.Snapshot.Seq
@@ -453,4 +445,91 @@ func (s *Scheduler) publish(ctx context.Context) {
 	} else {
 		slog.Debug("publish: non-2xx", "status", resp.StatusCode, "seq", snap.Seq)
 	}
+}
+
+// kindRank gives the LEVEL-1 grouping order: plans first, then credit, then
+// free, with any unknown/empty kind last. This mirrors the firmware's
+// kKindOrder[] = {KIND_PLAN, KIND_CREDIT, KIND_FREE} so the daemon and the
+// device render the same grouping without a second spelling of the rule.
+func kindRank(k string) int {
+	switch k {
+	case "plan":
+		return 0
+	case "credit":
+		return 1
+	case "free":
+		return 2
+	default:
+		return 3
+	}
+}
+
+// orderProviders sorts provider blocks into the single display order every
+// surface consumes (snapshot, /v1/usage, dashboard, device).
+//
+// LEVEL 1 — group by kind: plan providers FIRST, then credit, then free.
+// This is the grouping the firmware already does in render_plan.cpp, so
+// reordering the array is exactly what the device expects — no firmware
+// change needed.
+//
+// LEVEL 2 — within the plan group, sort by DESCENDING advise score. The
+// score comes from the SAME advise.Rank the /v1/advise endpoint uses, with
+// the same fixed 4-hour horizon, so the device and the web agree on "which
+// provider now?". Within credit and free, keep the user-chosen order from
+// config.DefaultProviderOrder / ProviderOrder (task 93's drag-to-reorder).
+//
+// Edge cases:
+//   - Plans Rank excludes (status "off", or no usable window rows) get score
+//     0 and sort after ranked plans, still in user-chosen order.
+//   - On an exact score tie, user-chosen order is the deterministic tiebreak.
+//   - A single plan is trivially ordered to itself; no empty or nil scores.
+func orderProviders(providers []snapshot.Provider, userOrder []string, now time.Time) []snapshot.Provider {
+	outcome := advise.Rank(providers, now, advise.DefaultHorizon)
+	scoreByProv := make(map[string]float64, len(outcome.Recommendations))
+	rankedIDs := make(map[string]bool, len(outcome.Recommendations))
+	for _, rec := range outcome.Recommendations {
+		scoreByProv[rec.ID] = rec.Score
+		rankedIDs[rec.ID] = true
+	}
+
+	// Position map for user-chosen order (fallback to canonical display order
+	// via snapshot.Order, which already handles the canonicalProviderOrder
+	// default). Used for tie-breaks and for the credit/free groups.
+	ids := make([]string, len(providers))
+	for i, p := range providers {
+		ids[i] = p.ID
+	}
+	orderedIDs := snapshot.Order(ids, userOrder)
+	pos := make(map[string]int, len(orderedIDs))
+	for i, id := range orderedIDs {
+		pos[id] = i
+	}
+
+	result := make([]snapshot.Provider, len(providers))
+	copy(result, providers)
+	sort.SliceStable(result, func(i, j int) bool {
+		ki := kindRank(result[i].Kind)
+		kj := kindRank(result[j].Kind)
+		if ki != kj {
+			return ki < kj
+		}
+		if ki == 0 { // both plan — sort by descending score, then user order
+			iRanked, jRanked := rankedIDs[result[i].ID], rankedIDs[result[j].ID]
+			if iRanked && !jRanked {
+				return true
+			}
+			if !iRanked && jRanked {
+				return false
+			}
+			si := scoreByProv[result[i].ID]
+			sj := scoreByProv[result[j].ID]
+			if si != sj {
+				return si > sj
+			}
+			return pos[result[i].ID] < pos[result[j].ID]
+		}
+		// both credit, both free, or both unknown — user-chosen order
+		return pos[result[i].ID] < pos[result[j].ID]
+	})
+	return result
 }

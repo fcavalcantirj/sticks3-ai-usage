@@ -122,6 +122,26 @@ ORDER #72 (task 72) had reserved this gesture for "a future AI-agent action"
 — this is that action, and the reservation note in `main.cpp` is updated to
 reflect the binding rather than leaving it claiming the hold is unbound.
 
+#### Provider ordering on screen
+
+The firmware groups providers by kind — `render_plan.cpp:kKindOrder[] = {KIND_PLAN, KIND_CREDIT, KIND_FREE}` —
+and follows snapshot array order **within** each group. Since task 102 the daemon
+sorts that same array before it ships:
+
+- **Plan providers** (Claude, ChatGPT, OpenCode Go) are always ordered by **descending
+  recommend‑ation score** — the best provider for the next 4 hours appears first.
+  A glance answers "which one now?" The up/down buttons in Settings do **not**
+  affect plan order.
+- **Credit and free providers** (OpenRouter, Groq) keep the user‑chosen manual
+  order from Settings drag‑to‑reorder.
+- Plans not currently ranked (status *off*, or no usable quota rows) sort after
+  ranked plans, still in manual order.
+
+This ordering is computed once per poll in `internal/sched/scheduler.go` via
+`orderProviders`, which calls the same `internal/advise.Rank` that powers
+`/v1/advise`. No firmware change is needed — `render_plan.cpp` already groups by
+kind and follows array order within each group.
+
 #### BtnB (GPIO 12, the side button)
 
 | Gesture      | Action              | Mode |
