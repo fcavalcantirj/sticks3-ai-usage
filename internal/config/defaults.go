@@ -76,6 +76,7 @@ func DefaultProviders() []DefaultProvider {
 			Enabled: true,
 			Label:   "OpenCode Go",
 			KeyEnv:  "OPENCODE_API_KEY",
+			Plan:    &PlanConfig{Cost: 10, Currency: "USD", CostUSD: 10, HasCostUSD: true, Label: "Go"},
 		},
 	}
 }
@@ -274,6 +275,9 @@ func PlanPresets() map[string][]PlanConfig {
 			{Cost: 110, Currency: "BRL", CostUSD: 20, HasCostUSD: true, Label: "Plus"},
 			{Cost: 100, Currency: "BRL", CostUSD: 25, HasCostUSD: true, Label: "Business Standard"},
 			{Cost: 500, Currency: "BRL", CostUSD: 125, HasCostUSD: true, Label: "Business Premium"},
+		},
+		ProviderOpenCodeGo: {
+			{Cost: 10, Currency: "USD", CostUSD: 10, HasCostUSD: true, Label: "Go"},
 		},
 	}
 }
