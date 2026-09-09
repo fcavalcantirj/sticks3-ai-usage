@@ -2,7 +2,7 @@
 
 **Status: SHIPPED, plus one open feature. v0.2.1 is released and confirmed working end to end; task 96 is the next build.**
 
-96 tasks, 91 passing. **Task 96** — a 4-hour "use this next" provider recommendation, surfaced on the dashboard and behind the reserved BtnA HOLD gesture — is the only buildable task. `spec.json` is both the acceptance ledger and the
+99 tasks, 91 passing. **Tasks 96-99** — a 4-hour "use this next" provider recommendation, split into the daemon ranking, the dashboard card, the device overlay on the reserved BtnA HOLD gesture, and a closing agreement check — are the buildable work. `spec.json` is both the acceptance ledger and the
 executable build order: take the first entry with `passes: false` whose
 description is not prefixed `[WITHDRAWN]`, `[DEFERRED]` or `[BLOCKED`.
 
