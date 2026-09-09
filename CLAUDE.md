@@ -1,8 +1,8 @@
 # usaged — AI usage monitor (M5StickS3 + Mac agent)
 
-**Status: SHIPPED. v0.2.1 is released and confirmed working end to end.**
+**Status: SHIPPED, plus one open feature. v0.2.1 is released and confirmed working end to end; task 96 is the next build.**
 
-95 tasks, 91 passing. `spec.json` is both the acceptance ledger and the
+96 tasks, 91 passing. **Task 96** — a 4-hour "use this next" provider recommendation, surfaced on the dashboard and behind the reserved BtnA HOLD gesture — is the only buildable task. `spec.json` is both the acceptance ledger and the
 executable build order: take the first entry with `passes: false` whose
 description is not prefixed `[WITHDRAWN]`, `[DEFERRED]` or `[BLOCKED`.
 
