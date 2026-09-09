@@ -61,12 +61,15 @@ if [ "$FW_REPORTED" != "$BARE" ]; then
     git tag -d "$VERSION" >/dev/null
     die "firmware reports '$FW_REPORTED' but the tag is '$VERSION' — they must match"
 fi
-strings "$FW_BIN" | grep -qF "$BARE" || { git tag -d "$VERSION" >/dev/null; die "the built binary does not contain $BARE"; }
-echo "   binary contains the version string: yes"
 
 step "6/8  package"
 make dist VERSION="$VERSION"
 cp "$FW_BIN" "$ASSET"
+# Verify the artifact that actually ships, not an intermediate build. The
+# earlier draft of this script checked $FW_BIN mid-pipeline and reported a
+# mismatch that did not exist.
+strings "$ASSET" | grep -qxF "$BARE" || die "the firmware asset does not contain the version string $BARE"
+echo "   firmware asset reports $BARE"
 ( cd dist && shasum -a 256 "$(basename "$TARBALL")" "$(basename "$ASSET")" > SHA256SUMS )
 # install.sh greps SHA256SUMS by filename rather than running `shasum -c`,
 # so extra lines are fine — but the tarball line must be present and correct.
