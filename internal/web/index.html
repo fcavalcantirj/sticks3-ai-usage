@@ -157,11 +157,12 @@
     .advise-card .advise-winner { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
     .advise-card .advise-reason { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
     .advise-card .advise-error { color: var(--crit); }
-    .advise-card table.advise-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .advise-card table.advise-table { width: auto; border-collapse: collapse; font-size: 12px; }
     .advise-card table.advise-table th,
     .advise-card table.advise-table td { padding: 4px 8px; border-bottom: 1px solid var(--border); color: var(--muted); }
     .advise-card table.advise-table td.num { text-align: right; color: var(--text); }
-    .advise-card table.advise-table th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .advise-card table.advise-table th { text-align: left; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .advise-card table.advise-table th.num { text-align: right; }
 
     /* --- Footer --- */
     .footer-bar { margin-top: 20px; display: flex; justify-content: space-between; align-items: center; }
@@ -308,6 +309,21 @@
     </div>
   </div>
 
+  <!-- Advise card (task 97 — renders /v1/advise). The daemon is the single
+       source of truth: the card only names what the endpoint already computed.
+       IDs and labels come from the JSON, never retyped. Placed above the tab
+       strip so it reads as page-level advice, not content of whichever tab is
+       active. -->
+  <div id="advise-card" class="advise-card" style="display:none;">
+    <div class="advise-winner"></div>
+    <div class="advise-reason"></div>
+    <table class="advise-table">
+      <thead><tr><th>Provider</th><th class="num">Pace</th><th class="num">Headroom</th><th class="num">Score</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="advise-error" style="display:none;"></div>
+  </div>
+
   <!-- Tab strip -->
   <div class="tab-strip" role="tablist">
     <button id="tab-quota-tab" role="tab" aria-controls="tab-quota" aria-selected="true">Quota</button>
@@ -315,19 +331,6 @@
     <button id="tab-models-tab" role="tab" aria-controls="tab-models" aria-selected="false">Models</button>
     <button id="tab-attention-tab" role="tab" aria-controls="tab-attention" aria-selected="false">Needs attention</button>
     <button id="tab-settings-tab" role="tab" aria-controls="tab-settings" aria-selected="false">Settings</button>
-  </div>
-
-  <!-- Advise card (task 97 — renders /v1/advise). The daemon is the single
-       source of truth: the card only names what the endpoint already computed.
-       IDs and labels come from the JSON, never retyped. -->
-  <div id="advise-card" class="advise-card" style="display:none;">
-    <div class="advise-winner"></div>
-    <div class="advise-reason"></div>
-    <table class="advise-table">
-      <thead><tr><th>Provider</th><th>Pace</th><th>Headroom</th><th>Score</th></tr></thead>
-      <tbody></tbody>
-    </table>
-    <div class="advise-error" style="display:none;"></div>
   </div>
 
   <!-- Quota tab: provider cards -->
