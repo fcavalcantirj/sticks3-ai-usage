@@ -71,14 +71,17 @@ if [ "$FW_REPORTED" != "$BARE" ]; then
     die "firmware reports '$FW_REPORTED' but the tag is '$VERSION' — they must match"
 fi
 
-step "6/8  package"
-make dist VERSION="$VERSION"
+# Capture the asset NOW, straight off the tagged build. Doing this later let
+# another build step swap firmware.bin underneath the check and produce a
+# mismatch that was not real.
+mkdir -p dist
 cp "$FW_BIN" "$ASSET"
-# Verify the artifact that actually ships, not an intermediate build. The
-# earlier draft of this script checked $FW_BIN mid-pipeline and reported a
-# mismatch that did not exist.
 strings "$ASSET" | grep -qxF "$BARE" || die "the firmware asset does not contain the version string $BARE"
 echo "   firmware asset reports $BARE"
+
+step "6/8  package"
+make dist VERSION="$VERSION"
+cp "$FW_BIN" "$ASSET"   # dist.sh clears dist/, so restore the asset it wiped
 ( cd dist && shasum -a 256 "$(basename "$TARBALL")" "$(basename "$ASSET")" > SHA256SUMS )
 # install.sh greps SHA256SUMS by filename rather than running `shasum -c`,
 # so extra lines are fine — but the tarball line must be present and correct.
