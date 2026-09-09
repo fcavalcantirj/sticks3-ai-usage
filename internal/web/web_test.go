@@ -8,6 +8,41 @@ import (
 	"testing"
 )
 
+func TestEmbeddedAssemblyIsSelfContained(t *testing.T) {
+	html := string(IndexHTML)
+	for _, marker := range []string{"/* {{styles}} */", "/* {{scripts}} */", "__PREVIEW_DATA__", "preview/adapter", "node_modules"} {
+		if strings.Contains(html, marker) {
+			t.Errorf("production dashboard contains unassembled or preview content: %q", marker)
+		}
+	}
+	if strings.Count(html, "<script>") != 1 || strings.Count(html, "</script>") != 1 {
+		t.Error("dashboard must ship exactly one self-contained script")
+	}
+	for _, name := range []string{"core.js", "settings.js", "device.js", "render.js", "app.js", "base.css", "views.css"} {
+		b, err := assets.ReadFile(name)
+		if err != nil || len(b) == 0 {
+			t.Errorf("missing embedded asset: %s", name)
+		}
+		if strings.Count(string(b), "\n") > 900 {
+			t.Errorf("frontend asset exceeds 900-line ceiling: %s", name)
+		}
+	}
+}
+
+func TestAccessibleDialogsAndPanels(t *testing.T) {
+	html := string(IndexHTML)
+	for _, required := range []string{`<dialog id="key-dialog"`, `id="key-value"`, `role="tabpanel"`, `aria-expanded="false"`, `prefers-reduced-motion`, `aria-label="Refresh interval"`} {
+		if !strings.Contains(html, required) {
+			t.Errorf("missing accessible control: %s", required)
+		}
+	}
+	for _, banned := range []string{"prompt(", "alert(", "confirm("} {
+		if strings.Contains(html, banned) {
+			t.Errorf("blocking native dialog remains: %s", banned)
+		}
+	}
+}
+
 // TestIndexHTMLContent verifies the embedded dashboard HTML contains the
 // strings the spec requires for downstream consumers (page title, API
 // endpoints, auth header name) and is non-empty.
@@ -154,7 +189,7 @@ func TestIndexHTMLSettingsTab(t *testing.T) {
 		`Ordered by recommendation score`,
 	} {
 		if !strings.Contains(html, want) {
-			t.Errorf(`index.html missing plan-ordering hint %q`, want)
+			t.Errorf("index.html missing plan-ordering hint %q", want)
 		}
 	}
 }
