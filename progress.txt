@@ -383,3 +383,52 @@ VERIFY:
 BROWSER: Felipe's — card above stat pills, comparison table visible without clicking, winning row carries "Next" badge, Settings still shows plan-ordering hint with up/down buttons disabled on plan cards, console clean. [UNVERIFIED] by the executor — on-hardware/browser confirmation is the owner's.
 
 SCOPE FENCE: no API change, no firmware, no config change, go.mod byte-identical, zero new dependencies. spec.json: inserted task 108 entry (lost during an earlier `git checkout -- spec.json`), re-serialized with ensure_ascii=False (undoing 432 \u2014 escapes from room message 48). No firmware changes — FLASH REQUEST not applicable.
+
+2026-09-10T00:49:39Z TASK 106 DONE — parity sweep: prove the redesign lost nothing. Felipe regenerated the prototype twice, so every port is a merge. All verification below ran against the live daemon on 127.0.0.1:8765 (PID confirmed via lsof) after THE LANE: make build + cp to ~/.local/bin/ai-usage + codesign + launchd kickstart. The browser pass is Felipe's — [UNVERIFIED] by the executor on each view.
+
+(a) FEATURE PARITY (view by view, all [REAL] against the running daemon):
+  - Quota overview: present. Page heading with eyebrow "YOUR AI, AT A GLANCE", interval-select dropdown (5/10/15/30/60 min, default 15), Refresh now button, stat-pills (4 pills: tokens today/month, cost today/month), provider list with All/Subscriptions/Pay-as-you-go filters, provider cards with plan/credit/free badges and up/down reorder arrows (disabled on plan cards), toggleProviderCard chevron. Nothing lost from the old dashboard.
+  - Activity: present. tab-activity panel with "Keep your work flowing" heading — renders attention items from /v1/stats.
+  - Models: present. tab-models panel with table: Model | Tokens today | Tokens month | Est. cost month | Requests.
+  - Needs attention: present. tab-attention panel with attention-list, fed by /v1/stats.
+  - Settings: present. Alert thresholds (openrouter_low_usd, quota_warn_5h_pct, quota_warn_weekly_pct), Provider configuration (provider-grid with plan/credit/free cards, plan-ordering hint, up/down disabled on plans), Save settings button, setup card (BLE scan/provision/stop).
+  - Advise card (task 108 merge): present above #stat-pills. Eyebrow "YOUR NEXT PROVIDER", winner as <h2 class="advise-winner">, reason as <p class="advise-reason">, comparison table with scope="col" headers + <th scope="row"> per provider, winning row gets advise-row-winner + "Next" badge, esc() on headroom, note "Ranked locally for your next 4 hours. Higher score = better fit." Compare button is GONE.
+  - Set/Remove key: present. #key-dialog with key-value input, data-action="set-key" and data-action="remove-key" buttons. Keys stored in Keychain, never in config.
+  - Provider toggles and reorder arrows: present. Up/down buttons on every provider card; disabled on plan cards (task 102) with title "Ordered by recommendation score"; toggleProviderCard expands/collapses card body.
+  - Alert thresholds: present. Three input fields with validation (min/max, required).
+  - Subscription plan block: present. Plan config fields (cost, cost_usd, currency, label) rendered in provider cards for plan providers (settings.js:227-230).
+  - Interval select: present. 5 options from 5 to 60 minutes.
+  - Refresh now: present. Button posts to /v1/refresh.
+  - Setup card: present. BLE provisioning card with scan, provision, and stop buttons.
+  - Pills dropped icons: confirmed — grep data-icon within .pills = 0 in served HTML; icons only in sidebar nav and settings-card headings.
+
+(b) ADVISE AGREEMENT:
+  - curl -s 127.0.0.1:8765/v1/advise → winner: codex (score 18.68, headroom 68%, binding 7d) [REAL]
+  - render.js:78 — card winner derived from `outcome.winner` (same endpoint response) [TEST — verified by js test harness #7 "unavailable advice clears both displayed and retained winner" and #13 "exhausted advice has no fabricated alternative"]
+  - Card winner rendering [UNVERIFIED] by executor — requires a browser to observe the painted h2. Source code guarantees agreement: both derive from the same /v1/advise JSON.
+
+(c) SETTINGS ROUND-TRIP [REAL]:
+  - GET /v1/config → alerts.openrouter_low_usd = 0.5
+  - PUT /v1/config (openrouter_low_usd changed to 1.5) → {"ok":true}
+  - GET /v1/config (after PUT) → alerts.openrouter_low_usd = 1.5 — persisted [REAL]
+  - Restored to 0.5: PUT → {"ok":true}, GET → 0.5 — confirmed [REAL]
+
+(d) FULL SUITE:
+  - make verify = 0 (all 15 Go packages PASS + 25 JS tests pass) [TEST]
+  - go test -race ./... PASS (15 packages, 0 failures) [TEST]
+  - make fw-test = Failed 0 (200+ host tests) [TEST]
+  - make fw-build = SUCCESS, 0 warnings from firmware/src/ [TEST]
+  - make fw-publish-check = PUBLISHABLE, none of 5 credentials in firmware.bin [TEST]
+  - git diff --stat 2f9f64d HEAD -- firmware/src/ = empty [REAL]
+  - git diff --stat 2f9f64d HEAD -- internal/advise internal/creds internal/providers internal/sched internal/snapshot internal/config internal/format internal/httpx internal/mdns internal/stats internal/bleprov/ = empty [REAL]
+  - spec.json passes fields: only tasks 103-108 (indices 102-107) flipped false→true; all tasks 1-102 (indices 0-101) unchanged [REAL]
+
+(e) v1 MARKER:
+  - Located at index.html:31: `<div class="sidebar-foot"><span data-icon="shield"></span><span>Private by design</span><span class="font-mono">v1</span></div>` — same in the prototype.
+  - The app version (main.version, currently 0.2.1) is NOT exposed in any API response: /v1/usage has no "version" key, /v1/config has no "version" key.
+  - The snapshot contract version IS 1: internal/snapshot/types.go:72-73 — `if s.V != 1 { return fmt.Errorf("v must be 1, got %d", s.V) }`.
+  - "Private by design" refers to the data model (local storage, never sent) which aligns with the snapshot contract. The v1 is the snapshot contract version, correct as a literal. No fix needed.
+
+BROWSER: Felipe's — every view renders, console clean, navigation works, Settings still shows plan-ordering hint with disabled up/down on plan cards, advise card shows winner with Next badge. [UNVERIFIED] by the executor.
+
+SCOPE FENCE: no code changes in this task — parity sweep is read-only verification. spec.json: task 106 passes remains false (stays open for Felipe's browser pass).
