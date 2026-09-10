@@ -42,16 +42,28 @@
       <div id="token-input" class="token-row"><label for="token-field">Device token</label><input type="password" id="token-field" autocomplete="off" placeholder="Enter your local device token"><button id="token-save" class="button-primary">Connect</button></div>
       <div id="request-error" class="msg-error" role="status" hidden></div>
       <section class="page-heading" aria-labelledby="page-title"><div><div class="eyebrow" id="page-eyebrow">YOUR AI, AT A GLANCE</div><h1 id="page-title">Quota overview</h1><p id="page-description">A little clarity for everything you create.</p></div><div class="header-actions"><label class="interval-control"><span data-icon="clock"></span><span class="sr-only">Refresh interval</span><select id="interval-select" aria-label="Refresh interval"><option value="300">Every 5 min</option><option value="600">Every 10 min</option><option value="900" selected>Every 15 min</option><option value="1800">Every 30 min</option><option value="3600">Every 60 min</option></select></label><button id="refresh-btn" class="button-primary"><span data-icon="refresh"></span><span>Refresh now</span></button></div></section>
-      <section id="stat-pills" class="pills" aria-label="Usage summary">
-        <div class="pill"><div class="pill-top"><span class="lbl">Tokens today</span><span data-icon="zap"></span></div><div class="num font-mono" id="pill-today-tok">—</div><span class="pill-note">All coding tools</span></div>
-        <div class="pill"><div class="pill-top"><span class="lbl">Tokens this month</span><span data-icon="layers"></span></div><div class="num font-mono" id="pill-month-tok">—</div><span class="pill-note" id="month-label">Current month</span></div>
-        <div class="pill"><div class="pill-top"><span class="lbl">Cost today <span class="est">est.</span></span><span data-icon="coins"></span></div><div class="num font-mono" id="pill-today-cost">$—</div><span class="pill-note">Equivalent API value</span></div>
-        <div class="pill"><div class="pill-top"><span class="lbl">Cost this month <span class="est">est.</span></span><span data-icon="wallet"></span></div><div class="num font-mono" id="pill-month-cost">$—</div><span class="pill-note" id="month-cost-note">Equivalent API value</span><div class="ratio" id="pill-month-ratio"></div></div>
-      </section>
       <!-- The daemon alone ranks providers. No client-side scoring or quota thresholds. -->
       <section id="advise-card" class="advise-card" aria-label="Provider recommendation">
-        <div class="advise-main"><span class="advise-icon" data-icon="sparkles"></span><div class="advise-copy"><div class="eyebrow">A SMARTER NEXT MOVE</div><div class="advise-winner">Finding your next provider…</div><div class="advise-reason">Checking available headroom.</div><div class="advise-error" role="status" style="display:none"></div></div><button class="advise-compare" id="compare-btn" aria-expanded="false" aria-controls="advise-comparison">Compare providers<span data-icon="arrow-right"></span></button></div>
-        <div id="advise-comparison" hidden><table class="advise-table"><caption class="sr-only">Server-ranked provider recommendations</caption><thead><tr><th>Provider</th><th class="num">Pace</th><th class="num">Headroom</th><th class="num">Score</th></tr></thead><tbody></tbody></table><p class="comparison-note">Ranked by your local daemon using pace and available quota.</p></div>
+        <div class="advise-main">
+          <div class="eyebrow">YOUR NEXT PROVIDER</div>
+          <h2 class="advise-winner">Finding your next provider…</h2>
+          <p class="advise-reason">Checking available headroom.</p>
+          <div class="advise-error" role="status" style="display:none"></div>
+        </div>
+        <div id="advise-comparison" hidden>
+          <table class="advise-table">
+            <caption class="sr-only">Server-ranked provider recommendations</caption>
+            <thead><tr><th scope="col">Provider</th><th scope="col" class="num">Pace</th><th scope="col" class="num">Headroom</th><th scope="col" class="num">Score</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <p class="comparison-note">Ranked locally for your next 4 hours. Higher score = better fit.</p>
+        </div>
+      </section>
+      <section id="stat-pills" class="pills" aria-label="Usage summary">
+        <div class="pill"><div class="pill-top"><span class="lbl">Tokens today</span></div><div class="num font-mono" id="pill-today-tok">—</div><span class="pill-note">All coding tools</span></div>
+        <div class="pill"><div class="pill-top"><span class="lbl">Tokens this month</span></div><div class="num font-mono" id="pill-month-tok">—</div><span class="pill-note" id="month-label">Current month</span></div>
+        <div class="pill"><div class="pill-top"><span class="lbl">Cost today <span class="est">est.</span></span></div><div class="num font-mono" id="pill-today-cost">$—</div><span class="pill-note">Equivalent API value</span></div>
+        <div class="pill"><div class="pill-top"><span class="lbl">Cost this month <span class="est">est.</span></span></div><div class="num font-mono" id="pill-month-cost">$—</div><span class="pill-note" id="month-cost-note">Equivalent API value</span><div class="ratio" id="pill-month-ratio"></div></div>
       </section>
       <section id="tab-quota" class="tab-panel active" role="tabpanel" aria-labelledby="tab-quota-tab" tabindex="0">
         <div class="section-heading"><div class="section-title"><h2>Your providers</h2><span class="count-badge" id="provider-count">—</span></div><div class="provider-filters" role="group" aria-label="Filter providers"><button class="filter active" data-filter="all" aria-pressed="true">All providers</button><button class="filter" data-filter="plan" aria-pressed="false">Subscriptions</button><button class="filter" data-filter="credit" aria-pressed="false">Pay-as-you-go</button></div></div>

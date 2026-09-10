@@ -247,11 +247,6 @@ function init() {
   document.getElementById('setup-stop-btn').addEventListener('click', stopSetup);
   document.getElementById('settings-form').addEventListener('input', markSettingsDirty);
   document.getElementById('settings-form').addEventListener('change', markSettingsDirty);
-  document.getElementById('compare-btn').addEventListener('click', function() {
-    var comparison = document.getElementById('advise-comparison');
-    comparison.hidden = !comparison.hidden;
-    this.setAttribute('aria-expanded', String(!comparison.hidden));
-  });
   document.querySelectorAll('[data-filter]').forEach(function(btn) { btn.addEventListener('click', function() { applyProviderFilter(btn.dataset.filter); }); });
   document.querySelectorAll('[data-view]').forEach(function(btn) { btn.addEventListener('click', function() { showTab('tab-' + btn.dataset.view); }); });
   document.getElementById('menu-toggle').addEventListener('click', function() {

@@ -57,8 +57,6 @@ function renderAdvise(outcome) {
     currentAdvise = null;
     card.style.display = 'block';
     document.getElementById('advise-comparison').hidden = true;
-    document.getElementById('compare-btn').setAttribute('aria-expanded', 'false');
-    document.getElementById('compare-btn').disabled = true;
     winnerEl.style.display = "none";
     reasonEl.style.display = "none";
     tbody.innerHTML = "";
@@ -68,7 +66,6 @@ function renderAdvise(outcome) {
   }
 
   currentAdvise = outcome;
-  document.getElementById('compare-btn').disabled = false;
   errEl.style.display = "none";
   card.style.display = "block";
 
@@ -76,12 +73,16 @@ function renderAdvise(outcome) {
   // verbatim from the endpoint.
   tbody.innerHTML = "";
   var recs = outcome.recommendations || [];
+  document.getElementById('advise-comparison').hidden = recs.length === 0;
   recs.forEach(function(r) {
+    var isWinner = r.id === outcome.winner;
     var tr = document.createElement("tr");
+    tr.className = isWinner ? 'advise-row-winner' : '';
     tr.innerHTML =
-      '<td>' + esc(r.label || r.id) + '</td>' +
+      '<th scope="row"><span class="advise-provider">' + esc(r.label || r.id) +
+        (isWinner ? '<span class="advise-next">Next</span>' : '') + '</span></th>' +
       '<td class="num">' + r.pace_ratio.toFixed(2) + 'x</td>' +
-      '<td class="num">' + r.effective_headroom_pct + '%</td>' +
+      '<td class="num">' + esc(r.effective_headroom_pct) + '%</td>' +
       '<td class="num">' + r.score.toFixed(2) + '</td>';
     tbody.appendChild(tr);
   });

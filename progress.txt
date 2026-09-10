@@ -353,3 +353,33 @@ NOT VERIFIED THIS SESSION:
 `git diff --name-only` lists: BACKLOG.md, CLAUDE.md, progress.txt, spec.json.
 No code, test, or binary files changed. spec.json: only task 107's passes
 flipped false → true (single-line surgical edit).
+
+2026-09-10T00:49:39Z TASK 108 DONE — regenerated advise card merge (not overwrite). Felipe regenerated the prototype at 20:31 on 2026-09-09; the delta is ~110 lines across six files. MERGE approach only: the prototype predates task 102 and would silently revert it.
+
+CHANGES (6 files, all surgical merges from /Users/fcavalcanti/Downloads/ai-usage-dashboard):
+  - internal/web/app.js: removed the 5-line compare-btn click listener (lines 250-254). No replacement.
+  - internal/web/render.js: removed compare-btn aria-expanded/disabled lines in the no-advice path and the disabled=false line in the has-advice path; added `advise-comparison.hidden = recs.length === 0` (table shows when there are recommendations); added winner row class `advise-row-winner`, `<th scope="row">` provider cell with `advise-provider` span + `Next` badge for winner, and `esc()` around effective_headroom_pct.
+  - internal/web/index.html: moved advise card above #stat-pills; eyebrow "YOUR NEXT PROVIDER", winner as <h2>, reason as <p>; removed compare button; new note "Ranked locally for your next 4 hours. Higher score = better fit."; dropped per-pill data-icon. KEPT the task-102 Settings hint "Plan providers are always ordered by the current usage recommendation..." at line 86.
+  - internal/web/base.css: replaced card/pill styling with prototype versions; added `.advise-provider`, `.advise-next`, `.advise-row-winner`; updated media queries (900px, 700px, added 380px); removed `.advise-compare` and `.advise-icon` references.
+  - internal/web/web_test.go: comment fix only — "Task 101" → "Task 102" at line 184 (referring to the plan-ordering assertion block, which is task 102's work). The block itself was already retained.
+  - internal/web/settings.js: UNCHANGED — the prototype removes the disabled-button behaviour (task 102), so those 4 lines were correctly rejected.
+
+NOT ADOPTED FROM PROTOTYPE (task 102 preservation):
+  - settings.js lines 142-144, 153: prototype removes `moveUpBtn.disabled = true` / `moveDownBtn.disabled = true`. Kept ours.
+  - web_test.go: prototype deletes the plan-ordering assertion block (lines 182-194). Kept ours intact.
+
+ORPHAN CHECK: `grep -rn 'compare-btn' .` across the whole tree (JS, HTML, CSS, Go) = 0 matches. No orphaned selectors after listener removal.
+
+VERIFY:
+  - `make verify` = 0 — all 15 Go packages PASS, JS tests via node --check parse, embedded assembly self-containment, accessible dialogs.
+  - `node --test scripts/dashboard.test.mjs` = tests 25, pass 25, fail 0.
+  - THE LANE: built, copied to ~/.local/bin/ai-usage, codesigned, launchd booted+kitted. Daemon PID on :8765 confirmed via lsof.
+  - curl regression checks on deployed binary:
+    * grep -c 'compare-btn' = 0 (must be 0) — PASS
+    * grep -c 'YOUR NEXT PROVIDER' = 1 (must be 1) — PASS
+    * grep -c 'Plan providers are always ordered' = 1 (must be 1, task 102 regression guard) — PASS
+  - Spot-check on served HTML: scope="col"=4, scope="row"=1, advise-row-winner present, advise-next badge present, "Ranked locally for your next 4 hours" present.
+
+BROWSER: Felipe's — card above stat pills, comparison table visible without clicking, winning row carries "Next" badge, Settings still shows plan-ordering hint with up/down buttons disabled on plan cards, console clean. [UNVERIFIED] by the executor — on-hardware/browser confirmation is the owner's.
+
+SCOPE FENCE: no API change, no firmware, no config change, go.mod byte-identical, zero new dependencies. spec.json: inserted task 108 entry (lost during an earlier `git checkout -- spec.json`), re-serialized with ensure_ascii=False (undoing 432 \u2014 escapes from room message 48). No firmware changes — FLASH REQUEST not applicable.

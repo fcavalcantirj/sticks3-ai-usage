@@ -181,7 +181,7 @@ func TestIndexHTMLSettingsTab(t *testing.T) {
 		t.Error("settings tab should appear before footer in markup")
 	}
 
-	// Task 101: Settings copy must explain that plan providers are ordered by
+	// Task 102: Settings copy must explain that plan providers are ordered by
 	// recommendation score, not by drag-to-reorder.
 	for _, want := range []string{
 		`Plan providers are always ordered by the current usage recommendation`,
