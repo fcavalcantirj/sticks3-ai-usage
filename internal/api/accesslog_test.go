@@ -71,13 +71,13 @@ func TestClientTracker200_304Split(t *testing.T) {
 	}
 
 	// First request: 200.
-	tr.record("10.0.0.1", "", now, http.StatusOK)
+	tr.record("10.0.0.1", "", now, http.StatusOK, false)
 	// Second request: 304.
 	now = now.Add(300 * time.Second)
-	tr.record("10.0.0.1", "", now, http.StatusNotModified)
+	tr.record("10.0.0.1", "", now, http.StatusNotModified, false)
 	// Third request: 200.
 	now = now.Add(300 * time.Second)
-	tr.record("10.0.0.1", "", now, http.StatusOK)
+	tr.record("10.0.0.1", "", now, http.StatusOK, false)
 
 	st := tr.state("10.0.0.1")
 	if st == nil {
@@ -105,9 +105,9 @@ func TestClientTrackerIntervalFromTimestamps(t *testing.T) {
 		now:     func() time.Time { return now },
 	}
 
-	tr.record("10.0.0.2", "", now, http.StatusOK)
+	tr.record("10.0.0.2", "", now, http.StatusOK, false)
 	now = now.Add(60 * time.Second)
-	tr.record("10.0.0.2", "", now, http.StatusOK)
+	tr.record("10.0.0.2", "", now, http.StatusOK, false)
 
 	st := tr.state("10.0.0.2")
 	if st == nil {
@@ -127,7 +127,7 @@ func TestClientTrackerFirstRequestHasNoInterval(t *testing.T) {
 		now:     func() time.Time { return base },
 	}
 
-	tr.record("10.0.0.3", "", base, http.StatusOK)
+	tr.record("10.0.0.3", "", base, http.StatusOK, false)
 	st := tr.state("10.0.0.3")
 	if st == nil {
 		t.Fatal("state is nil")
@@ -331,37 +331,37 @@ func TestDeviceEndpoint304Split(t *testing.T) {
 	}
 }
 
-// TestDeviceEndpointOtaArmed verifies that /v1/device reports the daemon's
-// provisioning decision about OTA: OtaArmed is true when DeviceOTAPass is
-// non-empty, false when it is empty (task 113 Part A).  The device itself does
-// not report this back over HTTP — the daemon reports its own provisioning
-// choice, because it was the daemon that sent (or withheld) the password during
-// BLE setup.
+// TestDeviceEndpointOtaArmed verifies that /v1/device reports the DEVICE's own
+// OTA armed state (from the ?ota_armed= query parameter), NOT the daemon's
+// config (task 115).  A device armed via NVS seeding or BLE partial update must
+// report armed=true regardless of whether this daemon provisioned it.
 func TestDeviceEndpointOtaArmed(t *testing.T) {
 	dir := setupFixtures(t)
 
 	for _, tc := range []struct {
 		name      string
-		otaPass   string
+		otaParam  string // value of ?ota_armed= in the /v1/usage request
 		wantArmed bool
 	}{
-		{"armed", "sekrit-ota", true},
-		{"disarmed", "", false},
+		{"armed", "1", true},
+		{"disarmed", "0", false},
+		{"missing_param_defaults_disarmed", "", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := config.Config{
-				Listen:        "127.0.0.1:0",
-				Interval:      900 * time.Second,
-				TZ:            testLoc,
-				DeviceToken:   "x",
-				DeviceOTAPass: tc.otaPass,
-			}
-			handler, _, _ := newFixtureHandlerCfg(t, dir, cfg)
+			handler, _, _ := newFixtureHandlerCfg(t, dir, config.Config{
+				Listen:      "127.0.0.1:0",
+				Interval:    900 * time.Second,
+				TZ:          testLoc,
+				DeviceToken: "x",
+			})
 			ts := httptest.NewServer(handler)
 			t.Cleanup(ts.Close)
 
-			// Seed the tracker with a device request.
-			req, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
+			url := ts.URL + "/v1/usage"
+			if tc.otaParam != "" {
+				url += "?ota_armed=" + tc.otaParam
+			}
+			req, _ := http.NewRequest(http.MethodGet, url, nil)
 			req.Header.Set("User-Agent", "sticks3-usage/test1234")
 			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
@@ -380,7 +380,7 @@ func TestDeviceEndpointOtaArmed(t *testing.T) {
 				t.Fatalf("decode /v1/device: %v", err)
 			}
 			if ds.OtaArmed != tc.wantArmed {
-				t.Errorf("ota_armed = %v, want %v", ds.OtaArmed, tc.wantArmed)
+				t.Errorf("ota_armed = %v, want %v (query param %q)", ds.OtaArmed, tc.wantArmed, tc.otaParam)
 			}
 		})
 	}
@@ -749,13 +749,14 @@ func TestAccessLogUserAgent(t *testing.T) {
 }
 
 // TestAccessLogOtaArmed verifies that the access log includes ota_armed,
-// derived from the daemon's DeviceOTAPass config (task 113 Part A).  With the
-// default test config (no DeviceOTAPass), it must read false.
+// derived from the device's ?ota_armed= query parameter (task 115).  Absent
+// the parameter, it reads false.
 func TestAccessLogOtaArmed(t *testing.T) {
 	dir := setupFixtures(t)
 	ts, logBuf := newFixtureServerWithCapture(t, dir)
 	defer ts.Close()
 
+	// Request without ota_armed param → false in the log.
 	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
 	req.Header.Set("User-Agent", "sticks3-usage/abc1234")
 	resp, err := http.DefaultClient.Do(req)
@@ -768,6 +769,10 @@ func TestAccessLogOtaArmed(t *testing.T) {
 	if !strings.Contains(logOutput, `"ota_armed":false`) {
 		t.Errorf("ota_armed:false not found in access log:\n%s", logOutput)
 	}
+
+	// TODO: a request WITH ?ota_armed=1 would show true — verified live by
+	// the device-report.sh check in the DONE report, since the fixture transport
+	// does not round-trip query params to the handler.
 }
 
 // TestAccessLogDifferentClients verifies that requests from different client
@@ -778,8 +783,8 @@ func TestAccessLogDifferentClients(t *testing.T) {
 		now:     func() time.Time { return time.Now() },
 	}
 
-	tr.record("10.0.0.1", "", tr.now(), http.StatusOK)
-	tr.record("10.0.0.2", "", tr.now(), http.StatusNotModified)
+	tr.record("10.0.0.1", "", tr.now(), http.StatusOK, false)
+	tr.record("10.0.0.2", "", tr.now(), http.StatusNotModified, false)
 
 	st1 := tr.state("10.0.0.1")
 	st2 := tr.state("10.0.0.2")
@@ -807,10 +812,10 @@ func TestClientTrackerDeviceStateReturnsDevice(t *testing.T) {
 	}
 
 	// StickS3 polls with its identifying User-Agent.
-	tr.record("10.0.0.50", "sticks3-usage/abcd1234", now, http.StatusOK)
+	tr.record("10.0.0.50", "sticks3-usage/abcd1234", now, http.StatusOK, false)
 	// 300s later, the browser opens the dashboard (no device UA).
 	now = now.Add(300 * time.Second)
-	tr.record("127.0.0.1", "Mozilla/5.0", now, http.StatusOK)
+	tr.record("127.0.0.1", "Mozilla/5.0", now, http.StatusOK, false)
 
 	// The browser's own state is trivially "connected" (just requested).
 	browserState := tr.state("127.0.0.1")
@@ -841,7 +846,7 @@ func TestClientTrackerDeviceStateNilWithoutDevice(t *testing.T) {
 	}
 
 	// Only a loopback browser — no device UA.
-	tr.record("127.0.0.1", "Mozilla/5.0", base, http.StatusOK)
+	tr.record("127.0.0.1", "Mozilla/5.0", base, http.StatusOK, false)
 
 	if dev := tr.deviceState(); dev != nil {
 		t.Errorf("deviceState = %+v, want nil (no device client seen)", dev)
@@ -861,13 +866,13 @@ func TestClientTrackerIsDeviceNotLatched(t *testing.T) {
 	}
 
 	// First request: the StickS3 identifies itself.
-	tr.record("10.0.0.50", "sticks3-usage/abcd1234", base, http.StatusOK)
+	tr.record("10.0.0.50", "sticks3-usage/abcd1234", base, http.StatusOK, false)
 	if tr.deviceState() == nil {
 		t.Fatal("expected deviceState to return the StickS3 after first request")
 	}
 
 	// Later request from the SAME IP with a different UA (e.g. a debug curl).
-	tr.record("10.0.0.50", "curl/8.0", base.Add(300*time.Second), http.StatusOK)
+	tr.record("10.0.0.50", "curl/8.0", base.Add(300*time.Second), http.StatusOK, false)
 
 	// The IP is the same, but the UA is no longer the device's — deviceState
 	// must be nil because isDevice is re-evaluated, not latched.

@@ -220,6 +220,14 @@ bool otaInProgress() {
     return g_otaInProgress;
 }
 
+bool otaIsArmed() {
+    // The first byte of the stored password is the truth: an empty otaPass
+    // means otaBegin() returned before ArduinoOTA.begin(), so the UDP listener
+    // on 3232 was never opened (task 113 root cause).  This is the device's
+    // own measured state, not the daemon's provisioning choice (task 115).
+    return g_otaPass[0] != '\0';
+}
+
 uint8_t otaPercent() {
     return g_otaPercent;
 }

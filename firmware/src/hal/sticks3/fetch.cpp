@@ -2,6 +2,7 @@
 #include "hal/sticks3/fetch.h"
 
 #include "hal/sticks3/board.h"   // nowMs, serialLine
+#include "hal/sticks3/net.h"     // otaIsArmed
 #include "usage/serial_proto.h"   // fmtFetch
 
 // NOTE (task 76): secrets.h is deliberately NOT included here any more, and the
@@ -70,11 +71,11 @@ bool fetchUsage(const char* lastRev, FetchResult& out, uint32_t ageS) {
 
     char url[128];
     if (ageS > 0) {
-        std::snprintf(url, sizeof(url), "http://%s:%d/v1/usage?age_s=%u",
-                      g_host, (int)g_port, ageS);
+        std::snprintf(url, sizeof(url), "http://%s:%d/v1/usage?age_s=%u&ota_armed=%d",
+                      g_host, (int)g_port, ageS, otaIsArmed() ? 1 : 0);
     } else {
-        std::snprintf(url, sizeof(url), "http://%s:%d/v1/usage",
-                      g_host, (int)g_port);
+        std::snprintf(url, sizeof(url), "http://%s:%d/v1/usage?ota_armed=%d",
+                      g_host, (int)g_port, otaIsArmed() ? 1 : 0);
     }
     http.begin(client, url);
 

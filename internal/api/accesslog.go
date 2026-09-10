@@ -22,6 +22,7 @@ type clientEntry struct {
 	addr       string // client IP address (without port)
 	userAgent  string // last User-Agent seen from this client
 	isDevice   bool   // re-evaluated from userAgent on every request (ORDER #65)
+	otaArmed   bool   // device-reported OTA armed state (from ?ota_armed= query param, task 115)
 }
 
 // clientTracker records per-client /v1/usage request metadata so the system
@@ -50,10 +51,13 @@ func newClientTracker(nowFn func() time.Time) *clientTracker {
 
 // record stores the latest /v1/usage request from clientKey at time now with
 // the given HTTP status (200 or 304).  userAgent is the request's User-Agent
-// header value.  The client is marked as a device (isDevice) when its
-// User-Agent starts with "sticks3-usage/" — the firmware identifies itself
-// that way, while a browser or loopback curl never does (ORDER #63 task 64).
-func (t *clientTracker) record(clientKey, userAgent string, now time.Time, status int) {
+// header value, and otaArmed is the device-reported OTA state parsed from the
+// ?ota_armed= query parameter (task 115) — true means the device has an OTA
+// password stored and ArduinoOTA.begin() was called.  The client is marked as a
+// device (isDevice) when its User-Agent starts with "sticks3-usage/" — the
+// firmware identifies itself that way, while a browser or loopback curl never
+// does (ORDER #63 task 64).
+func (t *clientTracker) record(clientKey, userAgent string, now time.Time, status int, otaArmed bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -83,6 +87,7 @@ func (t *clientTracker) record(clientKey, userAgent string, now time.Time, statu
 	// do NOT latch it.  A prior device-UA request must not keep the flag if a
 	// later request from the same IP uses a different UA (ORDER #65).
 	entry.isDevice = isDeviceUserAgent(userAgent)
+	entry.otaArmed = otaArmed
 	if status == http.StatusOK {
 		entry.count200++
 	} else if status == http.StatusNotModified {
@@ -141,6 +146,7 @@ func (t *clientTracker) entryToState(e *clientEntry) *deviceState {
 		LastStatus:   e.lastStatus,
 		State:        computeDeviceState(int64(e.lastSeen.Sub(e.prevSeen).Seconds()), int64(now.Sub(e.lastSeen).Seconds())),
 		ClientAddr:   e.addr,
+		OtaArmed:     e.otaArmed,
 	}
 }
 
@@ -228,7 +234,7 @@ func (s *Server) logAccess(r *http.Request, status int) {
 		"user_agent", r.Header.Get("User-Agent"),
 		"status", status,
 		"if_none_match", r.Header.Get("If-None-Match"),
-		"ota_armed", len(s.cfg.DeviceOTAPass) > 0,
+		"ota_armed", r.URL.Query().Get("ota_armed") == "1",
 	)
 }
 
@@ -255,7 +261,7 @@ func (s *Server) logAccessWithAge(r *http.Request, status int, ageS string, serv
 		"if_none_match", r.Header.Get("If-None-Match"),
 		"age_s", ageS,
 		"server_age_s", serverAgeSec,
-		"ota_armed", len(s.cfg.DeviceOTAPass) > 0,
+		"ota_armed", r.URL.Query().Get("ota_armed") == "1",
 	}
 	// drift_s = what the device believes minus what the server knows. Only
 	// computable when the device sent a parseable number; a malformed value is

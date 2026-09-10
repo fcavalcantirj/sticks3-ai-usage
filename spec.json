@@ -1543,6 +1543,22 @@
     "passes": true
   },
   {
+    "category": "host",
+    "description": "THE OTA INDICATOR REPORTS A FACT ABOUT THE MAC AS A CLAIM ABOUT THE DEVICE: it printed 'OTA DISARMED (USB only)' about a stick that had just been flashed over the air three times",
+    "steps": [
+      "Context (repeat in your head; the loop starts you with no memory): this repo is ai-usage at /Users/fcavalcanti/dev/m5/sticks3-ai-usage. Task 113 (commit 4b0f33f) added an OTA-capability indicator so nobody would again waste forty minutes discovering, from 'No response from the ESP', that ArduinoOTA was never armed. Parts B and C of that task are good and stay. Part A is wrong and this task fixes it.",
+      "THE LANE — non-negotiable: `make verify`, `make build`, `cp bin/ai-usage /Users/fcavalcanti/.local/bin/ai-usage`, `codesign --force --sign - /Users/fcavalcanti/.local/bin/ai-usage`, `launchctl kickstart -k gui/$(id -u)/com.fcavalcanti.ai-usage`, `lsof -nP -iTCP:8765 -sTCP:LISTEN` with launchd's PID. NEVER hand-start on 8765. Task 113 shipped WITHOUT the lane being run — the planner ran it afterwards and that is how this was caught.",
+      "THE DEFECT, reproduced live on 2026-09-10. internal/api/server.go:343 reads `ds.OtaArmed = len(s.cfg.DeviceOTAPass) > 0`, and the comment above it is candid: 'The device itself does not report this back, so the daemon reports its own provisioning decision.' On Felipe's machine DeviceOTAPass is empty, so scripts/device-report.sh printed: `3e84832+dirty  OTA DISARMED (USB only)`. THAT WAS FALSE. The stick was armed and had been flashed over the air three times that hour, most recently by `make fw-ota` taking it from 7e194fc to febdc93 — confirmed by the device's own User-Agent, not by the uploader's exit code.",
+      "WHY IT IS FALSE: the device was armed by erasing NVS so credsSeedFromSecretsIfEmpty() re-seeded OTA_PASS from secrets.h. That path never touches the daemon's config. The same wrongness appears for a device armed by a different machine, or re-armed through task 113's own Part B BLE partial-update path — the feature 113 just added makes its own indicator lie.",
+      "WHY THIS MATTERS MORE THAN A COSMETIC LABEL: task 113 existed to stop someone acting on a wrong belief about OTA. An indicator that confidently says 'USB only' about a device that flashes over the air fine replaces one wrong belief with another, and this one is stamped with the daemon's authority. A label nobody trusts is better than a label that is confidently wrong.",
+      "(a) THE FIX — HAVE THE DEVICE REPORT ITS OWN STATE. The firmware already knows: otaBegin() sets g_otaStarted, and it is false exactly when the stored ota_pass is empty. The device already sends a User-Agent on every fetch and already appends a query parameter (?age_s=), so there is an established channel for it to say so. Carry the device's real OTA state to the daemon and report THAT.",
+      "(b) IF, AND ONLY IF, (a) proves genuinely impractical, keep the inference but LABEL IT AS ONE. Not 'OTA DISARMED (USB only)' — say what is actually known: 'not provisioned with an OTA password by this daemon'. Duller, longer, and true. If you take this route you must say in your report WHY (a) was impractical, because it is the better answer and the one the planner expects.",
+      "SCOPE FENCE: internal/api (the indicator and its label), scripts/device-report.sh, internal/web/render.js for the device card, and the firmware side of (a) if you take it. Do NOT weaken the disarm policy in net.cpp — arming OTA without a password would let anyone on the LAN reflash the device, and that decision is correct. Do not touch Parts B or C of task 113; they work.",
+      "Verify: `make verify` exits 0 and, if you touched firmware, `make fw-test` Failed 0 and `make fw-build` SUCCESS with 0 warnings. THEN RUN THE LANE — task 113 did not, which is the whole reason this defect shipped. Prove it on the RUNNING daemon: paste `curl -s 127.0.0.1:8765/v1/device` and `sh scripts/device-report.sh`, and state plainly what the ota value now MEASURES. The decisive check: Felipe's stick is currently ARMED and OTA works — `make fw-ota` uploads to it end to end — so the indicator MUST NOT say disarmed. If it still does, the fix did not take, whatever the tests say."
+    ],
+    "passes": true
+  },
+  {
     "category": "release",
     "description": "BUMP TO 0.3.0 — only after Felipe confirms the manual test passed",
     "steps": [

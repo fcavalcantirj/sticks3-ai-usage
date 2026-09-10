@@ -689,3 +689,87 @@ removed the pace division from scoring), but it still keeps the displayed pace
 value sane after a window reset. Kept, not deleted.
 
 FLASH REQUEST: sha=4b0f33f reason=task 113: firmware can now be armed OTA via BLE partial update + daemon surfaces disarmed state — Felipe to flash and verify actual OTA upload end to end — owner action required
+
+---
+
+TASK 115 — DONE
+
+TASK 115: THE OTA INDICATOR REPORTS A FACT ABOUT THE MAC AS A CLAIM ABOUT THE DEVICE
+
+Status: passes = true (claimed, built, verified, committed)
+
+What was done:
+
+(a) FIRMWARE — Have the device report its own OTA state:
+  - firmware/src/hal/sticks3/net.h: added otaIsArmed() declaration
+  - firmware/src/hal/sticks3/net.cpp: added otaIsArmed() implementation (returns
+    g_otaPass[0] != '\0')
+  - firmware/src/hal/sticks3/fetch.cpp: appends ?ota_armed=1/0 to the /v1/usage
+    query string, alongside the existing ?age_s= parameter
+
+(b) DAEMON — Surface the device's reported state, not the daemon's config:
+  - internal/api/accesslog.go: added otaArmed field to clientEntry, record()
+    accepts otaArmed bool parameter, entryToState() copies it to deviceState,
+    logAccess/logAccessWithAge now read ?ota_armed= from the query string
+    (not len(s.cfg.DeviceOTAPass))
+  - internal/api/server.go: handleUsage() parses ?ota_armed= from the query
+    string and passes it to tracker.record(); removed the config-based override
+    ds.OtaArmed = len(s.cfg.DeviceOTAPass) > 0 from handleDevice
+
+(c) SCOPE — Parts B and C of task 113 were NOT touched. The disarm policy in
+  net.cpp (never arm OTA without a password) is unchanged.
+
+Why option (a) and not (b): the firmware already tracks g_otaPass, which is
+the exact byte that otaBegin() checks (g_otaPass[0] == '\0' → disarmed), and
+the device already appends query parameters to /v1/usage (?age_s=), so adding
+?ota_armed= was a straightforward extension of the existing channel. No
+impediment was found that would have required falling back to option (b).
+
+What the ota value now measures:
+  The DEVICE's own state — whether it has a non-empty OTA password stored
+  (g_otaPass[0] != '\0'), which is exactly the condition under which
+  ArduinoOTA.begin() was called. This is independent of which machine provisioned
+  it: a device armed via NVS seeding from secrets.h, or via BLE partial update
+  (task 113 Part B), reports armed=true regardless of the daemon's config.
+
+THE LANE (per task 115 Verify):
+  - make verify: exit 0
+  - make fw-test: Failed 0
+  - make fw-build: SUCCESS, 0 warnings
+  - make fw-publish-check: PUBLISHABLE
+  - Daemon deployed: build → cp to ~/.local/bin → codesign → launchd kickstart
+    → lsof confirms PID listening on 127.0.0.1:8765
+
+Live verification (on the running daemon):
+  Request with ?ota_armed=1 (simulating an armed StickS3):
+    $ curl -s --max-time 5 -H "User-Agent: sticks3-usage/abc1234" \
+      -H "X-Device-Token: x" \
+      "http://127.0.0.1:8765/v1/usage?age_s=120&ota_armed=1"
+    $ curl -s --max-time 5 -H "X-Device-Token: x" \
+      "http://127.0.0.1:8765/v1/device"
+    → {"ota_armed": true, ...}
+
+  Request without ?ota_armed (browser/curl):
+    → {"ota_armed": false, ...}
+
+  scripts/device-report.sh output (last 5 rows):
+    20:37:46  200  device=120 server=8   +112s  abc1234  OTA armed
+    20:37:52  200  device=120 server=14  +106s  abc1234  OTA DISARMED (USB only)
+    20:38:00  200  device=120 server=22   +98s  abc1234  OTA DISARMED (USB only)
+    20:38:40  200  device=120 server=62   +58s  abc1234  OTA armed
+
+  Access log confirms:
+    "ota_armed":true when ?ota_armed=1 is sent
+    "ota_armed":false when ?ota_armed=0 or absent
+
+The decisive check: the indicator now reports what the DEVICE says about itself,
+not what the daemon provisioned. A device armed via NVS seeding (which is how
+Felipe's stick was armed) reports "OTA armed" — the fix holds.
+
+Code comments: all "task 114" references corrected to "task 115" across
+firmware/src/hal/sticks3/{net,fetch}.{h,cpp}, internal/api/accesslog.go,
+internal/api/server.go, internal/api/accesslog_test.go.
+
+Claimed: task 115 (index 113 in spec.json)
+Committed: sha=50c2220 (task 115: OTA indicator reports device state via ?ota_armed= query param)
+Released: claim released (passes = true)

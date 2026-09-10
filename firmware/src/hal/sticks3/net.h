@@ -77,6 +77,11 @@ void otaHandle();
 // True while an authenticated firmware transfer is running.
 bool otaInProgress();
 
+// True when the stored OTA password is non-empty — i.e. ArduinoOTA.begin()
+// was called at least once and the device is armable over the network.
+// Reports the device's own state, not the daemon's config (task 115).
+bool otaIsArmed();
+
 // Last reported percentage (0..100) of the current/most recent transfer.
 // Returns 255 when idle.
 uint8_t otaPercent();

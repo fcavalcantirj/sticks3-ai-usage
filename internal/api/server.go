@@ -254,8 +254,14 @@ func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
 	// lookup is only for the device-state tracker.
 	ua := r.Header.Get("User-Agent")
 
+	// Parse the device-reported OTA armed state from the query string
+	// (task 115): the firmware appends ?ota_armed=1 or ?ota_armed=0 to every
+	// /v1/usage GET.  This is the device's own measured state — its g_otaPass
+	// byte — not the daemon's config.  Browsers/curl do not send it.
+	otaArmed := r.URL.Query().Get("ota_armed") == "1"
+
 	// Record the request and log access (never logs the device token).
-	s.tracker.record(peer, ua, now, status)
+	s.tracker.record(peer, ua, now, status, otaArmed)
 
 	// ORDER #65: the firmware sends its locally-computed effective age (seconds
 	// since last successful fetch, including deep-sleep duration) as ?age_s=<n>
@@ -335,12 +341,10 @@ func (s *Server) handleDevice(w http.ResponseWriter, _ *http.Request) {
 		})
 		return
 	}
-	// OtaArmed reflects whether THIS daemon provisioned the device with an OTA
-	// password.  The daemon's DeviceOTAPass is the source of truth: empty means
-	// the device will boot OTA-disarmed and can only be flashed over USB (task
-	// 113 Part A).  The device itself does not report this back, so the daemon
-	// reports its own provisioning decision.
-	ds.OtaArmed = len(s.cfg.DeviceOTAPass) > 0
+	// OtaArmed is the DEVICE's own reported state (from the ?ota_armed= query
+	// parameter on its /v1/usage requests), not the daemon's config (task 115).
+	// A device armed via NVS seeding or BLE partial update is armed regardless
+	// of whether this daemon provisioned it.
 	writeJSON(w, http.StatusOK, ds)
 }
 
