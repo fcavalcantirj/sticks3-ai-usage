@@ -123,4 +123,144 @@ void buildAdviseLayout(AdvisePlan& plan) {
     plan.recs[0] = tmp;
 }
 
+// --- row fitting ---------------------------------------------------------
+
+// truncateLabel copies at most budget characters of label into out, appending
+// ".." when the label was longer than budget (and budget >= 3).  Always
+// NUL-terminates within outSize.  Returns the number of chars placed
+// (excluding NUL).  When budget < 3, only ".." or empty is written.
+static size_t truncateLabel(const char* label, char* out, size_t outSize, size_t budget) {
+    if (outSize == 0) return 0;
+    if (label == nullptr) label = "";
+    size_t labelLen = std::strlen(label);
+
+    if (labelLen <= budget) {
+        size_t i;
+        for (i = 0; i < outSize - 1 && i < labelLen; i++)
+            out[i] = label[i];
+        out[i] = '\0';
+        return i;
+    }
+
+    // Need room for at least ".." (2 chars + NUL).
+    if (budget < 3 || outSize < 3) {
+        if (outSize >= 3) {
+            out[0] = '.';
+            out[1] = '.';
+            out[2] = '\0';
+            return 2;
+        }
+        out[0] = '\0';
+        return 0;
+    }
+
+    // Copy (budget - 2) chars of label + ".." + NUL = budget + 1 bytes total.
+    size_t copyLen = budget - 2;
+    if (copyLen > outSize - 3) copyLen = outSize - 3;
+    size_t i;
+    for (i = 0; i < copyLen && label[i] != '\0'; i++)
+        out[i] = label[i];
+    out[i++] = '.';
+    out[i++] = '.';
+    out[i] = '\0';
+    return i;
+}
+
+size_t fitAdviseRow(const char* label, int headroomPct, float paceRatio,
+                    char* out, size_t outSize, size_t maxChars) {
+    if (outSize == 0 || maxChars == 0) {
+        if (outSize > 0) out[0] = '\0';
+        return 0;
+    }
+
+    // Build the fixed suffix: "  <headroom>%  <pace>.0x"
+    // The numbers are never the part that gets cut.
+    char suffix[32];
+    int slen = std::snprintf(suffix, sizeof(suffix), "  %d%%  %.1fx",
+                              headroomPct, (double)paceRatio);
+    if (slen < 0 || (size_t)slen >= sizeof(suffix)) {
+        out[0] = '\0';
+        return 0;
+    }
+    size_t suffixLen = (size_t)slen;
+
+    // If the numbers alone exceed the budget, the row cannot be shown.
+    if (suffixLen >= maxChars) {
+        out[0] = '\0';
+        return 0;
+    }
+
+    size_t labelBudget = maxChars - suffixLen;
+    size_t labelLen = (label != nullptr) ? std::strlen(label) : 0;
+
+    if (labelLen <= labelBudget) {
+        // Full label fits — build the complete row.
+        size_t total = (size_t)std::snprintf(out, outSize, "%s%s",
+            (label != nullptr) ? label : "", suffix);
+        return (total < outSize) ? total : 0;
+    }
+
+    // Label overflows — truncate it, keeping the ".." inside the label budget.
+    // The suffix (numbers) is always intact.
+    if (labelBudget < 2) {
+        // Not enough room even for ".." in the label slot — just show "..suffix".
+        size_t total = (size_t)std::snprintf(out, outSize, "..%s", suffix);
+        return (total < outSize) ? total : 0;
+    }
+
+    // Truncate label to labelBudget with ".." suffix into out, then append suffix.
+    char* p = out;
+    size_t i;
+    // Copy as many label chars as fit (leaving room for ".." and NUL).
+    size_t maxCopy = (labelBudget >= 3) ? labelBudget - 2 : 0;
+    for (i = 0; i < maxCopy && label[i] != '\0'; i++)
+        p[i] = label[i];
+    if (maxCopy == 0 && labelBudget >= 2) {
+        // Budget is 2 — just the dots, no label chars.
+        p[0] = '.';
+        p[1] = '.';
+        i = 2;
+    } else {
+        p[i++] = '.';
+        p[i++] = '.';
+    }
+    // Append suffix.
+    for (size_t j = 0; j < suffixLen && i < outSize - 1; j++)
+        p[i++] = suffix[j];
+    p[i] = '\0';
+    return i;
+}
+
+size_t fitWinnerLine(const char* label, char* out, size_t outSize, size_t maxChars) {
+    if (outSize == 0 || maxChars == 0) {
+        if (outSize > 0) out[0] = '\0';
+        return 0;
+    }
+
+    const char* prefix = "use: ";
+    size_t prefixLen = 5;  // "use: "
+    size_t labelLen = (label != nullptr) ? std::strlen(label) : 0;
+
+    if (prefixLen + labelLen <= maxChars) {
+        // Full line fits.
+        size_t total = (size_t)std::snprintf(out, outSize, "%s%s",
+            prefix, (label != nullptr) ? label : "");
+        return (total < outSize) ? total : 0;
+    }
+
+    // Truncate label to fit, with ".." suffix.
+    if (maxChars <= prefixLen) {
+        // Can't even fit the prefix — truncate prefix too.
+        size_t total = (size_t)std::snprintf(out, outSize, "..");
+        return (total < outSize) ? total : 0;
+    }
+
+    size_t labelBudget = maxChars - prefixLen;
+    // Build into a temp buffer, then assemble via snprintf (overflow-safe).
+    char truncated[32];
+    truncateLabel(label, truncated, sizeof(truncated), labelBudget);
+    size_t total = (size_t)std::snprintf(out, outSize, "%s%s", prefix, truncated);
+    return (total < outSize) ? total : 0;
+}
+
 } // namespace usage

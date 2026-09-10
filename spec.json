@@ -1524,7 +1524,7 @@
       "SCOPE FENCE: firmware/src/usage/advise_view.* and firmware/src/hal/sticks3/screen.cpp plus their tests. NO daemon changes, NO internal/web, no changes to what /v1/advise returns — this is purely how the device renders what it already receives. BUILD ONLY, NEVER FLASH: append a FLASH REQUEST line to progress.txt naming the commit sha AFTER the commit exists, and stop. Felipe owns every upload.",
       "Verify: `make fw-test` Failed 0, including new tests for the fitting logic — a label that fits is unchanged, a label that would overflow is shortened, and the numbers are never the part that gets cut. `make fw-build` SUCCESS with 0 warnings from firmware/src/. `make fw-publish-check` PUBLISHABLE. Record firmware.bin size and OTA_BUILD_ID before and after. State plainly that the overlay is still transient and that the 1500ms threshold is untouched. THE READABILITY JUDGEMENT IS FELIPE'S — he asked for 'waaay' bigger, so if you land on size 2 and it still looks cramped he will say so; label the hardware check [UNVERIFIED] by the executor and append the FLASH REQUEST line."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "firmware",

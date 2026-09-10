@@ -553,11 +553,16 @@ void drawAdviseStatus() {
 }
 
 // drawAdviseOverlay renders the full /v1/advise ranking as a transient overlay.
-// Layout on the 240×135 screen (textSize 1 ≈ 6 px/char, ≈10 px row height):
+// Layout on the 240×135 screen (textSize 2 ≈ 12 px/char, ≈16 px row height):
 //   y=4   title "ADVISE"        (size 2, centred)
-//   y=28  winner: "USE: <label>" (green, centred) + reason (white, centred)
-//   y~44  up to 5 recommendation rows (id  label  pct%  pace×)
-//   y=116 hint "any button to dismiss" (amber, right-aligned)
+//   y=24  winner: "use: <label>" (green, centred, size 2)
+//   y=44  up to 5 recommendation rows (label  pct%  pace×, size 2)
+//   y=116 hint "any button to dismiss" (amber, right-aligned, size 1)
+//
+// The reason line is dropped: at size 2 its ~36 chars would be ~432 px on a
+// 240 px panel — nearly twice the width — and the rows already show headroom
+// and pace per provider (task 112 spec).  The fitting logic (fitAdviseRow)
+// lives in the pure core (advise_view.cpp) so it is host-tested.
 void drawAdviseOverlay(const usage::AdvisePlan& plan) {
     M5.Display.fillScreen(TFT_BLACK);
     int16_t W = M5.Display.width();
@@ -572,45 +577,35 @@ void drawAdviseOverlay(const usage::AdvisePlan& plan) {
     M5.Display.setCursor((W - tw) / 2, 4);
     M5.Display.println(title);
 
-    M5.Display.setTextSize(1);
-    int16_t y = 28;
-
-    // --- winner line ---
+    // --- winner line (size 2, green, centred) ---
+    // 20 chars at 12 px/char = 240 px = full width when centred.
     if (plan.hasWinner && plan.winnerLabel[0] != '\0') {
         char winnerBuf[48];
-        std::snprintf(winnerBuf, sizeof(winnerBuf), "use: %s", plan.winnerLabel);
+        usage::fitWinnerLine(plan.winnerLabel, winnerBuf, sizeof(winnerBuf), 20);
         tw = M5.Display.textWidth(winnerBuf);
         M5.Display.setTextColor(TFT_GREEN);
-        M5.Display.setCursor((W - tw) / 2, y);
+        M5.Display.setCursor((W - tw) / 2, 24);
         M5.Display.println(winnerBuf);
-        y += 12;
     }
 
-    // --- reason ---
-    if (plan.reason[0] != '\0') {
-        M5.Display.setTextColor(TFT_WHITE);
-        tw = M5.Display.textWidth(plan.reason);
-        M5.Display.setCursor((W - tw) / 2, y);
-        M5.Display.println(plan.reason);
-        y += 12;
-    }
-
-    y += 4; // gap before recommendation rows
-
-    // --- recommendation rows ---
+    // --- recommendation rows (size 2, left-aligned at x=5) ---
+    // 19 chars at 12 px/char = 228 px; with 5 px left margin = 235 px < 240.
+    M5.Display.setTextSize(2);
+    M5.Display.setTextColor(TFT_WHITE);
+    int16_t y = 44;
     for (uint8_t i = 0; i < plan.recCount && i < usage::kMaxRecs; i++) {
         const usage::AdviseRec& rec = plan.recs[i];
         char line[64];
-        std::snprintf(line, sizeof(line), "%s  %d%%  %.1fx",
-                      rec.label,
-                      rec.effectiveHeadroomPct,
-                      (double)rec.paceRatio);
+        usage::fitAdviseRow(rec.label, rec.effectiveHeadroomPct,
+                            rec.paceRatio, line, sizeof(line),
+                            usage::kAdviseRowMaxChars);
         M5.Display.setCursor(5, y);
         M5.Display.println(line);
-        y += 12;
+        y += 16; // 16 px row height at size 2
     }
 
-    // --- hint at bottom-right (amber) ---
+    // --- hint at bottom-right (amber, size 1) ---
+    M5.Display.setTextSize(1);
     M5.Display.setTextColor(0xFD20);
     const char* hint = "any button to dismiss";
     int16_t hintW = M5.Display.textWidth(hint);

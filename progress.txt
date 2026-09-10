@@ -600,3 +600,45 @@ Browser pass [UNVERIFIED] by the executor — Felipe's: tile reads R$1265 large 
 small, partial disclosure shows "(partial: <unknown>, codex-auto-review, fugu)" under
 the old estimate figures, task 102's plan-ordering hint survives. spec.json[110] passes
 flipped to true, claimed released.
+2026-09-10T20:XX:XXZ CLAIM task 112 — THE ADVISE OVERLAY IS UNREADABLE AT ARM'S LENGTH: bump winner+rows to size 2, add overflow guard in pure core. Firmware only. No flash.
+2026-09-10T21:XX:XXZ TASK 112 DONE — THE ADVISE OVERLAY IS UNREADABLE AT ARM'S LENGTH: bump winner+rows to size 2, add row-fitting logic in pure core, drop reason line.
+
+Summary of changes:
+- firmware/src/usage/advise_view.h: added fitAdviseRow() and fitWinnerLine() declarations;
+  added kAdviseRowMaxChars constant (19) — char budget at textSize(2) on 240px panel
+  ((240-5)/12).
+- firmware/src/usage/advise_view.cpp: implemented fitAdviseRow() — builds a rec row
+  "label  pct%  pace×" fitting within maxChars; truncates the LABEL with ".." suffix
+  when it overflows, NEVER the numbers (headroom% / pace×). Implemented
+  fitWinnerLine() — builds "use: <label>" with the same truncation discipline.
+  Both are pure C++17, no M5/Arduino headers.
+- firmware/src/hal/sticks3/screen.cpp: drawAdviseOverlay now draws winner line and
+  recommendation rows at textSize(2); drops the reason line (36 chars would be
+  ~432px at size 2 vs 240px panel — redundant since rows show headroom+pace);
+  uses fitAdviseRow() for each row with kAdviseRowMaxChars; adjusts y positions
+  for 16px line height at size 2; keeps title at size 2, hint at size 1 (amber),
+  winner green, transient (any button dismisses), BtnA threshold untouched (1500ms).
+- firmware/test/host/test_advise_view.cpp: 11 new tests for fitAdviseRow and
+  fitWinnerLine (label fits unchanged, overflow truncated with ".., numbers never
+  cut, numbers exceed budget returns 0, empty/null label, buffer too small,
+  exact budget, winner line fits/overflows/null).
+
+Reason line decision: DROPPED. The reason text (~36 chars: "headroom 48%, binding 7d
+(pace 3.20x)") would be ~432px at textSize(2) on a 240px panel — nearly twice the
+width. Shrinking it to size 1 would violate Felipe's "waaay increase letters" directive
+and a line nobody can read is not worth the pixels. The rows below already render
+headroom% and pace× per provider, so the information is preserved.
+
+Verify (from spec.json):
+- make fw-test = Failed 0 (381 PASS, including 11 new fitAdviseRow/fitWinnerLine tests).
+- make fw-build = SUCCESS, 0 warnings from firmware/src/.
+- make fw-publish-check = PUBLISHABLE (secrets.h stashed and restored).
+- make verify = exit 0 (Go tests unaffected — firmware-only change).
+
+firmware.bin: 1702496 bytes (1.62 MB) — no unexpected growth.
+OTA_BUILD_ID: ff29518 (dirty during build; clean after commit).
+
+Hardware/overlay rendering [UNVERIFIED] by the executor — Felipe's: winner at size 2,
+three rec rows at size 2 with headroom% and pace× intact, reason dropped, hint at size 1.
+Overlay is still transient (any button dismisses); BtnA hold threshold 1500ms untouched.
+spec.json[111] passes flipped to true, claimed released.

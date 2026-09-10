@@ -295,3 +295,111 @@ TEST(advise_layout_empty_winner_id) {
     ASSERT_STREQ("codex", plan.recs[0].id);
     ASSERT_STREQ("claude", plan.recs[1].id);
 }
+
+// --- fitAdviseRow: row fitting at textSize(2), 20-char budget -----------------
+
+// A row that fits within the budget is copied unchanged.
+// "codex  100%  1.0x" = 17 chars < 19.
+TEST(fitrow_label_fits_unchanged) {
+    char out[64];
+    size_t n = usage::fitAdviseRow("codex", 100, 1.0f, out, sizeof(out), 19);
+    ASSERT_STREQ("codex  100%  1.0x", out);
+    ASSERT_EQ(17, (int)n);
+}
+
+// A short headroom (1%) and multi-digit pace shrink the suffix, leaving
+// more room for the label.  "OpenCode Go  1%  1.8x" = 20 chars > 19 →
+// label truncated to "OpenCod.." so the full row is 19 chars.
+TEST(fitrow_label_overflow_truncated) {
+    char out[64];
+    size_t n = usage::fitAdviseRow("OpenCode Go", 1, 1.8f, out, sizeof(out), 19);
+    ASSERT_STREQ("OpenCod..  1%  1.8x", out);
+    ASSERT_EQ(19, (int)n);
+}
+
+// Numbers are never the part that gets cut — the suffix is intact even
+// when the label is severely truncated.
+TEST(fitrow_numbers_never_cut) {
+    char out[64];
+    // "ExtraLongProviderNameThatIsWayTooLong  50%  2.3x" would be 50 chars.
+    size_t n = usage::fitAdviseRow("ExtraLongProviderNameThatIsWayTooLong",
+                                   50, 2.3f, out, sizeof(out), 19);
+    // Suffix "  50%  2.3x" = 11 chars; label budget = 19 - 11 = 8.
+    // Truncate to 6 chars + ".." = "ExtraL.." (8 chars).
+    ASSERT_STREQ("ExtraL..  50%  2.3x", out);
+    ASSERT_EQ(19, (int)n);
+
+    // Verify the numbers tail is exactly the suffix.
+    const char* suffix = "  50%  2.3x";
+    size_t suffixLen = std::strlen(suffix);
+    ASSERT_STREQ(suffix, out + n - suffixLen);
+}
+
+// When the numbers alone exceed maxChars, the row cannot be shown (return 0).
+TEST(fitrow_numbers_exceed_budget) {
+    char out[64];
+    // "  100%  99.9x" = 13 chars; budget 5 can't hold it.
+    size_t n = usage::fitAdviseRow("codex", 100, 99.9f, out, sizeof(out), 5);
+    ASSERT_EQ(0, (int)n);
+    ASSERT_STREQ("", out);
+}
+
+// Empty label: row is just the numbers (with leading separators).
+TEST(fitrow_empty_label) {
+    char out[64];
+    size_t n = usage::fitAdviseRow("", 50, 1.0f, out, sizeof(out), 19);
+    // "  50%  1.0x" = 11 chars; label budget = 8, label is empty.
+    ASSERT_STREQ("  50%  1.0x", out);
+    ASSERT_EQ(11, (int)n);
+}
+
+// nullptr label is treated as empty.
+TEST(fitrow_null_label) {
+    char out[64];
+    size_t n = usage::fitAdviseRow(nullptr, 42, 3.1f, out, sizeof(out), 19);
+    ASSERT_STREQ("  42%  3.1x", out);
+    ASSERT_EQ(11, (int)n);
+}
+
+// Buffer too small: return 0, never write out of bounds.
+TEST(fitrow_buffer_too_small) {
+    char out[4];
+    size_t n = usage::fitAdviseRow("codex", 100, 1.0f, out, sizeof(out), 19);
+    // Full row is 17 chars; buffer is 4 — snprintf returns 17 but we detect overflow.
+    ASSERT_EQ(0, (int)n);
+}
+
+// Exact budget: a label of 9 chars + 10-char suffix = 19 chars fills budget.
+TEST(fitrow_exact_budget) {
+    char out[64];
+    size_t n = usage::fitAdviseRow("123456789", 1, 1.8f, out, sizeof(out), 19);
+    ASSERT_STREQ("123456789  1%  1.8x", out);
+    ASSERT_EQ(19, (int)n);
+}
+
+// fitWinnerLine: a short label fits unchanged.
+TEST(winnerline_label_fits) {
+    char out[48];
+    size_t n = usage::fitWinnerLine("ChatGPT", out, sizeof(out), 20);
+    ASSERT_STREQ("use: ChatGPT", out);
+    ASSERT_EQ(12, (int)n);
+}
+
+// fitWinnerLine: a long label is truncated to fit.
+TEST(winnerline_label_overflow) {
+    char out[48];
+    // "use: " = 5 chars; budget for label = 15.
+    // "VeryLongProviderName" = 20 chars > 15 → truncate to 13 + "..".
+    size_t n = usage::fitWinnerLine("VeryLongProviderName", out, sizeof(out), 20);
+    // First 13 chars of label = "VeryLongProvi" + ".." = 15; "use: " + 15 = 20.
+    ASSERT_STREQ("use: VeryLongProvi..", out);
+    ASSERT_EQ(20, (int)n);
+}
+
+// fitWinnerLine: nullptr label is treated as empty.
+TEST(winnerline_null_label) {
+    char out[48];
+    size_t n = usage::fitWinnerLine(nullptr, out, sizeof(out), 20);
+    ASSERT_STREQ("use: ", out);
+    ASSERT_EQ(5, (int)n);
+}

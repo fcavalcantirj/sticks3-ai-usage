@@ -59,4 +59,30 @@ bool parseAdvise(const char* json, size_t len, AdvisePlan& out,
 // the layout for rendering.
 void buildAdviseLayout(AdvisePlan& plan);
 
+// kAdviseRowMaxChars is the character budget for a recommendation row at
+// textSize(2) on the 240x135 panel: (240 - 5) / 12 ≈ 19 chars.  Passed from
+// screen.cpp to fitAdviseRow so the HAL stays dumb and the pure core owns
+// the fitting contract.
+static const size_t kAdviseRowMaxChars = 19;
+
+// fitAdviseRow builds a single recommendation row string fitting within
+// maxChars.  Format: "label  pct%  pace×"
+//
+// At textSize(2) each character is ~12 px; a row like
+// "OpenCode Go  1%  1.8x" is ~228 px of a 240 px panel — it fits barely,
+// and a longer provider label would run off the edge silently.  This
+// function truncates the LABEL (with ".." suffix) when the row would
+// overflow, but the numbers (headroom% and pace×) are never cut — they
+// are the point.
+//
+// Returns the fitted string length (excluding NUL), or 0 if the numbers
+// alone exceed maxChars (row cannot be shown meaningfully).
+size_t fitAdviseRow(const char* label, int headroomPct, float paceRatio,
+                    char* out, size_t outSize, size_t maxChars);
+
+// fitWinnerLine builds "use: <label>" truncated to maxChars with ".."
+// suffix when needed.  Winner labels are typically short, but a 23-char
+// buffer could overflow at textSize(2).  Returns the string length.
+size_t fitWinnerLine(const char* label, char* out, size_t outSize, size_t maxChars);
+
 } // namespace usage
