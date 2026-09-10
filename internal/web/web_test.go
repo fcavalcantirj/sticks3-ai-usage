@@ -103,8 +103,8 @@ func TestIndexHTMLTabs(t *testing.T) {
 	}
 }
 
-// TestIndexHTMLRefreshInHeader verifies the refresh button is in the header,
-// not in the footer (ORDER #48).
+// TestIndexHTMLRefreshInHeader verifies the refresh button is in the header
+// (task 110: moved into topbar-right), not in the footer (ORDER #48).
 func TestIndexHTMLRefreshInHeader(t *testing.T) {
 	html := string(IndexHTML)
 	refreshIdx := strings.Index(html, `id="refresh-btn"`)
@@ -118,10 +118,19 @@ func TestIndexHTMLRefreshInHeader(t *testing.T) {
 	if refreshIdx > footerIdx {
 		t.Error(`refresh button appears AFTER footer-bar — it must be in the header`)
 	}
+	// Task 110: refresh controls must live in the topbar, before main content.
+	mainIdx := strings.Index(html, `id="main"`)
+	if mainIdx < 0 {
+		t.Fatal(`index.html missing id="main"`)
+	}
+	if refreshIdx > mainIdx {
+		t.Error(`refresh button appears AFTER #main — it must be in the topbar`)
+	}
 }
 
 // TestIndexHTMLIntervalSelect verifies the interval selector options match
-// ORDER #48: 5/10/15/30/60 minutes (300/600/900/1800/3600 seconds).
+// ORDER #48: 5/10/15/30/60 minutes (300/600/900/1800/3600 seconds), and is
+// placed in the topbar (task 110), not in the deleted page-heading section.
 func TestIndexHTMLIntervalSelect(t *testing.T) {
 	html := string(IndexHTML)
 	if !strings.Contains(html, `id="interval-select"`) {
@@ -131,6 +140,28 @@ func TestIndexHTMLIntervalSelect(t *testing.T) {
 		if !strings.Contains(html, `value="`+want+`"`) {
 			t.Errorf(`index.html missing interval option value %q`, want)
 		}
+	}
+	// Task 110: interval control must be in the topbar, before main content.
+	intervalIdx := strings.Index(html, `id="interval-select"`)
+	mainIdx := strings.Index(html, `id="main"`)
+	if intervalIdx > mainIdx {
+		t.Error(`interval-select appears AFTER #main — it must be in the topbar`)
+	}
+}
+
+// TestIndexHTMLNoPageChrome verifies task 110 removed the duplicated page
+// chrome: the page-heading section, page-title, page-description, and
+// page-eyebrow are all gone, and the breadcrumb-view h1 is the sole <h1>.
+func TestIndexHTMLNoPageChrome(t *testing.T) {
+	html := string(IndexHTML)
+	for _, banned := range []string{"page-heading", `id="page-title"`, `id="page-description"`, `id="page-eyebrow"`} {
+		if strings.Contains(html, banned) {
+			t.Errorf("index.html still contains removed element %q", banned)
+		}
+	}
+	h1Count := strings.Count(html, "<h1")
+	if h1Count != 1 {
+		t.Errorf("index.html has %d <h1> elements, expected exactly 1 (the promoted breadcrumb-view)", h1Count)
 	}
 }
 

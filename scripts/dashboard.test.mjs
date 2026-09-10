@@ -276,7 +276,7 @@ test('tab navigation preserves its destination and resets document scroll', () =
   c.window.scrollTo = position => { scroll = position; };
   c.window.history.replaceState = (_, __, value) => { path = value; };
   c.showTab('tab-activity');
-  assert.equal(node('page-title').textContent, 'Activity');
+  assert.equal(node('breadcrumb-view').textContent, 'Activity');
   assert.equal(storage.get('usaged_tab'), 'tab-activity');
   assert.equal(path, '/#activity');
   assert.equal(scroll.top, 0);

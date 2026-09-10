@@ -135,11 +135,8 @@ function showTab(panelId) {
     btn.setAttribute('aria-selected', String(selected));
     btn.tabIndex = selected ? 0 : -1;
   });
-  document.getElementById('page-title').textContent = pageNames[view][0];
   document.getElementById('breadcrumb-view').textContent = pageNames[view][0];
-  document.getElementById('page-description').textContent = pageNames[view][1];
-  document.getElementById('page-eyebrow').textContent = view === 'quota' ? 'YOUR AI, AT A GLANCE' : 'YOUR PERSONAL CONTROL CENTER';
-  document.getElementById('advise-card').hidden = view === 'settings';
+  document.getElementById('advise-card').hidden = view !== 'quota';
   localStorage.setItem('usaged_tab', panelId);
   window.history.replaceState({}, '', window.location.pathname + window.location.search + '#' + view);
   closeNavigation();
