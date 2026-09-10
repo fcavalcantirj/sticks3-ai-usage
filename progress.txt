@@ -432,3 +432,53 @@ SCOPE FENCE: no API change, no firmware, no config change, go.mod byte-identical
 BROWSER: Felipe's — every view renders, console clean, navigation works, Settings still shows plan-ordering hint with disabled up/down on plan cards, advise card shows winner with Next badge. [UNVERIFIED] by the executor.
 
 SCOPE FENCE: no code changes in this task — parity sweep is read-only verification. spec.json: task 106 passes remains false (stays open for Felipe's browser pass).
+
+TASK 109 — THE WINNER MUST BE USABLE NOW — DONE
+
+Code:
+- internal/advise/advise.go:
+  Part A (blocked gate): Added Blocked bool and BlockedForSec int to Recommendation.
+  A provider is blocked when any window is at pct=100 — it cannot be the winner while a
+  usable (non-blocked) provider with positive headroom exists, but still appears in the
+  ranked table with its real numbers, marked blocked, and naming the time to free. When
+  ALL providers are blocked, the winner is the one that frees soonest. The winner's reason
+  mentions the blocked top-scorer that was passed over ("is out for X, then it is the
+  stronger pick").
+  Part B (time-weighted headroom): In the untilReset <= horizon branch, replaced flat
+  headroom=100 with waitFrac=(untilReset/horizon); headroom=(100-pct)*waitFrac + 100*(1-waitFrac).
+  Pace neutralisation is preserved.
+
+- internal/advise/advise_test.go:
+  TestPaceConfidenceLiveFix: shifted codex 5h pct 100->10 (explained in comment — tests the
+  pace blend, not the blocked gate; all asserted values unchanged).
+  Added TestBlockedProviderNotWinner, TestPartBTimeWeightedHeadroom, TestBlockedAllProvidersBlocked.
+
+- internal/web/render.js: blocked providers get an advise-blocked badge showing "frees in XhYm"
+  in the table. The gate is never re-derived in JS — values come from /v1/advise JSON.
+- internal/web/base.css: .advise-blocked styling (warn color, matching .advise-next shape).
+- internal/web/core.js: added formatShortDuration helper mirroring the Go formatShortDuration.
+
+Verify:
+- make verify = exit 0 (15 Go packages PASS + 26 JS tests PASS, including new test 14
+  "blocked provider gets a blocked badge with time to free" and new Go tests 17-19)
+- go vet ./internal/advise/ = exit 0; staticcheck ./internal/advise/ = exit 0
+- THE LANE: build -> cp -> codesign -> kickstart; daemon on 127.0.0.1:8765
+
+Live data (snapshot t=1789006141, age 279s):
+- codex 5h is now at pct=20 (it reset past 100% during the work window). No provider is
+  currently blocked.
+- curl -s 127.0.0.1:8765/v1/advise -> winner: claude (not codex). All recs show blocked=false.
+- Hand recomputation from /v1/usage at the same instant matches /v1/advise exactly:
+  winner=claude, claude score=16.88 headroom=30 binding 7d, codex score=16.78 headroom=65
+  binding 7d, opencode:go score=0.45 headroom=1 binding 7d.
+- The blocked gate and Part B are verified by the three new unit tests. The live data state
+  that originally exercised the bug (codex 5h at 100%) reset before the post-fix live call,
+  so the blocked gate is [UNVERIFIED] by live data — but proven by tests and the hand-recompute
+  match. After the 5h reset codex becomes eligible (not blocked) and is correctly ranked #2.
+
+Browser pass [UNVERIFIED] by the executor - Felipe's to confirm:
+  winner is claude, blocked providers show the "Blocked - frees in" badge, reason explains
+  the choice. Felipe's check on the redesigned card with live data.
+
+spec.json: task 109 stays passes:false (browser pass is [UNVERIFIED]). New JSON fields
+`blocked` and `blocked_for_sec` are present in every /v1/advise response.

@@ -71,6 +71,18 @@ function esc(s) {
   });
 }
 
+// formatShortDuration renders seconds as a compact "XhYm" or "Xm" string,
+// mirroring the Go formatShortDuration in internal/advise.
+function formatShortDuration(sec) {
+  if (!sec) return '';
+  var num = Number(sec);
+  if (!num || num <= 0) return '';
+  var h = Math.floor(num / 3600);
+  var m = Math.floor((num % 3600) / 60);
+  if (h > 0) return h + 'h' + m + 'm';
+  return m + 'm';
+}
+
 function fmtTokens(n) {
   if (n >= 1e9) return (n / 1e9).toFixed(1) + "B";
   if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";

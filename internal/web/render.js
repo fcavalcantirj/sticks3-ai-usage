@@ -80,7 +80,8 @@ function renderAdvise(outcome) {
     tr.className = isWinner ? 'advise-row-winner' : '';
     tr.innerHTML =
       '<th scope="row"><span class="advise-provider">' + esc(r.label || r.id) +
-        (isWinner ? '<span class="advise-next">Next</span>' : '') + '</span></th>' +
+        (isWinner ? '<span class="advise-next">Next</span>' : '') +
+        (r.blocked ? '<span class="advise-blocked">Blocked \u2014 frees in ' + esc(formatShortDuration(r.blocked_for_sec)) + '</span>' : '') + '</span></th>' +
       '<td class="num">' + r.pace_ratio.toFixed(2) + 'x</td>' +
       '<td class="num">' + esc(r.effective_headroom_pct) + '%</td>' +
       '<td class="num">' + r.score.toFixed(2) + '</td>';

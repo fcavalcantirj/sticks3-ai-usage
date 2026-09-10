@@ -149,6 +149,33 @@ test('exhausted advice has no fabricated alternative', () => {
   assert.equal(node('advise-card.advise-winner').textContent, 'Every plan is exhausted');
 });
 
+test('blocked provider gets a blocked badge with time to free', () => {
+  const { context: c, node } = harness();
+  c.renderAdvise({
+    winner: 'claude',
+    recommendations: [
+      { id: 'claude', label: 'Claude', pace_ratio: 1.93, effective_headroom_pct: 33, score: 17.10, blocked: false, blocked_for_sec: 0, reason: 'headroom 33%, pace 1.93x, binding 7d — ChatGPT is out for 2h30m, then it is the stronger pick' },
+      { id: 'codex', label: 'ChatGPT', pace_ratio: 1.0, effective_headroom_pct: 38, score: 38.0, blocked: true, blocked_for_sec: 9000, reason: 'headroom 38%, pace 1.00x, binding 5h — BLOCKED: 5h at 100%, frees in 2h30m' },
+    ]
+  });
+  // Winner is the non-blocked provider.
+  assert.equal(node('advise-card.advise-winner').textContent, 'Use Claude next');
+  // Winner's reason mentions the blocked top-scorer.
+  const winReason = node('advise-card.advise-reason').textContent;
+  assert.match(winReason, /ChatGPT is out for 2h30m/);
+  assert.match(winReason, /stronger pick/);
+  // Table has two rows.
+  const tbody = node('advise-card.advise-table tbody');
+  assert.equal(tbody.children.length, 2);
+  // Codex row (second) has the blocked badge.
+  const codexRow = tbody.children[1];
+  assert.match(codexRow.innerHTML, /advise-blocked/);
+  assert.match(codexRow.innerHTML, /Blocked/);
+  assert.match(codexRow.innerHTML, /2h30m/);
+  // Claude row (first) does NOT have the blocked badge.
+  assert.doesNotMatch(tbody.children[0].innerHTML, /advise-blocked/);
+});
+
 test('failed stats request retains the last valid stats ETag', async () => {
   const { context: c, storage } = harness();
   storage.set('stats_etag', '"good"');

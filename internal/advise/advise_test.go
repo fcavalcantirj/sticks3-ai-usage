@@ -599,12 +599,22 @@ func TestPaceConfidenceLiveFix(t *testing.T) {
 	// confidence = 0.01613 / 0.10 = 0.1613.
 	// paceEffective = 1.0 + (9.92−1.0) × 0.1613 ≈ 2.44.
 	// score = 84 / 2.44 ≈ 34.4.
+	//
+	// NOTE: the original 2026-09-09 capture had codex 5h pct=100 (blocked).
+	// Task 109 Part A introduced a blocked-gate: a provider at 100% on any
+	// window is excluded from winner selection, so codex would no longer win
+	// here. This fixture tests the pace blend, not the blocked gate, so 5h
+	// pct is shifted 100→10 to keep codex usable while leaving every asserted
+	// value unchanged: 5h headroom stays above the 7d's 84, so 7d remains
+	// binding and all scores are identical. Part B (time-weighted headroom)
+	// also does not change the binding window at pct=10. The isolated blocked
+	// scenario is covered by TestBlockedProviderNotWinner.
 	codex := planProv("codex", "ChatGPT",
-		row5hAt(now, 100, 2*time.Hour+30*time.Minute), // 5h pct=100, resets inside horizon → full budget
+		row5hAt(now, 10, 2*time.Hour+30*time.Minute), // 5h pct=10, resets inside horizon → time-weighted headroom ≈ 94 (not binding)
 		row7dAt(now, 16, codexReset7d),
 	)
 
-	// claude 5h pct=5 resets inside horizon → full budget.
+	// claude 5h pct=5 resets inside horizon → time-weighted headroom (not binding).
 	// claude 7d pct=67, ~34.7% elapsed: paceRaw ≈ 1.93, confidence 1.0 → unchanged.
 	claude := planProv("claude", "Claude",
 		row5hAt(now, 5, 30*time.Minute),                // inside horizon
@@ -673,4 +683,191 @@ func row5hAt(now time.Time, pct int, dur time.Duration) snapshot.Row {
 func row7dAt(now time.Time, pct int, dur time.Duration) snapshot.Row {
 	r := now.Add(dur)
 	return snapshot.Row{K: "7d", Label: "7d", Pct: iptr(pct), ResetAt: i64ptr(r.Unix())}
+}
+
+// --- Test 17: Blocked provider (5h at 100%) is never the winner (task 109) ---
+//
+// codex has 5h pct=100 (blocked, resets inside horizon) with 7d headroom 68,
+// so codex scores highest (38.0) but is blocked. claude is not blocked and
+// wins. codex still appears in the table with Blocked=true and its reason
+// naming the time to reset. The winner's reason mentions the blocked one.
+
+func TestBlockedProviderNotWinner(t *testing.T) {
+	// codex: 5h pct=100, resets in 2h30m (inside horizon → Part B time-weighted).
+	//   5h headroom = (100-100)*0.625 + 100*0.375 = 38, pace 1.0, blocked.
+	//   7d pct=32, headroom 68. Binding = 5h (38 < 68). Score = 38/1.0 = 38.0.
+	codex := planProv("codex", "ChatGPT",
+		row5h(100, 2*time.Hour+30*time.Minute),
+		row7d(32, 100*time.Hour),
+	)
+	// claude: 5h pct=7, resets in 3h (inside horizon → Part B time-weighted).
+	//   5h headroom = (100-7)*0.75 + 100*0.25 = 95, pace 1.0, not blocked.
+	//   7d pct=67, headroom 33. Binding = 7d (33 < 95). Score ≈ 19.93.
+	claude := planProv("claude", "Claude",
+		row5h(7, 3*time.Hour),
+		row7d(67, 100*time.Hour),
+	)
+
+	out := Rank([]snapshot.Provider{claude, codex}, testNow, DefaultHorizon)
+
+	// Winner must be claude — codex is blocked.
+	if out.Winner == nil || *out.Winner != "claude" {
+		t.Fatalf("winner: got %v, want claude (codex blocked at 100%% on 5h)", out.Winner)
+	}
+
+	// Both providers appear in the table.
+	if len(out.Recommendations) != 2 {
+		t.Fatalf("recommendations: got %d, want 2", len(out.Recommendations))
+	}
+
+	var codexRec, claudeRec *Recommendation
+	for i := range out.Recommendations {
+		switch out.Recommendations[i].ID {
+		case "codex":
+			codexRec = &out.Recommendations[i]
+		case "claude":
+			claudeRec = &out.Recommendations[i]
+		}
+	}
+	if codexRec == nil || claudeRec == nil {
+		t.Fatal("missing codex or claude in recommendations")
+	}
+
+	// codex is blocked with the right time-to-free (2h30m = 9000s).
+	if !codexRec.Blocked {
+		t.Errorf("codex: Blocked = false, want true")
+	}
+	if codexRec.BlockedForSec != 9000 {
+		t.Errorf("codex: BlockedForSec = %d, want 9000", codexRec.BlockedForSec)
+	}
+	if !strings.Contains(codexRec.Reason, "BLOCKED") {
+		t.Errorf("codex reason missing BLOCKED: %q", codexRec.Reason)
+	}
+	if !strings.Contains(codexRec.Reason, "2h30m") {
+		t.Errorf("codex reason missing time to free: %q", codexRec.Reason)
+	}
+
+	// claude is not blocked.
+	if claudeRec.Blocked {
+		t.Errorf("claude: Blocked = true, want false")
+	}
+
+	// Winner's reason mentions the blocked top-scorer.
+	if !strings.Contains(claudeRec.Reason, "ChatGPT is out for") {
+		t.Errorf("winner reason missing blocked-provider mention: %q", claudeRec.Reason)
+	}
+	if !strings.Contains(claudeRec.Reason, "2h30m") {
+		t.Errorf("winner reason missing time to free: %q", claudeRec.Reason)
+	}
+
+	// codex still has the higher score (it would win if not blocked).
+	if codexRec.Score <= claudeRec.Score {
+		t.Errorf("codex score %v should be > claude score %v", codexRec.Score, claudeRec.Score)
+	}
+}
+
+// --- Test 18: Part B time-weighted headroom at three horizon points ---
+//
+// A 5h window at pct=50 that resets inside the horizon gets a time-weighted
+// headroom instead of flat 100. Three anchor points: near-start (≈100),
+// mid-horizon (75), just-under-horizon (≈50, approaches the raw 100-pct).
+
+func TestPartBTimeWeightedHeadroom(t *testing.T) {
+	// Case A: resets in 1 minute (near start of horizon).
+	// waitFrac = 60/14400 ≈ 0.004. headroom ≈ 50*0.004 + 100*0.996 ≈ 100.
+	a := planProv("a", "A", row5h(50, 1*time.Minute))
+	outA := Rank([]snapshot.Provider{a}, testNow, DefaultHorizon)
+	recA := outA.Recommendations[0]
+	if recA.EffectiveHeadroomPct != 100 {
+		t.Errorf("case A headroom: got %d, want 100", recA.EffectiveHeadroomPct)
+	}
+
+	// Case B: resets at mid-horizon (exactly 2h).
+	// waitFrac = 0.5. headroom = 50*0.5 + 100*0.5 = 75.
+	b := planProv("b", "B", row5h(50, 2*time.Hour))
+	outB := Rank([]snapshot.Provider{b}, testNow, DefaultHorizon)
+	recB := outB.Recommendations[0]
+	if recB.EffectiveHeadroomPct != 75 {
+		t.Errorf("case B headroom: got %d, want 75", recB.EffectiveHeadroomPct)
+	}
+
+	// Case C: resets just under horizon (3h59m).
+	// waitFrac ≈ 0.996. headroom ≈ 50*0.996 + 100*0.004 ≈ 50.
+	c := planProv("c", "C", row5h(50, 3*time.Hour+59*time.Minute))
+	outC := Rank([]snapshot.Provider{c}, testNow, DefaultHorizon)
+	recC := outC.Recommendations[0]
+	if recC.EffectiveHeadroomPct != 50 {
+		t.Errorf("case C headroom: got %d, want 50", recC.EffectiveHeadroomPct)
+	}
+
+	// Pace must still be neutralised on this branch (1.0).
+	approx(t, "case B pace", recB.PaceRatio, 1.0, 0.01)
+	approx(t, "case C pace", recC.PaceRatio, 1.0, 0.01)
+}
+
+// --- Test 19: All providers blocked — winner is soonest to free ---
+
+func TestBlockedAllProvidersBlocked(t *testing.T) {
+	// codex: 5h pct=100, resets in 2h (inside horizon). blockedForSec = 7200.
+	//   5h headroom = (0)*0.5 + 100*0.5 = 50, pace 1.0.
+	//   7d pct=32, headroom 68. Binding = 5h (50). Score = 50/1.0 = 50.0.
+	codex := planProv("codex", "ChatGPT",
+		row5h(100, 2*time.Hour),
+		row7d(32, 100*time.Hour),
+	)
+	// claude: 5h pct=100, resets in 3h (inside horizon). blockedForSec = 10800.
+	//   5h headroom = (0)*0.75 + 100*0.25 = 25, pace 1.0.
+	//   7d pct=50, headroom 50. Binding = 5h (25). Score = 25/1.0 = 25.0.
+	claude := planProv("claude", "Claude",
+		row5h(100, 3*time.Hour),
+		row7d(50, 100*time.Hour),
+	)
+
+	out := Rank([]snapshot.Provider{codex, claude}, testNow, DefaultHorizon)
+
+	if len(out.Recommendations) != 2 {
+		t.Fatalf("recommendations: got %d, want 2", len(out.Recommendations))
+	}
+
+	// Winner must be codex — it frees sooner (7200s < 10800s).
+	if out.Winner == nil || *out.Winner != "codex" {
+		t.Fatalf("winner: got %v, want codex (soonest to free)", out.Winner)
+	}
+
+	var codexRec, claudeRec *Recommendation
+	for i := range out.Recommendations {
+		switch out.Recommendations[i].ID {
+		case "codex":
+			codexRec = &out.Recommendations[i]
+		case "claude":
+			claudeRec = &out.Recommendations[i]
+		}
+	}
+	if codexRec == nil || claudeRec == nil {
+		t.Fatal("missing codex or claude")
+	}
+
+	if !codexRec.Blocked {
+		t.Error("codex should be blocked")
+	}
+	if codexRec.BlockedForSec != 7200 {
+		t.Errorf("codex blockedForSec: got %d, want 7200", codexRec.BlockedForSec)
+	}
+	if !claudeRec.Blocked {
+		t.Error("claude should be blocked")
+	}
+	if claudeRec.BlockedForSec != 10800 {
+		t.Errorf("claude blockedForSec: got %d, want 10800", claudeRec.BlockedForSec)
+	}
+
+	// Winner's reason must mention it is blocked and the selection rationale.
+	if !strings.Contains(codexRec.Reason, "BLOCKED") {
+		t.Errorf("codex reason missing BLOCKED: %q", codexRec.Reason)
+	}
+	if !strings.Contains(codexRec.Reason, "frees in 2h0m") {
+		t.Errorf("codex reason missing time to free: %q", codexRec.Reason)
+	}
+	if !strings.Contains(codexRec.Reason, "soonest to free") {
+		t.Errorf("codex reason missing 'soonest to free': %q", codexRec.Reason)
+	}
 }
