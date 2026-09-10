@@ -688,4 +688,4 @@ Note on task 101: it is no longer load-bearing for the ranking decision (task 10
 removed the pace division from scoring), but it still keeps the displayed pace
 value sane after a window reset. Kept, not deleted.
 
-FLASH REQUEST: sha=1a80b51 reason=task 113: firmware can now be armed OTA via BLE partial update + daemon surfaces disarmed state — Felipe to flash and verify actual OTA upload end to end — owner action required
+FLASH REQUEST: sha=4b0f33f reason=task 113: firmware can now be armed OTA via BLE partial update + daemon surfaces disarmed state — Felipe to flash and verify actual OTA upload end to end — owner action required
