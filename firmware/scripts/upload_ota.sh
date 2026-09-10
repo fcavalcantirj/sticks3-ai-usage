@@ -33,7 +33,7 @@ pio_bin=${PLATFORMIO_CLI_BIN:-platformio}
 pio_env=${PIO_ENV:-m5stack-sticks3}
 ota_host=${OTA_HOST:-sticks3-usage.local}
 secrets_file="$firmware_dir/include/secrets.h"
-expected_mac="14:c1:9f:d4:d5:34"
+expected_mac="ac:27:6e:d2:68:b8"
 ota_port=3232
 mode="${mode:-both}"   # set by argument parsing below; referenced by do_build
 
@@ -41,17 +41,33 @@ mode="${mode:-both}"   # set by argument parsing below; referenced by do_build
 # Resolves the host, reads the ARP table, and confirms the MAC matches.
 # Prints the resolved IP on stdout so callers can use it.
 
+# ASK THE DAEMON FIRST.  It is the only thing that reliably knows where the
+# device is: the stick fetches /v1/usage every ~30 s and the daemon records the
+# peer address, so GET /v1/device returns a live, authoritative addr.  mDNS is
+# unreliable here — on battery the stick is awake for ~19 s and its announcement
+# often does not land in time — and a hardcoded IP silently rots: on 2026-09-10
+# the device took a new DHCP lease (.195 -> .194) after an NVS erase and an hour
+# was lost firing at the old address.  OTA_HOST still overrides for the odd case.
+resolve_via_daemon() {
+    [ -n "${OTA_HOST_EXPLICIT:-}" ] && return 1
+    curl -s --max-time 2 "http://127.0.0.1:${USAGED_PORT_LOCAL:-8765}/v1/device" 2>/dev/null \
+        | sed -n 's/.*"addr"[[:space:]]*:[[:space:]]*"\([0-9.]*\)".*/\1/p'
+}
+
 verify_target() {
-    ota_ip=$(ping -c 1 -W 2000 "$ota_host" 2>/dev/null | awk -F'[()]' '/PING/ {print $2; exit}')
+    ota_ip=$(resolve_via_daemon)
     if [ -z "$ota_ip" ]; then
-        echo "$ota_host did not resolve or is unreachable" >&2
+        ota_ip=$(ping -c 1 -W 2000 "$ota_host" 2>/dev/null | awk -F'[()]' '/PING/ {print $2; exit}')
+    fi
+    if [ -z "$ota_ip" ]; then
+        echo "no device address: the daemon has not seen the stick and $ota_host did not resolve" >&2
         exit 1
     fi
 
     actual_mac=$(arp -n "$ota_ip" 2>/dev/null | awk '/ at / {print $4; exit}')
     actual_mac=$(printf '%s' "$actual_mac" | tr '[:upper:]' '[:lower:]')
     if [ "$actual_mac" != "$expected_mac" ]; then
-        echo "Refusing: $ota_host resolved to $actual_mac, expected $expected_mac" >&2
+        echo "Refusing: $ota_ip has MAC $actual_mac, expected $expected_mac" >&2
         exit 1
     fi
 

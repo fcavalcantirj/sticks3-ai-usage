@@ -1,7 +1,7 @@
 VERSION ?= dev
 PIO_ENV ?= m5stack-sticks3
 
-.PHONY: build dist fmt vet lint test test-js verify clean smoke install uninstall fw-test fw-build fw-check-secrets verify-all fw-ota fw-build-ota fw-upload-ota
+.PHONY: fw-auto build dist fmt vet lint test test-js verify clean smoke install uninstall fw-test fw-build fw-check-secrets verify-all fw-ota fw-build-ota fw-upload-ota
 
 build:
 	@commit=$$(git rev-parse --short HEAD 2>/dev/null || echo none); \
@@ -72,9 +72,9 @@ fw-check-secrets:
 	@sh firmware/scripts/check_no_secrets.sh "$(BIN)"
 
 fw-ota:
-	@# Combined build+upload for cable sessions (device stays powered on USB).
-	@# For battery sessions: make fw-build-ota, wake device, make fw-upload-ota BIN=...
-	@bash firmware/scripts/upload_ota.sh
+	@# Build, then upload the moment the device is awake. Works on battery:
+	@# press a button when prompted. Address comes from the daemon, never cached.
+	@sh firmware/scripts/ota_auto.sh
 
 fw-build-ota:
 	@bash firmware/scripts/upload_ota.sh --build-only
