@@ -771,5 +771,5 @@ firmware/src/hal/sticks3/{net,fetch}.{h,cpp}, internal/api/accesslog.go,
 internal/api/server.go, internal/api/accesslog_test.go.
 
 Claimed: task 115 (index 113 in spec.json)
-Committed: sha=50c2220 (task 115: OTA indicator reports device state via ?ota_armed= query param)
+Committed: sha=aaf8130 (task 115: OTA indicator reports device state via ?ota_armed= query param)
 Released: claim released (passes = true)
