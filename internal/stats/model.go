@@ -113,11 +113,37 @@ type PlanParams struct {
 	Label      string
 }
 
+// PlanCost is the subscription-plan cost summary computed server-side from
+// the YAML plan parameters. The large tile value (PrimaryTotal) is the sum of
+// stated plan prices in the primary currency (the one most plan providers use);
+// the small tile value (SecondaryTotal) is the same sum converted to the
+// secondary currency using an exchange rate derived from plan pairs that carry
+// both a local cost and a manual cost_usd. When those pairs disagree beyond
+// tolerance, conversion is suppressed and the disagreeing plans are named in
+// OmittedPlans.
+//
+// APICostToday/APICostMonth are the old equivalent-API estimates (from scanned
+// local transcripts), surfaced below the plan sum with partial disclosure.
+type PlanCost struct {
+	PrimaryCurrency   string   `json:"primary_currency"`              // e.g. "BRL"
+	PrimaryTotal      float64  `json:"primary_total"`                 // sum of plan costs in primary currency
+	SecondaryCurrency string   `json:"secondary_currency,omitempty"`  // e.g. "USD"; omitted when one-currency config
+	SecondaryTotal    float64  `json:"secondary_total,omitempty"`     // plan sum converted to secondary currency
+	ExchangeRate      float64  `json:"exchange_rate,omitempty"`       // primary per USD (e.g. 5.5 BRL/USD)
+	RateDisagrees     bool     `json:"rate_disagrees,omitempty"`      // true when plan-pair rates conflict
+	OmittedPlans      []string `json:"omitted_plans,omitempty"`       // plan labels omitted from conversion on disagreement
+	APICostToday      float64  `json:"api_cost_today"`                // equivalent-API estimate for today (USD)
+	APICostMonth      float64  `json:"api_cost_month"`                // equivalent-API estimate for month (USD)
+	APIPartial        bool     `json:"api_partial,omitempty"`         // true when any scanned source has unpriced models
+	APIUnpricedModels []string `json:"api_unpriced_models,omitempty"` // model IDs with unknown prices
+}
+
 // Report is the top-level stats report returned by Scan and served at
 // /v1/stats. The Sources map is keyed by "claude_code" and "codex".
 type Report struct {
 	GeneratedAt int64             `json:"generated_at"` // unix s
 	Sources     map[string]Source `json:"sources"`
+	PlanCost    *PlanCost         `json:"plan_cost,omitempty"`
 }
 
 // ScanConfig controls which directories to scan and the timezone for

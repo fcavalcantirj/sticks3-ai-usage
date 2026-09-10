@@ -176,20 +176,74 @@ function tokensTotal(t) {
   return (t.input || 0) + (t.output || 0) + (t.cache_read || 0) + (t.cache_write || 0);
 }
 
+// fmtCurrency formats a cost value in the given currency. BRL renders as
+// "R$1265" (whole units); USD as "$230.00" to match the existing fmtCost style.
+function fmtCurrency(n, currency) {
+  if (currency === "BRL") return "R$" + Math.round(n).toLocaleString("pt-BR");
+  if (currency === "USD") return "$" + n.toFixed(2);
+  return currency + " " + n.toFixed(2);
+}
+
+// formatApiEquiv renders the equivalent-API disclosure line. When the source
+// is partial (some models unpriced), the unpriced names are listed.
+function formatApiEquiv(cost, partial, unpriced) {
+  if (!cost) return "";
+  var parts = ["API equiv: " + fmtCost(cost)];
+  if (partial) {
+    var names = unpriced && unpriced.length ? unpriced.join(", ") : "";
+    parts.push("(partial" + (names ? ": " + names : "") + ")");
+  }
+  return parts.join(" ");
+}
+
 function renderStats(report) {
   // Stat pills
-  var todayTok = 0, monthTok = 0, todayCost = 0, monthCost = 0;
+  var todayTok = 0, monthTok = 0;
   for (var srcName in report.sources) {
     var src = report.sources[srcName];
     todayTok += tokensTotal(src.today.tokens);
     monthTok += tokensTotal(src.month.tokens);
-    todayCost += src.today.cost;
-    monthCost += src.month.cost;
   }
   document.getElementById("pill-today-tok").textContent = fmtTokens(todayTok);
   document.getElementById("pill-month-tok").textContent = fmtTokens(monthTok);
-  document.getElementById("pill-today-cost").textContent = fmtCost(todayCost);
-  document.getElementById("pill-month-cost").textContent = fmtCost(monthCost);
+
+  // Cost pills — plan sum comes from the server (report.plan_cost), never
+  // summed from src.cost in JS. Both "today" and "month" show the same fixed
+  // plan total (subscription is monthly, not daily accruing).
+  var pc = report.plan_cost;
+  var todayCostEl = document.getElementById("pill-today-cost");
+  var monthCostEl = document.getElementById("pill-month-cost");
+  var todaySecEl = document.getElementById("pill-today-cost-secondary");
+  var monthSecEl = document.getElementById("pill-month-cost-secondary");
+  var todayApiEl = document.getElementById("pill-today-api");
+  var monthApiEl = document.getElementById("pill-month-api");
+
+  if (pc) {
+    todayCostEl.textContent = fmtCurrency(pc.primary_total, pc.primary_currency);
+    monthCostEl.textContent = fmtCurrency(pc.primary_total, pc.primary_currency);
+
+    if (pc.secondary_currency) {
+      todaySecEl.textContent = fmtCurrency(pc.secondary_total, pc.secondary_currency);
+      monthSecEl.textContent = fmtCurrency(pc.secondary_total, pc.secondary_currency);
+      todaySecEl.style.display = "block";
+      monthSecEl.style.display = "block";
+    } else {
+      todaySecEl.style.display = "none";
+      monthSecEl.style.display = "none";
+    }
+
+    // Equivalent-API disclosure (old estimate from scanned sources), with
+    // partial flag surface when applicable.
+    todayApiEl.textContent = formatApiEquiv(pc.api_cost_today, pc.api_partial, pc.api_unpriced_models);
+    monthApiEl.textContent = formatApiEquiv(pc.api_cost_month, pc.api_partial, pc.api_unpriced_models);
+  } else {
+    todayCostEl.textContent = "$—";
+    monthCostEl.textContent = "$—";
+    todaySecEl.style.display = "none";
+    monthSecEl.style.display = "none";
+    todayApiEl.textContent = "";
+    monthApiEl.textContent = "";
+  }
 
   // Plan-value ratio
   var ratioEl = document.getElementById("pill-month-ratio");

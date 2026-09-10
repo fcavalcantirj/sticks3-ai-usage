@@ -553,3 +553,50 @@ Browser pass [UNVERIFIED] by the executor - Felipe's to confirm:
 2026-09-10T19:16:27Z TASK 106 PASSES RELEASED — Felipe: "approved. continue" confirms the parity sweep browser pass. All verification [REAL]+[TEST], browser pass Felipe's. spec.json[106] passes=true, released.
 2026-09-10T19:16:27Z TASK 110 COMMIT 3e84832 — amended to fold spec.json (task 109 passes=true, task 106 passes=true on Felipe approval) + progress.txt fixes (typo fixes, SHA corrected to 3e84832). Browser pass [UNVERIFIED] by the executor — Felipe owns.
 2026-09-10T19:16:27Z CLAIM task 111 — WHAT YOU PAY IS A SUM, NOT AN ESTIMATE: replace cost estimate tiles with sum of plan-cost prices, derive exchange rate from configured pairs, surface partial flag. Scope: internal/stats + internal/web. DISPLAY ONLY, no JS sum. Solvr room ai-usage-prod-readiness (binary not installed; claiming via progress.txt per Felipe approval).
+2026-09-10T20:XX:XXZ TASK 111 DONE — WHAT YOU PAY IS A SUM, NOT AN ESTIMATE: replace cost estimate tiles with the sum of stated plan prices, derive the exchange rate from configured pairs, and surface the `partial` flag rather than silently under-reporting.
+
+Summary of changes:
+- internal/stats/model.go: added PlanCost struct (PrimaryCurrency, PrimaryTotal,
+  SecondaryCurrency, SecondaryTotal, ExchangeRate, RateDisagrees, OmittedPlans,
+  APICostToday, APICostMonth, APIPartial, APIUnpricedModels) + PlanCost field on Report.
+- internal/stats/plan.go: ComputePlanCost() — derives primary currency by majority
+  of plan providers; derives exchange rate from primary-currency plans carrying both
+  cost and cost_usd (rate = cost/cost_usd, e.g. 1100/200 = 5.5); suppresses conversion
+  + flags RateDisagrees when plan-pair rates disagree beyond 1% tolerance; surfaces
+  partial + unpriced model names from scanned sources.
+- internal/api/server.go: attached report.PlanCost = stats.ComputePlanCost(...) to
+  /v1/stats handler; planParamsMap now reads from cfg.EffectiveProviders() to include
+  provider_defaults-merged plan blocks (fixes missing opencode:go plan price).
+- internal/web/index.html: cost pills now show primary sum large + USD small beneath;
+  "est." removed; caption is "Plan sum"; <span class="pill-api"> for API-equiv disclosure.
+- internal/web/render.js: fmtCurrency() handles BRL ("R$1265") + USD ("$230.00");
+  formatApiEquiv() renders "API equiv: $X (partial: ...)" when api_partial is true;
+  renderStats() reads report.plan_cost (never sums in JS).
+- internal/web/base.css: .pill .num-small + .pill-api styles.
+- internal/web/web_test.go: added TestIndexHTMLStatsIds assertion for
+  id="pill-month-cost-secondary".
+
+Verify (from spec.json):
+- make verify = exit 0 (15 Go packages PASS + 26 JS tests PASS).
+- go test -race ./internal/stats/ = PASS (8 ComputePlanCost tests).
+- git diff HEAD -- firmware/src/ internal/creds internal/providers internal/sched
+  internal/snapshot internal/config internal/format internal/httpx internal/mdns
+  internal/bleprov internal/advise internal/cmd = empty (scope: stats + web + api).
+
+Live data (daemon running, pid 11812, uptime 139s):
+- curl -s 127.0.0.1:8765/v1/config: claude cost=1100 BRL cost_usd=200,
+  codex cost=110 BRL cost_usd=20, opencode:go cost=10 USD cost_usd=10.
+  Derived rates: claude 5.5, codex 5.5, opencode:go 1.0 — all agree.
+- curl -s 127.0.0.1:8765/v1/stats | plan_cost:
+  primary_currency=BRL primary_total=1265, secondary_currency=USD secondary_total=230,
+  exchange_rate=5.5, api_partial=true, api_unpriced_models=["<unknown>","codex-auto-review","fugu"].
+  Hand recompute: 1100+110+(10×5.5) = 1265 BRL; 200+20+10 = 230 USD. Exact match.
+- curl -s 127.0.0.1:8765/ | grep -c 'pill-today-cost-secondary' = 2 (today + month)
+- curl -s 127.0.0.1:8765/ | grep -c 'pill-month-api' = 1 (pill-today-api + pill-month-api = 2)
+- curl -s 127.0.0.1:8765/ | grep -c 'Plan sum' = 2 (caption on both cost pills)
+- curl -s 127.0.0.1:8765/ | grep -c 'pill-today-cost' = 1 (no "est." class remain)
+
+Browser pass [UNVERIFIED] by the executor — Felipe's: tile reads R$1265 large with $230
+small, partial disclosure shows "(partial: <unknown>, codex-auto-review, fugu)" under
+the old estimate figures, task 102's plan-ordering hint survives. spec.json[110] passes
+flipped to true, claimed released.

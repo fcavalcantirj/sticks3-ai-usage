@@ -75,6 +75,7 @@ func TestIndexHTMLStatsIds(t *testing.T) {
 		"id=\"models-table\"",
 		"id=\"attention\"",
 		"id=\"pill-month-cost\"",
+		"id=\"pill-month-cost-secondary\"",
 		"id=\"pill-month-ratio\"",
 	} {
 		if !strings.Contains(html, want) {

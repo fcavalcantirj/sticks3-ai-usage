@@ -338,18 +338,20 @@ func (s *Server) handleDevice(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, ds)
 }
 
-// planParamsMap builds the plan params map from the config's provider configs,
-// keyed by stats source name ("claude_code", "codex"). Providers without a
-// plan block are omitted. The stats package stays free of config imports, so
-// this conversion lives here.
+// planParamsMap builds the plan params map from the config's effective providers
+// (which merges built-in defaults with any YAML overrides), keyed by stats
+// source name ("claude_code", "codex"). Providers without a plan block are
+// omitted. The source-name mapping ("claude" -> "claude_code") is consistent
+// with planParamsMap's original behaviour. The stats package stays free of
+// config imports, so this conversion lives here.
 func planParamsMap(cfg config.Config) map[string]stats.PlanParams {
 	m := map[string]stats.PlanParams{}
-	for id, p := range cfg.ProviderConfigs {
+	for _, p := range cfg.EffectiveProviders() {
 		if p.Plan == nil {
 			continue
 		}
-		srcName := id
-		if id == "claude" {
+		srcName := p.ID
+		if p.ID == "claude" {
 			srcName = "claude_code"
 		}
 		m[srcName] = stats.PlanParams{
@@ -374,6 +376,11 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 
 	// Augment with subscription plan value (API-equiv ratio) from the config.
 	stats.ApplyPlanValues(report, planParamsMap(s.cfg))
+
+	// Attach the server-side plan-cost summary (sum of stated plan prices +
+	// API-equivalent disclosure) computed from all plan providers, not just
+	// the scanned sources.
+	report.PlanCost = stats.ComputePlanCost(planParamsMap(s.cfg), report)
 
 	etag := `"` + fmt.Sprintf("%x", report.GeneratedAt) + `"`
 	if etagMatch(r.Header.Get("If-None-Match"), fmt.Sprintf("%x", report.GeneratedAt)) {

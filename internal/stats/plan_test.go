@@ -1,6 +1,9 @@
 package stats
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func TestApplyPlanValues_USDPlanWithRatio(t *testing.T) {
 	report := &Report{
@@ -245,5 +248,273 @@ func TestApplyPlanValues_ClaudeIDMapsToSourceName(t *testing.T) {
 	}
 	if src.PlanValue.Ratio != 0.5 {
 		t.Errorf("Ratio = %.4f, want 0.5", src.PlanValue.Ratio)
+	}
+}
+
+// TestComputePlanCost_BRLPlusUSD verifies the main use case: two BRL plans and
+// one USD plan, all plan pairs agree on 5.5 BRL/USD. The plan sum is the
+// stated prices (1100+110+55 = 1265 BRL), and the equivalent in USD is
+// 200+20+10 = 230.
+func TestComputePlanCost_BRLPlusUSD(t *testing.T) {
+	plans := map[string]PlanParams{
+		"claude_code": {Cost: 1100, Currency: "BRL", CostUSD: 200, HasCostUSD: true, Label: "Max 20x"},
+		"codex":       {Cost: 110, Currency: "BRL", CostUSD: 20, HasCostUSD: true, Label: "Plus"},
+		"opencode:go": {Cost: 10, Currency: "USD", Label: "Pro"},
+	}
+	report := &Report{
+		Sources: map[string]Source{
+			"claude_code": {Month: Totals{Cost: 459.93}, Partial: true, UnpricedModels: []string{"<unknown>", "fugu"}},
+			"codex":       {Month: Totals{Cost: 200}, Partial: true, UnpricedModels: []string{"codex-auto-review"}},
+		},
+	}
+
+	pc := ComputePlanCost(plans, report)
+	if pc == nil {
+		t.Fatal("PlanCost should not be nil")
+	}
+
+	if pc.PrimaryCurrency != "BRL" {
+		t.Errorf("PrimaryCurrency = %q, want BRL", pc.PrimaryCurrency)
+	}
+	wantPrimary := float64(1100) + 110 + (10 * 5.5)
+	if pc.PrimaryTotal != wantPrimary {
+		t.Errorf("PrimaryTotal = %.2f, want %.2f", pc.PrimaryTotal, wantPrimary)
+	}
+	if pc.SecondaryCurrency != "USD" {
+		t.Errorf("SecondaryCurrency = %q, want USD", pc.SecondaryCurrency)
+	}
+	wantSecondary := float64(200 + 20 + 10)
+	if pc.SecondaryTotal != wantSecondary {
+		t.Errorf("SecondaryTotal = %.2f, want %.2f", pc.SecondaryTotal, wantSecondary)
+	}
+	if pc.ExchangeRate != 5.5 {
+		t.Errorf("ExchangeRate = %.4f, want 5.5", pc.ExchangeRate)
+	}
+	if pc.RateDisagrees {
+		t.Error("RateDisagrees should be false when rates agree")
+	}
+
+	// API-equivalent disclosure
+	if math.Abs(pc.APICostMonth-659.93) > 0.01 {
+		t.Errorf("APICostMonth = %.2f, want 659.93", pc.APICostMonth)
+	}
+	if !pc.APIPartial {
+		t.Error("APIPartial should be true")
+	}
+	wantModels := []string{"<unknown>", "fugu", "codex-auto-review"}
+	if len(pc.APIUnpricedModels) != len(wantModels) {
+		t.Errorf("APIUnpricedModels = %v, want %v", pc.APIUnpricedModels, wantModels)
+	}
+}
+
+// TestComputePlanCost_USDOnly verifies that a USD-only config shows USD as the
+// primary currency with no secondary.
+func TestComputePlanCost_USDOnly(t *testing.T) {
+	plans := map[string]PlanParams{
+		"claude_code": {Cost: 200, Currency: "USD", Label: "Max 20x"},
+		"opencode:go": {Cost: 10, Currency: "USD", Label: "Pro"},
+	}
+	report := &Report{
+		Sources: map[string]Source{
+			"claude_code": {Month: Totals{Cost: 459.93}},
+		},
+	}
+
+	pc := ComputePlanCost(plans, report)
+	if pc == nil {
+		t.Fatal("PlanCost should not be nil")
+	}
+
+	if pc.PrimaryCurrency != "USD" {
+		t.Errorf("PrimaryCurrency = %q, want USD", pc.PrimaryCurrency)
+	}
+	wantPrimary := float64(200 + 10)
+	if pc.PrimaryTotal != wantPrimary {
+		t.Errorf("PrimaryTotal = %.2f, want %.2f", pc.PrimaryTotal, wantPrimary)
+	}
+	if pc.SecondaryCurrency != "" {
+		t.Errorf("SecondaryCurrency = %q, want empty", pc.SecondaryCurrency)
+	}
+	if pc.SecondaryTotal != 0 {
+		t.Errorf("SecondaryTotal = %.2f, want 0", pc.SecondaryTotal)
+	}
+	if pc.ExchangeRate != 0 {
+		t.Errorf("ExchangeRate = %.4f, want 0", pc.ExchangeRate)
+	}
+}
+
+// TestComputePlanCost_RateDisagrees verifies that when plan-pair rates disagree
+// beyond tolerance, conversion is suppressed and the offending plans are omitted.
+func TestComputePlanCost_RateDisagrees(t *testing.T) {
+	plans := map[string]PlanParams{
+		"claude_code": {Cost: 1100, Currency: "BRL", CostUSD: 200, HasCostUSD: true, Label: "Max 20x"}, // 5.5
+		"codex":       {Cost: 110, Currency: "BRL", CostUSD: 18, HasCostUSD: true, Label: "Plus"},      // 6.11 — disagrees
+		"opencode:go": {Cost: 10, Currency: "USD", Label: "Pro"},
+	}
+	report := &Report{
+		Sources: map[string]Source{
+			"claude_code": {Month: Totals{Cost: 459.93}},
+			"codex":       {Month: Totals{Cost: 200}},
+		},
+	}
+
+	pc := ComputePlanCost(plans, report)
+	if pc == nil {
+		t.Fatal("PlanCost should not be nil")
+	}
+
+	if !pc.RateDisagrees {
+		t.Error("RateDisagrees should be true when rates differ")
+	}
+	if pc.SecondaryCurrency != "" {
+		t.Errorf("SecondaryCurrency = %q, want empty (conversion suppressed)", pc.SecondaryCurrency)
+	}
+	if pc.SecondaryTotal != 0 {
+		t.Errorf("SecondaryTotal = %.2f, want 0 (conversion suppressed)", pc.SecondaryTotal)
+	}
+	// Primary total includes all BRL plans; the USD plan is omitted from
+	// conversion but BRL plans are always included.
+	if pc.PrimaryTotal != float64(1210) {
+		t.Errorf("PrimaryTotal = %.2f, want 1210", pc.PrimaryTotal)
+	}
+	if len(pc.OmittedPlans) != 1 {
+		t.Errorf("OmittedPlans = %v, want exactly 1 element", pc.OmittedPlans)
+	}
+	omitted := pc.OmittedPlans[0]
+	if omitted != "Plus" && omitted != "Max 20x" {
+		t.Errorf("OmittedPlans[0] = %q, want either Plus or Max 20x (non-deterministic baseline)", omitted)
+	}
+}
+
+// TestComputePlanCost_NoCostUSD verifies that when no plan pairs carry cost_usd,
+// conversion is suppressed and secondary-currency plans are omitted from the
+// primary total.
+func TestComputePlanCost_NoCostUSD(t *testing.T) {
+	plans := map[string]PlanParams{
+		"claude_code": {Cost: 1100, Currency: "BRL", Label: "Max 20x"},
+		"codex":       {Cost: 110, Currency: "BRL", Label: "Plus"},
+		"opencode:go": {Cost: 10, Currency: "USD", Label: "Pro"},
+	}
+	report := &Report{
+		Sources: map[string]Source{
+			"claude_code": {Month: Totals{Cost: 459.93}},
+		},
+	}
+
+	pc := ComputePlanCost(plans, report)
+	if pc == nil {
+		t.Fatal("PlanCost should not be nil")
+	}
+
+	if pc.PrimaryCurrency != "BRL" {
+		t.Errorf("PrimaryCurrency = %q, want BRL", pc.PrimaryCurrency)
+	}
+	if pc.PrimaryTotal != float64(1210) {
+		t.Errorf("PrimaryTotal = %.2f, want 1210 (BRL plans only, USD omitted)", pc.PrimaryTotal)
+	}
+	if pc.SecondaryCurrency != "" {
+		t.Errorf("SecondaryCurrency = %q, want empty", pc.SecondaryCurrency)
+	}
+	if !pc.RateDisagrees {
+		t.Error("RateDisagrees should be true when no rate can be derived")
+	}
+	if len(pc.OmittedPlans) != 1 || pc.OmittedPlans[0] != "Pro" {
+		t.Errorf("OmittedPlans = %v, want [Pro]", pc.OmittedPlans)
+	}
+}
+
+// TestComputePlanCost_NilReport verifies the function does not panic when the
+// report is nil (it still computes the plan sum, but API costs are zero).
+func TestComputePlanCost_NilReport(t *testing.T) {
+	plans := map[string]PlanParams{
+		"claude_code": {Cost: 200, Currency: "USD", Label: "Max 20x"},
+	}
+
+	pc := ComputePlanCost(plans, nil)
+	if pc == nil {
+		t.Fatal("PlanCost should not be nil")
+	}
+	if pc.APICostToday != 0 {
+		t.Errorf("APICostToday = %.2f, want 0", pc.APICostToday)
+	}
+	if pc.APICostMonth != 0 {
+		t.Errorf("APICostMonth = %.2f, want 0", pc.APICostMonth)
+	}
+	if pc.APIPartial {
+		t.Error("APIPartial should be false with nil report")
+	}
+}
+
+// TestComputePlanCost_EmptyPlans verifies that empty plans returns nil.
+func TestComputePlanCost_EmptyPlans(t *testing.T) {
+	report := &Report{
+		Sources: map[string]Source{
+			"claude_code": {Month: Totals{Cost: 100}},
+		},
+	}
+	pc := ComputePlanCost(map[string]PlanParams{}, report)
+	if pc != nil {
+		t.Errorf("PlanCost should be nil for empty plans, got %+v", pc)
+	}
+}
+
+// TestComputePlanCost_PartialSurfacesUnpriced verifies that the partial flag
+// and unpriced models from scanned sources are surfaced on the PlanCost.
+func TestComputePlanCost_PartialSurfacesUnpriced(t *testing.T) {
+	plans := map[string]PlanParams{
+		"claude_code": {Cost: 200, Currency: "USD", Label: "Max 20x"},
+	}
+	report := &Report{
+		Sources: map[string]Source{
+			"claude_code": {
+				Month:          Totals{Cost: 400},
+				Partial:        true,
+				UnpricedModels: []string{"<unknown>", "fugu"},
+			},
+		},
+	}
+
+	pc := ComputePlanCost(plans, report)
+	if pc == nil {
+		t.Fatal("PlanCost should not be nil")
+	}
+	if !pc.APIPartial {
+		t.Error("APIPartial should be true")
+	}
+	wantModels := []string{"<unknown>", "fugu"}
+	if len(pc.APIUnpricedModels) != len(wantModels) {
+		t.Errorf("APIUnpricedModels = %v, want %v", pc.APIUnpricedModels, wantModels)
+	}
+}
+
+// TestComputePlanCost_TodayAndMonthSame verifies that the plan sum is the same
+// for both today and month (subscription is monthly, not daily accruing). The
+// API costs differ, but the plan total is fixed.
+func TestComputePlanCost_TodayAndMonthSame(t *testing.T) {
+	plans := map[string]PlanParams{
+		"claude_code": {Cost: 200, Currency: "USD", Label: "Max 20x"},
+	}
+	report := &Report{
+		Sources: map[string]Source{
+			"claude_code": {
+				Today: Totals{Cost: 50},
+				Month: Totals{Cost: 459.93},
+			},
+		},
+	}
+
+	pc := ComputePlanCost(plans, report)
+	if pc == nil {
+		t.Fatal("PlanCost should not be nil")
+	}
+	// The plan sum appears as PrimaryTotal regardless of today/month.
+	if pc.PrimaryTotal != float64(200) {
+		t.Errorf("PrimaryTotal = %.2f, want 200", pc.PrimaryTotal)
+	}
+	if pc.APICostToday != 50 {
+		t.Errorf("APICostToday = %.2f, want 50", pc.APICostToday)
+	}
+	if pc.APICostMonth != 459.93 {
+		t.Errorf("APICostMonth = %.2f, want 459.93", pc.APICostMonth)
 	}
 }
