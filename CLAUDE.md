@@ -182,12 +182,43 @@ to press the blue button and the script will catch the wake.
   it instead of reconstructing a baseline by hand — doing that by hand produced
   two false defects in one afternoon.
 
-## Do not publish a firmware build
+## Publishing a firmware build
 
-`secrets.h` is a compile-time header, so the Wi-Fi SSID, the **Wi-Fi
-password**, the device token and the host address end up as plaintext strings
-in `firmware.bin` — verified with `strings` against a real build. Publishing to
-M5Burner or anywhere else would hand out the network password of whoever built
-it, and a stranger's flash could not work anyway, since it would try to join
-our SSID and reach our Mac at a fixed address. `BACKLOG.md` item 3 is the fix
-and is the top priority if this project resumes.
+**`secrets.h` is a developer seed, never shipped.** It is a compile-time
+header, so the Wi-Fi SSID, the **Wi-Fi password**, the device token, the OTA
+password and the host address all end up as plaintext strings in
+`firmware.bin` — verified with `strings` against a real build. Any image built
+with a local `secrets.h` must never be published; it would hand out the network
+password of whoever built it, and a stranger's flash could not work anyway,
+since it would try to join our SSID and reach our Mac at a fixed address.
+
+**The published image is built without `secrets.h`.** Runtime provisioning —
+the NVS credential store and state machine (`firmware/src/usage/provision.cpp`),
+the captive portal (`portal.cpp`) and the BLE protocol (`bleprov.cpp`) — lets
+a device collect its own credentials on first boot. `make fw-publish-check`
+moves `secrets.h` aside, rebuilds the firmware (proving the tree compiles with
+no credentials), then asserts none of the five values appear in the binary:
+
+    PUBLISHABLE: built with no secrets.h and none of the five values are present.
+
+`scripts/release.sh` enforces this in step 4/8 and refuses to proceed if
+`fw-publish-check` does not say `PUBLISHABLE`. `BACKLOG.md` item 3 proposed the
+design and is now built.
+
+**Always merge the image.** The artifact flashed at `0x0` (by M5Burner or
+`flash_when_awake.sh`) must merge bootloader `0x0`, partitions `0x8000`,
+`boot_app0` at `0xe000`, app `0x10000`. M5Burner writes at `0x0`, so an
+app-only `firmware.bin` boots to `Invalid image block, can't boot.
+ets_main.c 329` — v0.2.0 shipped that and bricked a stick. Both an app-only
+image and a merged one start with `0xE9`, so the magic byte cannot tell them
+apart; the partition table at `0x8000` can — merged reads `aa50`, app-only
+reads `0342`. `release.sh` enforces this:
+
+    PT_MAGIC=$(xxd -s 0x8000 -l 2 -p "$ASSET")
+    [ "$PT_MAGIC" = "aa50" ] || die "the asset has no partition table at 0x8000 (got $PT_MAGIC) — it is not bootable at 0x0"
+
+**`secrets.h` must exist before building.** It is gitignored; copy it from
+`firmware/include/secrets.h.example`, which carries only macro names, not
+values. If a publish-check is interrupted, confirm `secrets.h` exists — its
+trap restores on EXIT/INT/TERM but not SIGKILL, and the stashed copy
+(`secrets.h.publishcheck`) is not gitignored.

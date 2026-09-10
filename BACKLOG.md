@@ -1,13 +1,17 @@
 # Backlog
 
 Deferred by decision, not by omission. The project closed at **78 of 83 ledger
-tasks passing** (`spec.json`). The open tasks are the provisioning group
-(75-79, item 3 below) and the optional task hub (item 1).
+tasks passing** (`spec.json`). The remaining open items are the optional task hub
+(item 1) and the hardware-UAT of the SoftAP portal (task 77, inside item 3
+below). Item 3's build — NVS store, captive portal, BLE protocol, and the
+publish-check gates — shipped in v0.2.1 (2026-09-08).
 
 > **Before publishing a firmware build anywhere, read item 3.** `secrets.h`
 > values are compiled into `firmware.bin` as plaintext — including the Wi-Fi
-> password — and a stranger's flash cannot work regardless. That item is the
-> top priority if this project is ever resumed.
+> password — so the published image must be built without `secrets.h`
+> (`make fw-publish-check`). That gate and the runtime provisioning that makes
+> it possible shipped in v0.2.1 (2026-09-08); item 3 below is resolved, with
+> only the SoftAP portal's on-device UAT still pending.
 
 ## 1. Task-hub rows — `POST /v1/rows` (spec.json task 83)
 
@@ -48,10 +52,47 @@ a `POST` to something that starts a run, with the result surfaced as a row —
 which makes this a natural consumer of item 1 above, and the concrete publisher
 that would justify it.
 
-## 3. Onboarding — and the reason the firmware cannot be published as-is
+## 3. Onboarding — provisioning (RESOLVED, shipped in v0.2.1)
 
-**This is now the top item.** It is not polish; it blocks distribution and it
-leaks credentials.
+**Resolved 2026-09-09.** v0.2.1 was published on 2026-09-08 with the runtime
+provisioning system from the design below. The firmware can now be published
+safely: `make fw-publish-check` outputs `PUBLISHABLE` (built with no
+`secrets.h`, none of the five credential values in the binary), and
+`scripts/release.sh` enforces it in step 4/8. The merged-image check
+(`aa50` at `0x8000`) is enforced in step 5/8.
+
+What shipped and is verified by build/tests (not hardware — see the block below):
+
+- **NVS credential store + state machine** (provision.cpp, provision.h,
+  test_provision.cpp — 727 host-test lines) — spec.json task 75 (PROVISIONING
+  1/4), passes=True. This is the mechanism `check_no_secrets.sh` references
+  ("Task 76 moves the Wi-Fi SSID… out of the compiled image and into NVS").
+- **Captive portal pure core** (portal.cpp, portal.h, test_portal.cpp — 747
+  host-test lines) and **BLE provisioning protocol** (bleprov.cpp, bleprov.h,
+  test_bleprov.cpp — 649 host-test lines) — the pure C++17 halves in
+  `firmware/src/usage/`, host-tested by `make fw-test` (46+ tests pass).
+- **Build gates** — `publish_check.sh` (atomic: stash secrets.h → rebuild →
+  assert no 5 values in binary → restore) and `check_no_secrets.sh` (checks
+  all 5 macros: WIFI_SSID, WIFI_PASS, USAGED_HOST, USAGED_DEVICE_TOKEN,
+  OTA_PASS).
+- **Prod-ready cleanup** — spec.json task 87 (PROD-READY 4/10) deleted the
+  linker-discarded pair.cpp/pair.h and fixed the captive portal copy.
+
+Spec-ledger status for the provisioning group:
+
+| task | description | state |
+|---|---|---|
+| 75 | PROVISIONING 0/4 — SPIKE, answer the five unknowns | passes=True |
+| 76 | PROVISIONING 1/4 — NVS credential store + state machine | passes=True |
+| 77 | PROVISIONING 2/4 — SoftAP captive portal hardware UAT | **BLOCKED** — awaiting Felipe's hardware UAT |
+| 78 | PROVISIONING 3/4 — pairing code | WITHDRAWN (not built) |
+| 79 | PROVISIONING 4/4 — change Wi-Fi from Settings | WITHDRAWN (not built) |
+
+**What remains is hardware only.** The device-side SoftAP portal (task 77)
+needs Felipe to UAT from a phone — this is the `[BLOCKED]` task nobody can
+self-certify. The build/test gates prove the image is publishable; the on-device
+portal flow is Felipe's to confirm. No new code is needed here; the
+`FLASH REQUEST` for task 102 (sha `2f9f64d`) carries the full overlay.
 
 ### The leak (verify before ever publishing a build)
 

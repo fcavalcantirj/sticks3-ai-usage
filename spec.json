@@ -1444,7 +1444,7 @@
       "SCOPE FENCE: CLAUDE.md and BACKLOG.md only. NO code, no tests, no spec.json edits beyond flipping this task. Documentation-only tasks are where scope creep is cheapest and most tempting.",
       "Verify: paste the before and after of the rewritten section. Quote the `make fw-publish-check` output line proving PUBLISHABLE, and the release-script line that enforces the merged image, as the evidence behind the new wording. State plainly that no code changed: `git diff --name-only` must list CLAUDE.md, BACKLOG.md and spec.json and nothing else."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "release",

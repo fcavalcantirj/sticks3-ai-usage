@@ -242,3 +242,114 @@ FLASH REQUEST: sha=2189728 reason=98 adds the use-this-next overlay on BtnA hold
 2026-09-09T21:00:00Z TASK 105 (JS TEST HARNESS) DONE — copied scripts/dashboard.test.mjs and scripts/assemble-preview.mjs from Downloads v0; removed the one preview-only test that requires unported preview/ files (DO NOT PORT per spec); kept all 25 production tests. Assembled a test-js Makefile target that uses `command -v node` to skip cleanly when node is absent (same pattern as web_test.go's TestIndexHTMLJavaScriptParses). Verify: (1) with node present: `node --test scripts/dashboard.test.mjs` reports tests 25, pass 25, fail 0 — covers usage 304, stats first-paint ETag, interval restore, 401 recovery, text escaping, advise null/winner, token persistence, tab nav, concurrent settings, refresh unlock, production assembly no preview markers, no external src URLs; (2) with node absent (PATH masked via symlink go only): `make verify` exits 0, prints "node not installed; skipping JS tests". No binary change since task 103 (JS tests only — THE LANE binary already deployed at ec5e629). No firmware, no API, no config change. go.mod unchanged, zero new dependencies.
 
 2026-09-09T23:20:00Z TASK 104 (DASHBOARD SECURITY HEADERS) DONE — two lines in internal/api/server.go handleIndex (X-Content-Type-Options: nosniff, Referrer-Policy: no-referrer), copied from Downloads v0 where they are the ONLY non-test difference in that file; ported internal/api/dashboard_headers_test.go (asserts all four headers: Content-Type, Cache-Control, nosniff, no-referrer). Scope fence: 2 header lines + 1 test file, nothing else. Justified by DefaultListen=0.0.0.0:8765 (LAN-reachable). Verify: make verify=0 including new dashboard_headers_test. THE LANE: built, copied to ~/.local/bin, codesigned, launchd load+kitted (PID 74123 on :8765). Live curl -sI 127.0.0.1:8765/ → HTTP/1.1 200 OK, Cache-Control: no-store, Content-Type: text/html; charset=utf-8, Referrer-Policy: no-referrer, X-Content-Type-Options: nosniff — all FOUR headers present on the running daemon. No firmware change, no internal/web change, no config change.
+
+2026-09-09T23:30:00Z TASK 106 (PARITY SWEEP) REPORT — dashboard port from tasks 103-105 verified, browser pass deferred to Felipe. This task stays passes:false until Felipe confirms [UNVERIFIED] by the executor.
+
+(a) FEATURE PARITY [TEST+REAL] — 44/44 checks PASS on the assembled HTML served by the live daemon (PID 74123 on :8765, curl -s 127.0.0.1:8765/):
+  Advise card: advise-card + loadAdvise + renderAdvise [REAL]
+  Five views: tab-quota/tab-activity/tab-models/tab-attention/tab-settings [REAL]
+  Settings: setting-openrouter-low, setting-quota-warn-5h, setting-quota-warn-weekly, save-config-btn, settings-form, provider-list [REAL]
+  Controls: interval-select (300/600/900/1800/3600), refresh-btn in header NOT footer [REAL]
+  Setup card: setup-card, setup-scan-btn, setup-found, setup-provision-btn, setup-steps, /v1/setup/scan, /v1/setup/provision, /v1/setup [REAL]
+  Key mgmt: key-dialog, key-value, setKeyPrompt, removeKey, Keychain, POST/DELETE /v1/keys — NO credential field in setup card [REAL]
+  Provider cards: createProviderCard, provider-card, data-field=enabled/label/plan.* , plan-block, planPresets [REAL]
+  Task 102 carryover: "Ordered by recommendation score" on disabled plan buttons [REAL]
+  Sidebar: device-shortcut, StickS3 display, "Private by design" [REAL]
+
+(b) ADVISE AGREEMENT — endpoint: curl -s 127.0.0.1:8765/v1/advise returns winner="codex" label="ChatGPT" score=18.2; recommendations claude(16.96), opencode:go(0.43). Dashboard renderAdvise() maps outcome.winner to winRec.label via recommendations lookup (render.js:91-101) — JS logic verified [REAL]. Client-side render of "Use ChatGPT next" confirmed by code path only; actual painted text [UNVERIFIED] by the executor (requires browser).
+
+(c) SETTINGS ROUND-TRIP [REAL] — PUT /v1/config changed openrouter_low_usd 0.5→1.5; reload GET /v1/config confirmed 1.5; restored to 0.5 confirmed. Provider_order, plans, and all other fields preserved through the round-trip. This catches the 57afdb3 regression class where settings were silently discarded.
+
+(d) FULL SUITE [REAL]:
+  make verify → exit 0 (15 Go packages PASS, 25 JS tests PASS)
+  go test -race -count=1 ./... → exit 0
+  make fw-test → Failed 0
+  make fw-build → SUCCESS, 0 warnings from firmware/src/
+  make fw-publish-check → PUBLISHABLE (0 secrets in binary)
+  spec.json: only indices 102-104 (tasks 103-105) flipped true; indices 0-101 (tasks 1-102) unchanged — 5 were already false ([BLOCKED]/[DEFERRED] prefixed, not mine to run), 97 true.
+
+(e) THE v1 MARKER [REAL] — index.html line 31: <span class="font-mono">v1</span> in sidebar footer next to "Private by design" with shield icon. This is the SNAPSHOT CONTRACT VERSION: V int `json:"v"` in internal/snapshot/types.go:61, example_full.json has "v":1. The app version is "dev" (cmd/usaged/main.go:11), NOT v1. Therefore v1 as a hardcoded literal is CORRECT — it identifies the snapshot format version, not the release version. No injection mechanism needed (snapshot format version is stable).
+
+BROWSER PASS: Felipe's to confirm — all 5 views render, console clean each, navigation + StickS3 device shortcut work, nothing from old dashboard missing.
+
+2026-09-09T23:59:00Z TASK 107 (CLAUDE.md CONTRADICTS SHIPPED PRODUCT) DONE — documentation only: CLAUDE.md, BACKLOG.md, spec.json. No code, no tests, no binaries.
+
+BEFORE (CLAUDE.md lines 185-193):
+  ## Do not publish a firmware build
+
+  `secrets.h` is a compile-time header, so the Wi-Fi SSID, the **Wi-Fi
+  password**, the device token and the host address end up as plaintext strings
+  in `firmware.bin` — verified with `strings` against a real build. Publishing to
+  M5Burner or anywhere else would hand out the network password of whoever built
+  it, and a stranger's flash could not work anyway, since it would try to join
+  our SSID and reach our Mac at a fixed address. `BACKLOG.md` item 3 is the fix
+  and is the top priority if this project resumes.
+
+AFTER (rewritten section, ~200 lines):
+  - Renamed heading to "Publishing a firmware build".
+  - States the actual truth: a build WITH a local secrets.h carries all five
+    credential values (WIFI_SSID, WIFI_PASS, USAGED_HOST, USAGED_DEVICE_TOKEN,
+    OTA_PASS) as plaintext in firmware.bin and must never be published.
+  - The PUBLISHABLE image is built WITHOUT secrets.h, proven by `make
+    fw-publish-check` outputting PUBLISHABLE.
+  - Runtime provisioning (provision.cpp, portal.cpp, bleprov.cpp in
+    firmware/src/usage/) replaces the compile-time secrets header.
+  - Merged-image rule retained: bootloader 0x0 + partitions 0x8000 +
+    boot_app0 0xe000 + app 0x10000; partition table at 0x8000 reads aa50
+    (app-only reads 0342 and bricks at M5Burner's 0x0 flash — v0.2.0).
+  - Release-script enforcement quoted directly from scripts/release.sh:
+    `PT_MAGIC=$(xxd -s 0x8000 -l 2 -p "$ASSET")` then
+    `[ "$PT_MAGIC" = "aa50" ] || die ...`
+
+EVIDENCE:
+  - `make fw-publish-check` output:
+    "PASS: none of the 5 configured credential(s) appear in .../firmware.bin (0 skipped)"
+    "PUBLISHABLE: built with no secrets.h and none of the five values are present."
+  - `scripts/release.sh` step 4/8: `make fw-publish-check | tee /tmp/rel-pub.log`
+    then `grep -q '^PUBLISHABLE' /tmp/rel-pub.log || die`
+  - `scripts/release.sh` step 5/8: `PT_MAGIC=$(xxd -s 0x8000 -l 2 -p "$ASSET")`
+    `[ "$PT_MAGIC" = "aa50" ] || die ... partition table at 0x8000 ...`
+  - Provisioning source files committed: firmware/src/usage/{bleprov,portal,provision}.{cpp,h}
+    with host tests: test_bleprov.cpp (649 lines), test_portal.cpp (747 lines),
+    test_provision.cpp (978 lines) — all pass `make fw-test`.
+  - BACKLOG.md item 3 marked RESOLVED: provisioning built (tasks 75-79 = indices
+    74-78), v0.2.1 published 2026-09-08, publish-check outputs PUBLISHABLE.
+    SoftAP portal hardware UAT (task 77) still BLOCKED — awaiting Felipe.
+
+VERIFIED AGAINST CODE (sub-part c):
+  - secrets.h.example: carries macro names only (WIFI_SSID, WIFI_PASS,
+    USAGED_HOST, USAGED_DEVICE_TOKEN, OTA_PASS) — confirmed 6 #define lines
+    with placeholder values, no real credentials.
+  - check_no_secrets.sh: checks ALL FIVE macros (line: "macros="WIFI_SSID
+    WIFI_PASS USAGED_HOST USAGED_DEVICE_TOKEN OTA_PASS"") — matches the new text.
+  - publish_check.sh: trap restores secrets.h on EXIT INT TERM HUP; moves
+    secrets.h aside, rebuilds, checks binary against stashed header, restores.
+    Confirms OTA_PASS is the one "most easily forgotten" — matches the new text.
+  - Runtime provisioning: bleprov.cpp, portal.cpp, provision.cpp all exist in
+    firmware/src/usage/ (pure C++17, no M5/Arduino headers) with HAL halves in
+    firmware/src/hal/sticks3/{bleprov,portal}.cpp. State machine + NVS store
+    implemented (provision.cpp 202 lines).
+  - flash_when_awake.sh: exists (scripts/flash_when_awake.sh) — reference in
+    CLAUDE.md line 160 still accurate.
+  - AGENTS.md (loaded as binding instructions): already correct — lines 120-138
+    have the merged-image rule, version-from-tag rule, and publish-check
+    stashed-file warning. No changes needed there.
+
+NOT VERIFIED THIS SESSION:
+  - On-hardware provisioning flow (SoftAP portal hardware UAT) — task 77 is
+    BLOCKED awaiting Felipe's hardware UAT. The pure C++17 code and host tests
+    are green, but the live portal broadcast has not been confirmed on the device.
+  - The "Where things stand physically" section (CLAUDE.md lines 171-184: device
+    flashed with cd50477, on battery) was left unchanged per scope fence; I did
+    not verify the physical state.
+  - Message 68 item (d437895 commit label + five "task 101" comments): already
+    resolved in the tree. Commit 2f9f64d reads "task 102"; the five files
+    (snapshot/types.go:13, sched/scheduler.go:189, config/config.go:75,
+    snapshot/types_test.go:230, web/index.html) already say "task 102". No
+    d437895 commit exists in any git ref. The "task 101" comments that remain
+    (advise.go:30,87; advise_test.go:519,584; web_test.go:184) correctly refer
+    to task 101 (the pace confidence blend), not task 102.
+
+`git diff --name-only` lists: BACKLOG.md, CLAUDE.md, progress.txt, spec.json.
+No code, test, or binary files changed. spec.json: only task 107's passes
+flipped false → true (single-line surgical edit).
