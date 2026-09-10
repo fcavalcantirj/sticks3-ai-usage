@@ -1,47 +1,11 @@
 {
   "v": 1,
   "seq": 1,
-  "rev": "eabbae80",
+  "rev": "ba87427c",
   "generated_at": 1788393600,
   "checked_at": 1788393600,
   "next_sec": 900,
   "providers": [
-    {
-      "id": "claude",
-      "label": "Claude",
-      "plan": "max_20x",
-      "kind": "plan",
-      "severity": "ok",
-      "status": "ok",
-      "msg": "",
-      "fetched_at": 1788393600,
-      "rows": [
-        {
-          "k": "5h",
-          "label": "CLAUDE 5h",
-          "pct": 19,
-          "txt": "02:09",
-          "tier": "ok",
-          "reset_at": 1788412199
-        },
-        {
-          "k": "7d",
-          "label": "CLAUDE 7d",
-          "pct": 30,
-          "txt": "Mon",
-          "tier": "ok",
-          "reset_at": 1788767999
-        },
-        {
-          "k": "7d:Fable",
-          "label": "FABLE 7d",
-          "pct": 20,
-          "txt": "Mon",
-          "tier": "ok",
-          "reset_at": 1788767999
-        }
-      ]
-    },
     {
       "id": "opencode:go",
       "label": "OpenCode Go",
@@ -75,6 +39,42 @@
           "txt": "Wed",
           "tier": "ok",
           "reset_at": 1791414875
+        }
+      ]
+    },
+    {
+      "id": "claude",
+      "label": "Claude",
+      "plan": "max_20x",
+      "kind": "plan",
+      "severity": "ok",
+      "status": "ok",
+      "msg": "",
+      "fetched_at": 1788393600,
+      "rows": [
+        {
+          "k": "5h",
+          "label": "CLAUDE 5h",
+          "pct": 19,
+          "txt": "02:09",
+          "tier": "ok",
+          "reset_at": 1788412199
+        },
+        {
+          "k": "7d",
+          "label": "CLAUDE 7d",
+          "pct": 30,
+          "txt": "Mon",
+          "tier": "ok",
+          "reset_at": 1788767999
+        },
+        {
+          "k": "7d:Fable",
+          "label": "FABLE 7d",
+          "pct": 20,
+          "txt": "Mon",
+          "tier": "ok",
+          "reset_at": 1788767999
         }
       ]
     },

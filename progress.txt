@@ -482,3 +482,66 @@ Browser pass [UNVERIFIED] by the executor - Felipe's to confirm:
 
 spec.json: task 109 stays passes:false (browser pass is [UNVERIFIED]). New JSON fields
 `blocked` and `blocked_for_sec` are present in every /v1/advise response.
+
+2026-09-10 CORRECTION — task 101 is no longer load-bearing for ranking. Task 101's
+confidence blend (shrinking pace toward 1.0 when elapsed < 10% of a window) was
+a reliability fix for the pace NUMBER: without it, a just-reset 7d window shows
+pace ≈ 9.92 from 1.6% elapsed, which is not a burn rate. With task 109's
+Score = EffectiveHeadroomPct (no pace division), pace no longer affects the
+score or the sort — it is displayed only as context. Task 101 is NOT deleted:
+it still keeps the displayed Pace column sane after a reset. But it is no
+longer decisive — do not read it as choosing the winner.
+
+2026-09-10 DONE — task 109 was rewritten to headroom-only scoring per Felipe's
+message 59. The original commit bcb8bb4 implemented Parts A+B (blocked gate +
+time-weighted headroom) but KEPT pace division in the score. The rewrite removes
+the pace division: Score = EffectiveHeadroomPct (headroom only). Pace stays
+computed and displayed (PaceRatio field, Pace column in the table) but no longer
+affects ranking. The blocked gate, time-weighted headroom, exact-key filtering,
+stale handling, and tie-break by pace-then-ID are all preserved.
+
+Code changes (all uncommitted, to be committed together):
+- internal/advise/advise.go: score = float64(headroom) instead of headroom/pace.
+  PaceRatio still reports the binding window's blended pace. Reason strings now
+  say "headroom 65%, binding 7d" with pace as parenthetical context. The blocked
+  gate (blocked bool, blocked_for_sec) and time-weighted headroom are unchanged.
+- internal/advise/advise_test.go: TestRankResetOutsideHorizon now asserts
+  score=75.0 (not 30.0), TestRankHeadroomDecides explicitly proves headroom beats
+  pace, TestPaceConfidenceLiveFix asserts headroom-only scores (84/33/1). The
+  17-19 tests (blocked gate, time-weighted headroom, all-blocked) are preserved.
+  The TestRankScoreTwoDecimals test verifies Score has ≤2 decimals.
+- cmd/usaged/once_test.go: goldenFullProviders updated to
+  ["opencode:go","claude","codex","openrouter:main","openrouter:fallback","groq"]
+  because headroom-only scoring ranks opencode:go (95) above claude (70) under
+  the fixed fixture clock. TestOnceJSONFixtures asserts providers[0].id=opencode:go.
+- testdata/snapshots/example_full.json: regenerated to match the new provider order.
+
+Tests changed MEANING: under the old formula, TestRankResetOutsideHorizon expected
+score=30.0 (75/2.5 pace). Under headroom-only it expects score=75.0. Same numbers
+in, different formula out — that is the point of the change, not a fixture retune.
+Task 101's blend tests (TestPaceConfidenceBlendBoundaries et al.) still pass:
+the blend still runs, it just no longer decides.
+
+Verify:
+- make verify = exit 0 (15 Go packages PASS + 26 JS tests PASS)
+- go vet ./internal/advise/ = exit 0; staticcheck ./internal/advise/ = exit 0
+- make fw-test = 46 PASS + Failed 0
+- make fw-build = SUCCESS, 0 warnings from firmware/src/
+- git diff HEAD -- firmware/src/ internal/advise internal/creds internal/providers internal/sched internal/snapshot internal/config internal/format internal/httpx internal/mdns internal/stats internal/bleprov/ → empty (scope: advise + cmd/usaged golden only)
+
+Live data (snapshot checked_at=1789055368):
+- codex 5h pct=18 resets in 2h16m (inside 4h horizon → time-weighted headroom ~90),
+  7d pct=42 (outside horizon → headroom 58). min=58, binding 7d. Not blocked.
+- claude 5h pct=5 resets in 2h50m (inside horizon → ~96), 7d pct=73 (headroom 27). min=27.
+- opencode:go 5h pct=0 (headroom 100), 7d pct=99 (headroom 1), 30d pct=49 (headroom 51). min=1.
+- curl -s 127.0.0.1:8765/v1/advise -> winner: codex (not claude). All recs blocked=false.
+- Hand recompute matches exactly: codex 58, claude 27, opencode:go 1.
+- Under the OLD formula (score=headroom/pace), codex would score ~20.0 (58/2.91) and
+  Claude ~17.4 (27/1.54), so codex still wins — but for a different reason (headroom,
+  not pace-adjusted). The fix matters when pace differences are large relative to
+  headroom gaps (as on 2026-09-09 when Claude 30% beat ChatGPT 65%).
+
+Browser pass [UNVERIFIED] by the executor - Felipe's to confirm:
+  winner badge points to codex, reason reads "headroom 58%, binding 7d (pace 2.91x)",
+  pace shown as context not justification. Felipe's check on the redesigned card
+  with live data. spec.json: task 109 stays passes:false (browser pass is [UNVERIFIED]).

@@ -45,7 +45,7 @@ type Recommendation struct {
 	Reason               string  `json:"reason"`
 	// Blocked is true when some window is at 100% — the provider cannot be
 	// used right now even if it has horizon headroom. It is still ranked but
-	// excluded from winner selection (Part A, task 109).
+	// excluded from winner selection (task 109).
 	Blocked bool `json:"blocked"`
 	// BlockedForSec is the seconds until the earliest blocking window resets.
 	// Zero when the reset is already past.
@@ -96,19 +96,18 @@ type windowResult struct {
 //     task 101). PaceRatio reports the effective (blended) pace.
 //  4. A window at pct=100 is BLOCKED — it gates immediate use. A blocked
 //     provider is excluded from winner selection while a usable one exists,
-//     but still appears in the ranked table with its real numbers (Part A,
-//     task 109).
+//     but still appears in the ranked table with its real numbers (task 109).
 //  5. Provider-level: headroom = min across windows (binding cap), pace =
 //     the binding window's own pace (not the max — a non-binding window's
 //     pace is irrelevant to the decision).
-//  6. Score = headroom / max(1.0, bindingPace). Only over-pacing penalises.
-//  7. Sort: Score desc, PaceRatio asc, binding-window reset time asc.
+//  6. Score = EffectiveHeadroomPct (headroom only). Pace is displayed but does
+//     not affect ranking — pace is trajectory, not capacity (task 109).
+//  7. Sort: Score desc, PaceRatio asc, provider ID asc (deterministic ties).
 func Rank(providers []snapshot.Provider, now time.Time, horizon time.Duration) Outcome {
 	outcome := Outcome{}
 
 	type ranked struct {
-		rec       Recommendation
-		bindingAt time.Time
+		rec Recommendation
 	}
 	var rankedProv []ranked
 
@@ -130,10 +129,10 @@ func Rank(providers []snapshot.Provider, now time.Time, horizon time.Duration) O
 		}
 
 		headroom, binding := aggregate(windows)
-		score := math.Round(float64(headroom)/math.Max(scorePaceThreshold, binding.pace)*100) / 100
+		score := float64(headroom)
 
 		// A provider is BLOCKED when any window is at 100% — it cannot be used
-		// right now even if other windows show horizon capacity (Part A, task 109).
+		// right now even if other windows show horizon capacity (task 109).
 		// blockedForSec tracks the earliest blocking window's reset; this is the
 		// key the reason names and the value the card displays.
 		provBlocked, blockedKey, blockedForSec := computeBlocked(windows, now)
@@ -150,13 +149,13 @@ func Rank(providers []snapshot.Provider, now time.Time, horizon time.Duration) O
 		}
 
 		rankedProv = append(rankedProv, ranked{
-			rec:       rec,
-			bindingAt: binding.resetAt,
+			rec: rec,
 		})
 	}
 
-	// Decision sort: Score desc, PaceRatio asc, binding-window reset time asc
-	// (sooner reset → recovers faster → ranks higher on ties).
+	// Decision sort: Score desc, PaceRatio asc, provider ID asc (deterministic
+	// ties — snapshot.Rev() hashes an ordered array, so non-determinism would
+	// churn rev on every poll).
 	sort.SliceStable(rankedProv, func(i, j int) bool {
 		a, b := rankedProv[i], rankedProv[j]
 		if a.rec.Score != b.rec.Score {
@@ -165,7 +164,7 @@ func Rank(providers []snapshot.Provider, now time.Time, horizon time.Duration) O
 		if a.rec.PaceRatio != b.rec.PaceRatio {
 			return a.rec.PaceRatio < b.rec.PaceRatio
 		}
-		return a.bindingAt.Before(b.bindingAt)
+		return a.rec.ID < b.rec.ID
 	})
 
 	outcome.Recommendations = make([]Recommendation, len(rankedProv))
@@ -173,11 +172,11 @@ func Rank(providers []snapshot.Provider, now time.Time, horizon time.Duration) O
 		outcome.Recommendations[i] = rp.rec
 	}
 
-	// Winner (Part A, task 109): the top-ranked NON-BLOCKED provider with
-	// positive headroom. A blocked provider (some window at 100%) cannot be
-	// used now — it is skipped. If every provider with positive headroom is
-	// blocked, the winner is the one that frees soonest. When no provider has
-	// positive headroom, winner stays nil.
+	// Winner (task 109): the top-ranked NON-BLOCKED provider with positive
+	// headroom. A blocked provider (some window at 100%) cannot be used now —
+	// it is skipped. If every provider with positive headroom is blocked, the
+	// winner is the one that frees soonest. When no provider has positive
+	// headroom, winner stays nil.
 	var winnerID string
 	winnerFound := false
 	for _, rp := range rankedProv {
@@ -258,8 +257,8 @@ func computeWindows(p snapshot.Provider, now time.Time, horizon time.Duration) (
 			w.pace = scorePaceThreshold // 1.0 neutral
 			w.stale = true
 		case untilReset <= horizon:
-			// Resets inside the horizon — time-weighted budget (Part B,
-			// task 109). A window that resets late in the horizon is worth
+			// Resets inside the horizon — time-weighted headroom credit
+			// (task 109). A window that resets late in the horizon is worth
 			// less than one that resets immediately. Pace stays neutral.
 			waitFrac := float64(untilReset) / float64(horizon)
 			w.headroom = int(math.Round(float64(100-pct)*waitFrac + 100*(1-waitFrac)))
@@ -287,6 +286,11 @@ func computeWindows(p snapshot.Provider, now time.Time, horizon time.Duration) (
 // window produces a misleadingly large pace. The blend is continuous and
 // reaches full strength (confidence = 1.0) once paceConfidenceFloor (10%) of
 // the window has elapsed — at that point it reduces to the raw pace.
+//
+// NOTE (task 109): this blend now serves only the DISPLAYED pace ratio. It
+// no longer affects the score, which is headroom only. Task 101 was a
+// reliability fix for the pace number; once pace stopped ranking, 101 became
+// non-load-bearing — it only keeps the displayed pace sane after a reset.
 func computePace(pct int, windowLen, untilReset time.Duration) float64 {
 	timeElapsed := windowLen - untilReset
 	elapsedFraction := float64(timeElapsed) / float64(windowLen)
@@ -324,10 +328,10 @@ func aggregate(windows []windowResult) (int, windowResult) {
 	return binding.headroom, binding
 }
 
-// reason builds the one-line explanation for a recommendation. Pace is always
-// two-decimal. Stale windows (past/absent reset) are flagged. A blocked provider
-// (some window at 100%) gets a "BLOCKED" suffix naming the gating window and
-// when it frees (Part A, task 109).
+// reason builds the one-line explanation for a recommendation. Pace is shown
+// as context, not as a ranking factor (task 109). Stale windows are flagged.
+// A blocked provider (some window at 100%) gets a "BLOCKED" suffix naming the
+// gating window and when it frees.
 func reason(headroom int, binding windowResult, status string, blockedKey string, blockedForSec int) string {
 	paceStr := fmt.Sprintf("%.2f", binding.pace)
 	staleTag := ""
@@ -336,12 +340,12 @@ func reason(headroom int, binding windowResult, status string, blockedKey string
 	}
 	var base string
 	if headroom <= 0 {
-		base = fmt.Sprintf("all windows exhausted, pace %sx%s", paceStr, staleTag)
+		base = fmt.Sprintf("all windows exhausted%s (pace %sx)", staleTag, paceStr)
 	} else {
-		base = fmt.Sprintf("headroom %d%%, pace %sx, binding %s%s", headroom, paceStr, binding.key, staleTag)
+		base = fmt.Sprintf("headroom %d%%, binding %s%s (pace %sx)", headroom, binding.key, staleTag, paceStr)
 	}
 	if blockedKey != "" {
-		base += fmt.Sprintf(" \u2014 BLOCKED: %s at 100%%, frees in %s", blockedKey, formatShortDuration(blockedForSec))
+		base += fmt.Sprintf(" — BLOCKED: %s at 100%%, frees in %s", blockedKey, formatShortDuration(blockedForSec))
 	}
 	return base
 }

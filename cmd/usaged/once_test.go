@@ -88,8 +88,8 @@ func TestOnceJSONFixtures(t *testing.T) {
 	if !isHex(s.Rev) {
 		t.Errorf("rev %q is not 8 hex chars", s.Rev)
 	}
-	if len(s.Providers) == 0 || s.Providers[0].ID != "claude" {
-		t.Errorf("providers[0].id = %q, want claude", providerIDOr(s))
+	if len(s.Providers) == 0 || s.Providers[0].ID != "opencode:go" {
+		t.Errorf("providers[0].id = %q, want opencode:go", providerIDOr(s))
 	}
 }
 
@@ -117,10 +117,10 @@ func TestOnceStateTempByDefault(t *testing.T) {
 
 // --- Golden tests (Task 26: providers integration) ---
 
-// After task 101, plan providers are sorted by descending advise score.
-// At fixedOnceNow the ranking is claude > opencode:go > codex, so the full
+// After task 109, plan providers are sorted by descending EffectiveHeadroomPct.
+// At fixedOnceNow the ranking is opencode:go > claude > codex, so the full
 // order is: plans (by score), then credit (user-chosen), then free (user-chosen).
-var goldenFullProviders = []string{"claude", "opencode:go", "codex", "openrouter:main", "openrouter:fallback", "groq"}
+var goldenFullProviders = []string{"opencode:go", "claude", "codex", "openrouter:main", "openrouter:fallback", "groq"}
 
 // providerIDsFrom returns the id of each provider in order.
 func providerIDsFrom(ps []snapshot.Provider) []string {

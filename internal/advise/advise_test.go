@@ -78,7 +78,7 @@ func TestRankResetInsideHorizon(t *testing.T) {
 	rec := out.Recommendations[0]
 	approx(t, "headroom", float64(rec.EffectiveHeadroomPct), 70, 0.01)
 	approx(t, "pace", rec.PaceRatio, 1.2, 0.01) // 0.30 / (42/168) = 0.30/0.25 = 1.2
-	approx(t, "score", rec.Score, 58.33, 0.01)  // 70 / 1.2 = 58.333...
+	approx(t, "score", rec.Score, 70.0, 0.01)   // 70 (headroom only — pace no longer ranks)
 	if out.Winner == nil || *out.Winner != "claude" {
 		t.Errorf("winner: got %v, want claude", out.Winner)
 	}
@@ -106,7 +106,7 @@ func TestRankResetOutsideHorizon(t *testing.T) {
 		t.Errorf("headroom: got %d, want 75", rec.EffectiveHeadroomPct)
 	}
 	approx(t, "pace", rec.PaceRatio, 2.5, 0.01)
-	approx(t, "score", rec.Score, 30.0, 0.01)
+	approx(t, "score", rec.Score, 75.0, 0.01)
 	if out.Winner == nil || *out.Winner != "codex" {
 		t.Errorf("winner: got %v, want codex", out.Winner)
 	}
@@ -117,7 +117,7 @@ func TestRankResetOutsideHorizon(t *testing.T) {
 func TestRankLongWindowCapsShort(t *testing.T) {
 	// Claude's 5h resets in 12 min (inside horizon → headroom 100, pace 1.0).
 	// 7d at 58% resets in 126h (outside → headroom 42, pace 2.32).
-	// Binding = 7d (min headroom). Score = 42 / 2.32 = 18.10.
+	// Binding = 7d (min headroom). Score = 42 (headroom only).
 	// Also includes codex (0% both windows → score 100) and opencode:go to
 	// verify the full spec ordering: codex > claude > opencode:go.
 	codex := planProv("codex", "ChatGPT",
@@ -140,7 +140,7 @@ func TestRankLongWindowCapsShort(t *testing.T) {
 		t.Fatalf("recommendations: got %d, want 3", len(out.Recommendations))
 	}
 
-	// Ordering: codex (100) > claude (18.10) > opencode:go (11.01).
+	// Ordering: codex (100) > claude (42) > opencode:go (1).
 	if out.Recommendations[0].ID != "codex" {
 		t.Errorf("rank[0]: got %s, want codex", out.Recommendations[0].ID)
 	}
@@ -157,7 +157,7 @@ func TestRankLongWindowCapsShort(t *testing.T) {
 		t.Errorf("claude headroom: got %d, want 42", claudeRec.EffectiveHeadroomPct)
 	}
 	approx(t, "claude pace", claudeRec.PaceRatio, 2.32, 0.01) // 0.58/0.25 = 2.32
-	approx(t, "claude score", claudeRec.Score, 18.10, 0.01)   // 42/2.32 = 18.103 → 18.10
+	approx(t, "claude score", claudeRec.Score, 42.0, 0.01)    // 42 (headroom only)
 
 	if out.Winner == nil || *out.Winner != "codex" {
 		t.Errorf("winner: got %v, want codex", out.Winner)
@@ -259,20 +259,18 @@ func TestRankExactKeyFilter(t *testing.T) {
 	}
 }
 
-// --- Test 7: Divergent A/B scoritest (headroom-vs-pace tradeoff) ---
+// --- Test 7: Headroom decides regardless of pace (task 109) ---
 //
-// A: headroom 60, pace 3.0 → Score = 60/3.0 = 20
-// B: headroom 40, pace 0.85 → Score = 40/max(1.0, 0.85) = 40/1.0 = 40
-//
-// Lower headroom + under-pace beats higher headroom + over-pace. This pins
-// the headroom-vs-pace tradeoff, which every candidate formula must pass
-// differently.
+// With Score = EffectiveHeadroomPct (no pace division), a high-headroom/high-pace
+// provider beats a low-headroom/low-pace one. This is the live 2026-09-09 case:
+// Claude 30% headroom @ 1.77x lost to ChatGPT 65% @ 3.87x under pace division;
+// headroom ranking flips the winner.
 
-func TestRankDivergentAB(t *testing.T) {
+func TestRankHeadroomDecides(t *testing.T) {
 	// Provider A: 7d pct=40, resets in 145.6h.
 	//   headroom = 100-40 = 60 (outside horizon)
 	//   pace = 0.40 / (22.4h/168h) = 0.40/0.13333 = 3.0
-	//   Score = 60 / max(1.0, 3.0) = 60/3.0 = 20.0
+	//   score = 60.0 (headroom only — pace no longer ranks)
 	a := planProv("alpha", "Alpha",
 		row7d(40, 145*time.Hour+36*time.Minute), // 145.6h
 	)
@@ -280,49 +278,78 @@ func TestRankDivergentAB(t *testing.T) {
 	// Provider B: 7d pct=60, resets in 50h.
 	//   headroom = 100-60 = 40 (outside horizon)
 	//   pace = 0.60 / (118h/168h) = 0.60/0.7024 = 0.8542
-	//   Score = 40 / max(1.0, 0.8542) = 40/1.0 = 40.0
+	//   score = 40.0 (headroom only)
 	b := planProv("beta", "Beta",
 		row7d(60, 50*time.Hour),
 	)
 
 	out := Rank([]snapshot.Provider{a, b}, testNow, DefaultHorizon)
 
-	if out.Winner == nil || *out.Winner != "beta" {
-		t.Fatalf("winner: got %v, want beta (lower headroom + under-pace beats over-pace)", out.Winner)
+	// A wins — headroom 60 > 40, despite A's 3.0x pace vs B's 0.85x.
+	if out.Winner == nil || *out.Winner != "alpha" {
+		t.Fatalf("winner: got %v, want alpha (headroom 60 > 40, pace no longer ranks)", out.Winner)
 	}
 	if len(out.Recommendations) != 2 {
 		t.Fatalf("recommendations: got %d, want 2", len(out.Recommendations))
 	}
 
-	// Verify ranking: beta first (40), alpha second (20).
-	if out.Recommendations[0].ID != "beta" {
-		t.Errorf("rank[0]: got %s, want beta", out.Recommendations[0].ID)
+	// Verify ranking: alpha first (60), beta second (40).
+	if out.Recommendations[0].ID != "alpha" {
+		t.Errorf("rank[0]: got %s, want alpha", out.Recommendations[0].ID)
 	}
-	if out.Recommendations[1].ID != "alpha" {
-		t.Errorf("rank[1]: got %s, want alpha", out.Recommendations[1].ID)
+	if out.Recommendations[1].ID != "beta" {
+		t.Errorf("rank[1]: got %s, want beta", out.Recommendations[1].ID)
 	}
 
-	betaRec := out.Recommendations[0]
-	alphaRec := out.Recommendations[1]
+	alphaRec := out.Recommendations[0]
+	betaRec := out.Recommendations[1]
 
-	// A: headroom 60, pace 3.0, score 20.
+	// A: headroom 60, pace 3.0, score 60 (headroom only).
 	if alphaRec.EffectiveHeadroomPct != 60 {
 		t.Errorf("alpha headroom: got %d, want 60", alphaRec.EffectiveHeadroomPct)
 	}
 	approx(t, "alpha pace", alphaRec.PaceRatio, 3.0, 0.001)
-	approx(t, "alpha score", alphaRec.Score, 20.0, 0.01)
+	approx(t, "alpha score", alphaRec.Score, 60.0, 0.01)
 
-	// B: headroom 40, pace < 1.0, score 40.
+	// B: headroom 40, pace 0.85, score 40 (headroom only).
 	if betaRec.EffectiveHeadroomPct != 40 {
 		t.Errorf("beta headroom: got %d, want 40", betaRec.EffectiveHeadroomPct)
 	}
-	if betaRec.PaceRatio >= scorePaceThreshold {
-		t.Errorf("beta pace: got %.4f, want < 1.0 (under-pace costs nothing)", betaRec.PaceRatio)
-	}
+	approx(t, "beta pace", betaRec.PaceRatio, 0.85, 0.01)
 	approx(t, "beta score", betaRec.Score, 40.0, 0.01)
 }
 
-// --- Test 8: Score is rounded to two decimal places ---
+// --- Test 7b: Tie-break by pace then provider ID (task 109) ---
+//
+// Equal headroom is common (two untouched providers both read 100). Ties break
+// by lower pace, then by provider id, ensuring deterministic output —
+// snapshot.Rev() hashes an ordered array, so non-determinism churns rev on
+// every poll.
+
+func TestRankTieBreakPaceThenID(t *testing.T) {
+	// Same headroom (50), different paces. Lower pace sorts first.
+	// a: 7d pct=50, resets in 100h → pace ~1.24
+	// b: 7d pct=50, resets in 150h → pace ~4.67
+	a := planProv("alpha", "Alpha", row7d(50, 100*time.Hour))
+	b := planProv("beta", "Beta", row7d(50, 150*time.Hour))
+
+	out := Rank([]snapshot.Provider{b, a}, testNow, DefaultHorizon)
+	if out.Recommendations[0].ID != "alpha" {
+		t.Errorf("rank[0]: got %s, want alpha (lower pace wins ties)", out.Recommendations[0].ID)
+	}
+
+	// Same headroom AND same pace → provider ID breaks the tie.
+	c := planProv("zeta", "Zeta", row7d(50, 100*time.Hour)) // same pace as alpha
+	out2 := Rank([]snapshot.Provider{a, c}, testNow, DefaultHorizon)
+	if out2.Recommendations[0].ID != "alpha" {
+		t.Errorf("rank[0]: got %s, want alpha (ID tiebreak: alpha < zeta)", out2.Recommendations[0].ID)
+	}
+	if out2.Recommendations[1].ID != "zeta" {
+		t.Errorf("rank[1]: got %s, want zeta", out2.Recommendations[1].ID)
+	}
+}
+
+// --- Test 8: Score mirrors headroom (one decimal place via toFixed) ---
 
 func TestRankScoreTwoDecimals(t *testing.T) {
 	claude := planProv("claude", "Claude",
@@ -381,7 +408,7 @@ func TestRankSingleProvider(t *testing.T) {
 	}
 	// 7d pace: 0.20 / ((168-100)/168) = 0.20/(68/168) = 0.20/0.4048 = 0.494
 	approx(t, "pace", rec.PaceRatio, 0.494, 0.01)
-	approx(t, "score", rec.Score, 80.0, 0.01) // 80 / max(1.0, 0.494) = 80/1.0 = 80
+	approx(t, "score", rec.Score, 80.0, 0.01) // 80 (headroom only)
 	if !strings.Contains(rec.Reason, "codex") == false {
 		// Reason should explain why it wins (headroom, pace, binding).
 	}
@@ -486,8 +513,8 @@ func TestRankTieBreakLongerWindow(t *testing.T) {
 	// 7d: pct=50, resets in 100000s (well outside horizon).
 	//   pace = 0.50 / (504800/604800) = 0.50/0.8346 = 0.5991
 	//
-	// With the WRONG tie-break (5h binds first): score = 50/max(1,2.571) = 19.45
-	// With the CORRECT tie-break (7d binds):     score = 50/max(1,0.599) = 50.00
+	// With the WRONG tie-break (5h binds first): score = 50, pace 2.571
+	// With the CORRECT tie-break (7d binds):     score = 50, pace 0.599
 	p := planProv("alpha", "Alpha",
 		row5h(50, 14500*time.Second),
 		row7d(50, 100000*time.Second),
@@ -533,7 +560,7 @@ func TestPaceConfidenceBlendBoundaries(t *testing.T) {
 	out0 := Rank([]snapshot.Provider{p0}, testNow, DefaultHorizon)
 	r0 := out0.Recommendations[0]
 	approx(t, "0%: pace", r0.PaceRatio, 5.9, 0.01)
-	approx(t, "0%: score", r0.Score, 50.0/5.9, 0.01)
+	approx(t, "0%: score", r0.Score, 50.0, 0.01) // headroom only
 
 	// elapsed 5% — confidence = 0.5 (half-weighted).
 	// paceRaw = 10.0, paceEffective = 1.0 + 9.0*0.5 = 5.5.
@@ -542,7 +569,7 @@ func TestPaceConfidenceBlendBoundaries(t *testing.T) {
 	out5 := Rank([]snapshot.Provider{p5}, testNow, DefaultHorizon)
 	r5 := out5.Recommendations[0]
 	approx(t, "5%: pace", r5.PaceRatio, 5.5, 0.01)
-	approx(t, "5%: score", r5.Score, 50.0/5.5, 0.01)
+	approx(t, "5%: score", r5.Score, 50.0, 0.01) // headroom only
 
 	// elapsed 10% — confidence = 1.0 (full pace, blend is identity).
 	// paceRaw = 5.0, paceEffective = 5.0.
@@ -551,7 +578,7 @@ func TestPaceConfidenceBlendBoundaries(t *testing.T) {
 	out10 := Rank([]snapshot.Provider{p10}, testNow, DefaultHorizon)
 	r10 := out10.Recommendations[0]
 	approx(t, "10%: pace", r10.PaceRatio, 5.0, 0.01)
-	approx(t, "10%: score", r10.Score, 50.0/5.0, 0.01)
+	approx(t, "10%: score", r10.Score, 50.0, 0.01) // headroom only
 
 	// elapsed 50% — confidence = 1.0 (unchanged from pre-blend behaviour).
 	// paceRaw = 1.0, paceEffective = 1.0 → max(1.0, 1.0) = 1.0 → score = 50.
@@ -576,18 +603,19 @@ func TestPaceConfidenceZeroUsedUnchanged(t *testing.T) {
 	out := Rank([]snapshot.Provider{codex}, testNow, DefaultHorizon)
 	rec := out.Recommendations[0]
 	approx(t, "headroom", float64(rec.EffectiveHeadroomPct), 100, 0.01)
-	// raw pace 0 → blended 0.9 → max(1.0, 0.9) = 1.0 → score 100.
+	// headroom 100, pace 0.9 (display only), score = 100
 	approx(t, "pace", rec.PaceRatio, 0.9, 0.01)
 	approx(t, "score", rec.Score, 100.0, 0.01)
 }
 
-// --- Test 16: Live-fix scenario — codex 7d just reset, winner flips (task 101) ---
+// --- Test 16: Live data — codex 7d just reset, headroom ranks (task 101) ---
 //
 // Reproduces the 2026-09-09 capture at now=1788978007 where codex's 7d window
 // had just reset (pct=16, ~1.6% elapsed → raw pace ≈ 9.92) and claude's 7d at
-// 34.7% elapsed (raw pace ≈ 1.93) was ranked higher. Pre-blend codex scored
-// 8.47 (loser to claude's 17.10); the confidence blend shrinks codex's pace to
-// ≈ 2.44 and flips the winner to codex.
+// 34.7% elapsed (raw pace ≈ 1.93) was ranked higher. Under pace division
+// codex scored 8.47 (loser to claude's 17.10); the confidence blend shrinks
+// codex's pace to ≈ 2.44. With task 109's headroom-only score, codex's 84
+// > claude's 33 regardless — pace is displayed but no longer decides.
 
 func TestPaceConfidenceLiveFix(t *testing.T) {
 	now := time.Unix(1788978007, 0).UTC()
@@ -598,15 +626,15 @@ func TestPaceConfidenceLiveFix(t *testing.T) {
 	// 7 d, 1.6% elapsed: paceRaw = 0.16 / 0.01613 ≈ 9.92.
 	// confidence = 0.01613 / 0.10 = 0.1613.
 	// paceEffective = 1.0 + (9.92−1.0) × 0.1613 ≈ 2.44.
-	// score = 84 / 2.44 ≈ 34.4.
+	// score = 84 (headroom only).
 	//
 	// NOTE: the original 2026-09-09 capture had codex 5h pct=100 (blocked).
-	// Task 109 Part A introduced a blocked-gate: a provider at 100% on any
+	// Task 109 introduced a blocked-gate: a provider at 100% on any
 	// window is excluded from winner selection, so codex would no longer win
 	// here. This fixture tests the pace blend, not the blocked gate, so 5h
 	// pct is shifted 100→10 to keep codex usable while leaving every asserted
 	// value unchanged: 5h headroom stays above the 7d's 84, so 7d remains
-	// binding and all scores are identical. Part B (time-weighted headroom)
+	// binding and all scores are identical. (Time-weighted headroom)
 	// also does not change the binding window at pct=10. The isolated blocked
 	// scenario is covered by TestBlockedProviderNotWinner.
 	codex := planProv("codex", "ChatGPT",
@@ -630,7 +658,7 @@ func TestPaceConfidenceLiveFix(t *testing.T) {
 	out := Rank(providers, now, horizon)
 
 	if out.Winner == nil || *out.Winner != "codex" {
-		t.Fatalf("winner: got %v, want codex (pace blend should flip the winner)", out.Winner)
+		t.Fatalf("winner: got %v, want codex (headroom 84 > 33 > 1)", out.Winner)
 	}
 	if len(out.Recommendations) != 3 {
 		t.Fatalf("recommendations: got %d, want 3", len(out.Recommendations))
@@ -651,26 +679,26 @@ func TestPaceConfidenceLiveFix(t *testing.T) {
 	claudeRec := out.Recommendations[1]
 	ocRec := out.Recommendations[2]
 
-	// codex: headroom 84, effective pace ≈ 2.44 (NOT 9.92), score ≈ 34.4.
+	// codex: headroom 84, pace ≈ 2.44, score = 84 (headroom only)
 	if codexRec.EffectiveHeadroomPct != 84 {
 		t.Errorf("codex headroom: got %d, want 84", codexRec.EffectiveHeadroomPct)
 	}
 	approx(t, "codex pace", codexRec.PaceRatio, 2.44, 0.05)
-	approx(t, "codex score", codexRec.Score, 34.48, 0.5)
+	approx(t, "codex score", codexRec.Score, 84.0, 0.01)
 
-	// claude: headroom 33, pace ≈ 1.93 (elapsed > 10%, blend is identity), score ≈ 17.10.
+	// claude: headroom 33, pace ≈ 1.93 (elapsed > 10%, unchanged), score = 33 (headroom only).
 	if claudeRec.EffectiveHeadroomPct != 33 {
 		t.Errorf("claude headroom: got %d, want 33", claudeRec.EffectiveHeadroomPct)
 	}
 	approx(t, "claude pace", claudeRec.PaceRatio, 1.93, 0.02)
-	approx(t, "claude score", claudeRec.Score, 17.10, 0.05)
+	approx(t, "claude score", claudeRec.Score, 33.0, 0.01)
 
-	// opencode:go: headroom 1, pace ≈ 2.51 (elapsed > 10%, unchanged), score ≈ 0.40.
+	// opencode:go: headroom 1, pace ≈ 2.51 (elapsed > 10%, unchanged), score = 1 (headroom only).
 	if ocRec.EffectiveHeadroomPct != 1 {
 		t.Errorf("opencode:go headroom: got %d, want 1", ocRec.EffectiveHeadroomPct)
 	}
 	approx(t, "opencode:go pace", ocRec.PaceRatio, 2.51, 0.05)
-	approx(t, "opencode:go score", ocRec.Score, 0.40, 0.05)
+	approx(t, "opencode:go score", ocRec.Score, 1.0, 0.01)
 }
 
 // row5hAt / row7dAt build a quota row at a given reference time (instead of the
@@ -693,14 +721,14 @@ func row7dAt(now time.Time, pct int, dur time.Duration) snapshot.Row {
 // naming the time to reset. The winner's reason mentions the blocked one.
 
 func TestBlockedProviderNotWinner(t *testing.T) {
-	// codex: 5h pct=100, resets in 2h30m (inside horizon → Part B time-weighted).
+	// codex: 5h pct=100, resets in 2h30m (inside horizon → time-weighted headroom).
 	//   5h headroom = (100-100)*0.625 + 100*0.375 = 38, pace 1.0, blocked.
-	//   7d pct=32, headroom 68. Binding = 5h (38 < 68). Score = 38/1.0 = 38.0.
+	//   7d pct=32, headroom 68. Binding = 5h (38 < 68). Score = 38.
 	codex := planProv("codex", "ChatGPT",
 		row5h(100, 2*time.Hour+30*time.Minute),
 		row7d(32, 100*time.Hour),
 	)
-	// claude: 5h pct=7, resets in 3h (inside horizon → Part B time-weighted).
+	// claude: 5h pct=7, resets in 3h (inside horizon → time-weighted headroom).
 	//   5h headroom = (100-7)*0.75 + 100*0.25 = 95, pace 1.0, not blocked.
 	//   7d pct=67, headroom 33. Binding = 7d (33 < 95). Score ≈ 19.93.
 	claude := planProv("claude", "Claude",
@@ -766,7 +794,7 @@ func TestBlockedProviderNotWinner(t *testing.T) {
 	}
 }
 
-// --- Test 18: Part B time-weighted headroom at three horizon points ---
+// --- Test 18: Time-weighted headroom at three horizon points ---
 //
 // A 5h window at pct=50 that resets inside the horizon gets a time-weighted
 // headroom instead of flat 100. Three anchor points: near-start (≈100),
@@ -810,14 +838,14 @@ func TestPartBTimeWeightedHeadroom(t *testing.T) {
 func TestBlockedAllProvidersBlocked(t *testing.T) {
 	// codex: 5h pct=100, resets in 2h (inside horizon). blockedForSec = 7200.
 	//   5h headroom = (0)*0.5 + 100*0.5 = 50, pace 1.0.
-	//   7d pct=32, headroom 68. Binding = 5h (50). Score = 50/1.0 = 50.0.
+	//   7d pct=32, headroom 68. Binding = 5h (50). Score = 50.
 	codex := planProv("codex", "ChatGPT",
 		row5h(100, 2*time.Hour),
 		row7d(32, 100*time.Hour),
 	)
 	// claude: 5h pct=100, resets in 3h (inside horizon). blockedForSec = 10800.
 	//   5h headroom = (0)*0.75 + 100*0.25 = 25, pace 1.0.
-	//   7d pct=50, headroom 50. Binding = 5h (25). Score = 25/1.0 = 25.0.
+	//   7d pct=50, headroom 50. Binding = 5h (25). Score = 25.
 	claude := planProv("claude", "Claude",
 		row5h(100, 3*time.Hour),
 		row7d(50, 100*time.Hour),
