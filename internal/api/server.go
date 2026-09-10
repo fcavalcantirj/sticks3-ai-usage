@@ -335,6 +335,12 @@ func (s *Server) handleDevice(w http.ResponseWriter, _ *http.Request) {
 		})
 		return
 	}
+	// OtaArmed reflects whether THIS daemon provisioned the device with an OTA
+	// password.  The daemon's DeviceOTAPass is the source of truth: empty means
+	// the device will boot OTA-disarmed and can only be flashed over USB (task
+	// 113 Part A).  The device itself does not report this back, so the daemon
+	// reports its own provisioning decision.
+	ds.OtaArmed = len(s.cfg.DeviceOTAPass) > 0
 	writeJSON(w, http.StatusOK, ds)
 }
 

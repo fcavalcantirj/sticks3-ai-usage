@@ -131,6 +131,27 @@ bool credsSave(const usage::provision::Record& r) {
     return ok;
 }
 
+bool credsSaveOtaPass(const char* pass) {
+    // Load the existing record.  If NVS does not hold one, there is nothing to
+    // update — the caller (Part B of task 113) is responsible for provisioning
+    // first.  Returning false keeps the contract tight: this is a partial
+    // update, not a create.
+    usage::provision::Record existing;
+    if (!credsLoad(existing)) {
+        return false;
+    }
+
+    usage::provision::setOtaPass(existing, pass);
+
+    Preferences pref;
+    if (!pref.begin(kNamespace, false)) {
+        return false;
+    }
+    bool ok = saveField(pref, kKeyOta, existing.otaPass);
+    pref.end();
+    return ok;
+}
+
 void credsClear() {
     Preferences pref;
     if (!pref.begin(kNamespace, false)) {

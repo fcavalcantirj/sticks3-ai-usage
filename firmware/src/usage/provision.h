@@ -102,6 +102,20 @@ bool complete(const Record& r);
 // "this join will fail" warning, not an "unprovisioned" verdict.
 bool passphraseUnusable(const Record& r);
 
+// OTA ARMED: a non-empty OTA password is stored, so ArduinoOTA.begin() can be
+// called safely.  An empty otaPass is not a defect — it is the deliberate
+// default that leaves OTA disarmed rather than exposing an unauthenticated
+// UDP listener to the LAN (the defect that burned forty minutes of on-hardware
+// debugging on 2026-09-10).  net.cpp's otaBegin() is the caller; this is the
+// pure, host-tested rule it consults.
+bool otaArmed(const Record& r);
+
+// Set the OTA password on a record.  Copies at most kMaxOtaPass bytes and
+// always terminates — the same contract setField() in the tests uses.  An
+// empty pass disarms OTA; this is how a partial BLE update arms an
+// already-provisioned device without a factory reset.
+void setOtaPass(Record& r, const char* pass);
+
 // --- the state machine ------------------------------------------------------
 //
 //   Unprovisioned ──────────────────────────────► Portal

@@ -391,6 +391,7 @@ function deviceCard(ds) {
   if (ds.interval_sec > 0) parts.push("~" + ds.interval_sec + "s poll");
   parts.push("200:" + ds.count_200 + " 304:" + ds.count_304);
   parts.push("state: " + (ds.state || "unknown"));
+  if (!ds.ota_armed) parts.push("OTA: disarmed (USB only)");
 
   return '<div class="device-accent">' +
     attentionItem(title, chipText, chipClass, parts.join(" \u00b7 ")) +

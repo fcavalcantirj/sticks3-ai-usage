@@ -1540,7 +1540,7 @@
       "(c) PART C — STOP SHIPPING THE EMPTY DEFAULT SILENTLY. When DeviceOTAPass is unset at provisioning time, the setup flow must say plainly that the device will be USB-only, and offer to GENERATE one. There is precedent to follow exactly: scripts/install-release.sh mints the device token rather than asking the user for it, and explains why in a comment — the user never needs to see either value. A generated password is strictly better than a blank.",
       "Verify: `make verify` and `make fw-test` exit 0, with tests for — an empty stored otaPass reports DISARMED rather than armed; setting one arms it; and the setup flow surfaces the empty case rather than passing it through silently. Then on the live daemon, scripts/device-report.sh must state the connected stick's OTA capability beside its build id — paste it. THE CLOSING CHECK IS FELIPE'S AND IT IS AN ACTUAL OTA UPLOAD: arm the device, then flash it over the air end to end. UNTIL AN OTA UPLOAD ACTUALLY SUCCEEDS THIS TASK IS NOT DONE — 'it should work now' was wrong four times in one afternoon. The serial console shows '[OTA] disarmed (no ota_pass stored)' before the fix and an '[OTA] start' line after; quote both."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "release",

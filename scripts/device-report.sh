@@ -32,7 +32,7 @@ for line in open(log, errors="replace"):
 if not recs:
     print("no device requests logged yet"); sys.exit(0)
 recs = recs[-rows:]
-print(f"{'time':8}  {'code':4}  {'device':>8}  {'server':>8}  {'drift':>7}  {'gap':>7}  build")
+print(f"{'time':8}  {'code':4}  {'device':>8}  {'server':>8}  {'drift':>7}  {'gap':>7}  build  ota")
 prev = None
 worst = 0
 for d in recs:
@@ -50,7 +50,8 @@ for d in recs:
     else:
         drs = "-"
     build = (d.get("user_agent") or "").split("/", 1)[-1]
-    print(f"{t}  {d.get('status'):>4}  {str(dev):>8}  {str(srv):>8}  {drs:>7}  {gap:>7}  {build}")
+    ota = "OTA armed" if d.get("ota_armed") else "OTA DISARMED (USB only)"
+    print(f"{t}  {d.get('status'):>4}  {str(dev):>8}  {str(srv):>8}  {drs:>7}  {gap:>7}  {build}  {ota}")
 print()
 compared = sum(1 for d in recs if isinstance(d.get("drift_s"), (int, float)))
 if compared == 0:

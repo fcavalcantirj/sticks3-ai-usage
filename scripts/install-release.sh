@@ -115,6 +115,25 @@ else
     echo "-- generated a device token (${TOKEN_FILE})"
 fi
 
+# 5b. An OTA password, generated once and kept.
+#
+# The daemon sends this to every StickS3 during BLE provisioning; the device
+# stores it in NVS and uses it as the ArduinoOTA password. Without it the device
+# boots OTA-disarmed and can only be flashed over USB (task 113 Part C).  This
+# installer MINTS one rather than asking the user for it — the same precedent as
+# the device token above. They never need to see it: it is passed to the daemon
+# over the environment, which sends it to the device over Bluetooth.
+OTA_PASS_FILE="${CONFIG_DIR}/device-ota-pass"
+if [ -s "$OTA_PASS_FILE" ]; then
+    OTA_PASS="$(cat "$OTA_PASS_FILE")"
+    echo "-- reusing the existing OTA password"
+else
+    # 24 random bytes as base64, ~32 chars. Same SIGPIPE-safe pattern as above.
+    OTA_PASS="$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n' | base64)"
+    ( umask 077; printf '%s' "$OTA_PASS" > "$OTA_PASS_FILE" )
+    echo "-- generated an OTA password (${OTA_PASS_FILE})"
+fi
+
 # 5. LaunchAgent, generated for THIS home directory.
 #
 # PATH is spelled out because launchd gives a process almost none, and both
@@ -154,6 +173,8 @@ cat > "$PLIST" <<PLIST_EOF
     <string>0.0.0.0:${PORT}</string>
     <key>USAGED_DEVICE_TOKEN</key>
     <string>${TOKEN}</string>
+    <key>USAGED_DEVICE_OTA_PASS</key>
+    <string>${OTA_PASS}</string>
   </dict>
 </dict>
 </plist>

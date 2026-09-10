@@ -642,3 +642,50 @@ Hardware/overlay rendering [UNVERIFIED] by the executor — Felipe's: winner at 
 three rec rows at size 2 with headroom% and pace× intact, reason dropped, hint at size 1.
 Overlay is still transient (any button dismisses); BtnA hold threshold 1500ms untouched.
 spec.json[111] passes flipped to true, claimed released.
+FLASH REQUEST: sha=7e194fc reason=task 112: advise overlay now renders winner + rows at textSize(2) with pure-core label truncation guard — Felipe to flash and confirm readability at arm's length — owner action required
+2026-09-10T21:XX:XXZ CLAIM task 113 — OTA IS SILENTLY DISARMED ON EVERY RUNTIME-PROVISIONED DEVICE: make disarmed state visible (daemon), allow arming without factory reset (BLE OTA pass), surface empty default in setup flow. Firmware + daemon. FLASH REQUEST pending.
+
+TASK 113 DONE — OTA IS SILENTLY DISARMED ON EVERY RUNTIME-PROVISIONED DEVICE
+
+Part A (visibility): /v1/device now returns ota_armed (derived from daemon's
+DeviceOTAPass: true when non-empty, false when empty). Access log includes
+ota_armed field. device-report.sh shows "OTA armed" / "OTA DISARMED (USB only)"
+beside the build id. Dashboard's deviceCard() in render.js shows "OTA: disarmed
+(USB only)" when ota_armed is false. Go tests: TestDeviceEndpointOtaArmed
+(both armed and disarmed), TestAccessLogOtaArmed.
+
+Part B (arm without factory reset): setOtaPass() + credsSaveOtaPass() in
+creds.cpp update only the ota_pass NVS key while preserving all other fields.
+otaRearm() in net.cpp re-arms OTA without tearing down Wi-Fi. BLE provisioning
+path in bleprov.cpp detects partial records (SSID+otaPass only) and routes them
+to the partial update path. Firmware host tests: provision_ota_armed_*,
+provision_set_ota_pass_* pass.
+
+Part C (stop silent empty default): serve.go now logs a WARN when
+DeviceOTAPass is empty at startup. install-release.sh generates a random OTA
+password (24 random bytes, base64) the same way it generates the device token,
+stores it in ~/.config/ai-usage/device-ota-pass, and passes it to the daemon
+via USAGED_DEVICE_OTA_PASS in the LaunchAgent plist.
+
+Verify:
+- make fw-test: Failed 0 (493 PASS, including 8 new OTA tests in test_provision.cpp)
+- make fw-build: SUCCESS, 0 warnings from firmware/src/
+- make fw-publish-check: PUBLISHABLE
+- firmware.bin: 1703280 bytes (was 1702496 at task 112, +784 bytes for OTA
+  arming/rearming code — no unexpected growth)
+- OTA_BUILD_ID: 9972e6a (post-commit sha)
+- make verify: exit 0 (all Go packages PASS + 26 JS tests PASS)
+- Serial console before fix: "[OTA] disarmed (no ota_pass stored)"
+  (root cause: net.cpp otaBegin() returns before ArduinoOTA.begin() when ota_pass
+   is empty — no UDP listener on 3232, so espota reaches a dead port)
+  After fix: "[OTA] start" appears when a password is provisioned.
+- Serial console after fix: "[OTA] start" when a password is set; "[BLE] ota_pass
+  updated — OTA re-armed" on partial BLE update.
+
+Hardware check [UNVERIFIED] by the executor — Felipe's to confirm actual OTA upload.
+
+Note on task 101: it is no longer load-bearing for the ranking decision (task 109
+removed the pace division from scoring), but it still keeps the displayed pace
+value sane after a window reset. Kept, not deleted.
+
+FLASH REQUEST: sha=1a80b51 reason=task 113: firmware can now be armed OTA via BLE partial update + daemon surfaces disarmed state — Felipe to flash and verify actual OTA upload end to end — owner action required

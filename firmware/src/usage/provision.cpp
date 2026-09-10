@@ -108,6 +108,28 @@ bool passphraseUnusable(const Record& r) {
     return len > 0 && len < kMinWpaPass;
 }
 
+// See provision.h.  Only the first byte matters — an empty field is disarmed,
+// whatever garbage sanitize() may have stripped from the end.
+bool otaArmed(const Record& r) {
+    return r.otaPass[0] != '\0';
+}
+
+// See provision.h.  Copies at most kMaxOtaPass bytes and always terminates,
+// matching the fieldLen/copyField discipline already in use here.  An empty
+// pass disarms OTA.
+void setOtaPass(Record& r, const char* pass) {
+    if (pass == nullptr) {
+        r.otaPass[0] = '\0';
+        return;
+    }
+    size_t i = 0;
+    while (i < kMaxOtaPass && pass[i] != '\0') {
+        r.otaPass[i] = pass[i];
+        ++i;
+    }
+    r.otaPass[i] = '\0';
+}
+
 // --- the state machine -------------------------------------------------------
 
 Machine::Machine(uint8_t maxJoinFailures)

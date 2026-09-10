@@ -28,6 +28,8 @@ using usage::provision::kMaxSsid;
 using usage::provision::kMaxToken;
 using usage::provision::passphraseUnusable;
 using usage::provision::sanitize;
+using usage::provision::otaArmed;
+using usage::provision::setOtaPass;
 
 namespace {
 
@@ -487,6 +489,85 @@ TEST(provision_passphrase_short_record_is_still_complete) {
     setField(r.pass, kMaxPass, "short");
     ASSERT_TRUE(passphraseUnusable(r));
     ASSERT_TRUE(complete(r));
+}
+
+// --- otaArmed / setOtaPass --------------------------------------------------
+//
+// The OTA-password rule that task 113 rests on: an empty otaPass means OTA
+// stays DISARMED, and a non-empty one means it is armed.  These are pure
+// functions — no NVS, no radio — so they are host-tested here.
+
+TEST(provision_ota_armed_empty_returns_false) {
+    Record r = makeComplete();
+    r.otaPass[0] = '\0';
+    ASSERT_FALSE(otaArmed(r));
+}
+
+TEST(provision_ota_armed_set_returns_true) {
+    Record r = makeComplete();
+    ASSERT_TRUE(otaArmed(r));
+}
+
+TEST(provision_ota_armed_default_record_is_disarmed) {
+    Record r;
+    clear(r);
+    ASSERT_FALSE(otaArmed(r));
+}
+
+TEST(provision_set_ota_pass_updates_field) {
+    Record r = makeComplete();
+    r.otaPass[0] = '\0';
+    ASSERT_FALSE(otaArmed(r));
+
+    setOtaPass(r, "new-ota-pass");
+    ASSERT_TRUE(otaArmed(r));
+    ASSERT_STREQ("new-ota-pass", r.otaPass);
+}
+
+TEST(provision_set_ota_pass_empty_disarms) {
+    Record r = makeComplete();
+    ASSERT_TRUE(otaArmed(r));
+
+    setOtaPass(r, "");
+    ASSERT_FALSE(otaArmed(r));
+    ASSERT_EQ('\0', r.otaPass[0]);
+}
+
+TEST(provision_set_ota_pass_nullptr_disarms) {
+    Record r = makeComplete();
+    ASSERT_TRUE(otaArmed(r));
+
+    setOtaPass(r, nullptr);
+    ASSERT_FALSE(otaArmed(r));
+    ASSERT_EQ('\0', r.otaPass[0]);
+}
+
+TEST(provision_set_ota_pass_truncates_at_capacity) {
+    // kMaxOtaPass is 63. 64 chars (plus NUL) must be truncated, not overflowed.
+    Record r = makeComplete();
+    char tooLong[65];
+    for (int i = 0; i < 64; ++i) {
+        tooLong[i] = 'a' + (i % 26);
+    }
+    tooLong[64] = '\0';
+
+    setOtaPass(r, tooLong);
+    ASSERT_EQ(kMaxOtaPass, std::strlen(r.otaPass));
+    ASSERT_TRUE(otaArmed(r));
+}
+
+TEST(provision_ota_armed_does_not_require_other_fields) {
+    // otaArmed is independent of ssid/host/token: a device can have OTA
+    // armed while otherwise unprovisioned (or vice versa).
+    Record r;
+    clear(r);
+    setField(r.ssid, kMaxSsid, "net");
+    ASSERT_FALSE(complete(r));
+    ASSERT_FALSE(otaArmed(r));
+
+    setOtaPass(r, "armed");
+    ASSERT_TRUE(otaArmed(r));
+    ASSERT_FALSE(complete(r));
 }
 
 // --- state machine: transitions ----------------------------------------------

@@ -47,6 +47,16 @@ bool credsLoad(usage::provision::Record& out);
 // incomplete record (→ portal) rather than a silently wrong one.
 bool credsSave(const usage::provision::Record& r);
 
+// Update ONLY the OTA password in NVS, preserving every other field.  This is
+// the path that lets an already-provisioned device be armed without a factory
+// reset: credsSeedFromSecretsIfEmpty() never fires once NVS holds a record, so
+// re-flashing with a secrets.h that carries OTA_PASS changes nothing.  This
+// function loads the existing record, applies provision::setOtaPass, and writes
+// just the ota_pass key back.  Returns false if the device is not yet
+// provisioned (no record to update) — the caller should provision normally
+// instead.
+bool credsSaveOtaPass(const char* pass);
+
 // Remove the six credential keys — factory reset / re-provision.  Deliberately
 // NOT Preferences::clear(): the "usaged" namespace is shared with rotation and
 // brightness, which must survive a re-provision.

@@ -155,6 +155,7 @@ type deviceState struct {
 	LastStatus   int    `json:"last_status"`    // 200 or 304
 	State        string `json:"state"`          // "connected", "absent", or "unknown"
 	ClientAddr   string `json:"addr,omitempty"` // IP of the client this state describes
+	OtaArmed     bool   `json:"ota_armed"`      // whether the daemon provisioned with an OTA password
 }
 
 // computeDeviceState returns an explicit presence state from the observed
@@ -227,6 +228,7 @@ func (s *Server) logAccess(r *http.Request, status int) {
 		"user_agent", r.Header.Get("User-Agent"),
 		"status", status,
 		"if_none_match", r.Header.Get("If-None-Match"),
+		"ota_armed", len(s.cfg.DeviceOTAPass) > 0,
 	)
 }
 
@@ -253,6 +255,7 @@ func (s *Server) logAccessWithAge(r *http.Request, status int, ageS string, serv
 		"if_none_match", r.Header.Get("If-None-Match"),
 		"age_s", ageS,
 		"server_age_s", serverAgeSec,
+		"ota_armed", len(s.cfg.DeviceOTAPass) > 0,
 	}
 	// drift_s = what the device believes minus what the server knows. Only
 	// computable when the device sent a parseable number; a malformed value is

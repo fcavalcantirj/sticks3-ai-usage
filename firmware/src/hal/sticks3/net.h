@@ -64,6 +64,13 @@ const char* netIp(char* buf, size_t n);
 // Safe to call again after a reconnect (calls end() first).
 void otaBegin();
 
+// Update the stored OTA password in RAM and re-arm OTA, WITHOUT tearing down
+// Wi-Fi.  Called when a partial BLE update delivers a new otaPass to an already-
+// provisioned device: credsSaveOtaPass() persists it, then otaRearm() copies it
+// into g_otaPass and calls otaBegin().  No-op if the password is empty (OTA
+// stays disarmed).
+void otaRearm(const char* pass);
+
 // Drive an in-progress transfer (calls ArduinoOTA.handle()).
 void otaHandle();
 

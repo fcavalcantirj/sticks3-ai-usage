@@ -428,6 +428,42 @@ void startApply(uint32_t nowMs) {
                   (int)std::strlen(rec.otaPass), (unsigned)rec.port);
     serialLine(buf);
 
+    // PARTIAL OTA UPDATE (task 113 Part B).  A stream that carries an SSID and
+    // an otaPass but no host or token is not a full provision — it is the daemon
+    // arming OTA on an already-provisioned device.  The SSID is the device's
+    // only identifier on the wire; it must match the stored one or we refuse
+    // rather than arm the wrong device.  If it matches, update just the
+    // otaPass in NVS, re-arm OTA, and report Applied — no WiFi re-join needed.
+    if (rec.ssid[0] != '\0' && rec.otaPass[0] != '\0' &&
+        rec.host[0] == '\0' && rec.token[0] == '\0') {
+        usage::provision::Record existing;
+        if (credsLoad(existing)) {
+            if (std::strcmp(existing.ssid, rec.ssid) == 0) {
+                if (credsSaveOtaPass(rec.otaPass)) {
+                    otaRearm(rec.otaPass);
+                    {
+                        Guard g;
+                        g_dec.markApplied();
+                        g_dec.scrub();
+                    }
+                    publishStatus(true);
+                    setMessage(kMsgJoined);
+                    serialLine("[BLE] ota_pass updated — OTA re-armed");
+                    secureWipe(&rec, sizeof(rec));
+                    secureWipe(&existing, sizeof(existing));
+                    g_phase     = Phase::Applied;
+                    g_phaseAtMs = nowMs;
+                    return;
+                }
+                // credsSaveOtaPass failed — fall through to the full path, which
+                // will report SaveFailed at its own credsSave.
+            }
+        }
+        // SSID mismatch or not provisioned: refuse the partial, fall through to
+        // the full path.  A full provision with a host/token is the correct
+        // response to "this device is not the one I expected".
+    }
+
     if (!credsSave(rec)) {
         secureWipe(&rec, sizeof(rec));
         {

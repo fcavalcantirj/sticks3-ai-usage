@@ -331,6 +331,61 @@ func TestDeviceEndpoint304Split(t *testing.T) {
 	}
 }
 
+// TestDeviceEndpointOtaArmed verifies that /v1/device reports the daemon's
+// provisioning decision about OTA: OtaArmed is true when DeviceOTAPass is
+// non-empty, false when it is empty (task 113 Part A).  The device itself does
+// not report this back over HTTP — the daemon reports its own provisioning
+// choice, because it was the daemon that sent (or withheld) the password during
+// BLE setup.
+func TestDeviceEndpointOtaArmed(t *testing.T) {
+	dir := setupFixtures(t)
+
+	for _, tc := range []struct {
+		name      string
+		otaPass   string
+		wantArmed bool
+	}{
+		{"armed", "sekrit-ota", true},
+		{"disarmed", "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := config.Config{
+				Listen:        "127.0.0.1:0",
+				Interval:      900 * time.Second,
+				TZ:            testLoc,
+				DeviceToken:   "x",
+				DeviceOTAPass: tc.otaPass,
+			}
+			handler, _, _ := newFixtureHandlerCfg(t, dir, cfg)
+			ts := httptest.NewServer(handler)
+			t.Cleanup(ts.Close)
+
+			// Seed the tracker with a device request.
+			req, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
+			req.Header.Set("User-Agent", "sticks3-usage/test1234")
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp.Body.Close()
+
+			devResp, err := http.Get(ts.URL + "/v1/device")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer devResp.Body.Close()
+
+			var ds deviceState
+			if err := json.NewDecoder(devResp.Body).Decode(&ds); err != nil {
+				t.Fatalf("decode /v1/device: %v", err)
+			}
+			if ds.OtaArmed != tc.wantArmed {
+				t.Errorf("ota_armed = %v, want %v", ds.OtaArmed, tc.wantArmed)
+			}
+		})
+	}
+}
+
 // TestDeviceEndpointFromDeviceNotBrowser verifies the ORDER #63 fix: when a
 // browser with a device token but no device User-Agent requests /v1/usage
 // (e.g. a loopback curl carrying the token), it must NOT be classified as the
@@ -690,6 +745,28 @@ func TestAccessLogUserAgent(t *testing.T) {
 	logOutput := logBuf.String()
 	if !strings.Contains(logOutput, "sticks3-usage/abc1234") {
 		t.Errorf("user_agent not found in access log:\n%s", logOutput)
+	}
+}
+
+// TestAccessLogOtaArmed verifies that the access log includes ota_armed,
+// derived from the daemon's DeviceOTAPass config (task 113 Part A).  With the
+// default test config (no DeviceOTAPass), it must read false.
+func TestAccessLogOtaArmed(t *testing.T) {
+	dir := setupFixtures(t)
+	ts, logBuf := newFixtureServerWithCapture(t, dir)
+	defer ts.Close()
+
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/v1/usage", nil)
+	req.Header.Set("User-Agent", "sticks3-usage/abc1234")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	logOutput := logBuf.String()
+	if !strings.Contains(logOutput, `"ota_armed":false`) {
+		t.Errorf("ota_armed:false not found in access log:\n%s", logOutput)
 	}
 }
 

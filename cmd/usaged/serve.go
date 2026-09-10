@@ -40,6 +40,17 @@ func runServe(args []string, stdout io.Writer) int {
 
 	logger.Info("usaged serve", "cfg", cfg.Redacted())
 
+	// Task 113 Part C: warn when DeviceOTAPass is unset.  The daemon's
+	// DeviceOTAPass is the ONLY source of the OTA password sent to the device
+	// during BLE provisioning; empty means the device boots OTA-disarmed and can
+	// only be flashed over USB.  This was historically silent — discovered only
+	// when 'No response from the ESP' was mistaken for a network problem (task
+	// 113).  Surface it at startup so the owner knows before they reach for a
+	// cable.
+	if len(cfg.DeviceOTAPass) == 0 {
+		logger.Warn("device_ota_pass is empty: devices will be provisioned OTA-disarmed and can only be flashed over USB; set device_ota_pass in config.yaml to enable ArduinoOTA")
+	}
+
 	// Scenario overlay: copy base fixtures + scenario files into a temp dir.
 	fixturesDir, cleanup := resolveFixturesDir(cfg)
 	defer cleanup()

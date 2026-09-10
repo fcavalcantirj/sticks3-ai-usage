@@ -194,6 +194,22 @@ void otaBegin() {
     g_otaPercent = 255;
 }
 
+void otaRearm(const char* pass) {
+    // Copy the new password into g_otaPass (bounded + terminated, matching
+    // netBegin's discipline) then re-arm.  otaBegin() itself is the no-empty-
+    // password guard: an empty pass leaves OTA disarmed rather than calling
+    // ArduinoOTA.begin() with no password.
+    if (pass != nullptr) {
+        size_t i = 0;
+        while (i < usage::provision::kMaxOtaPass && pass[i] != '\0') {
+            g_otaPass[i] = pass[i];
+            ++i;
+        }
+        g_otaPass[i] = '\0';
+    }
+    otaBegin();
+}
+
 void otaHandle() {
     // Only handle when the service is armed; otherwise no-op.
     if (!g_otaStarted) return;
