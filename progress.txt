@@ -386,7 +386,7 @@ SCOPE FENCE: no API change, no firmware, no config change, go.mod byte-identical
 
 2026-09-10T00:49:39Z TASK 106 DONE — parity sweep: prove the redesign lost nothing. Felipe regenerated the prototype twice, so every port is a merge. All verification below ran against the live daemon on 127.0.0.1:8765 (PID confirmed via lsof) after THE LANE: make build + cp to ~/.local/bin/ai-usage + codesign + launchd kickstart. The browser pass is Felipe's — [UNVERIFIED] by the executor on each view.
 
-(a) FEATURE PARITY (view by view, all [REAL] against the running daemon):
+(a) FEATURE PARITY (view by view, [REAL] = confirmed by grepping the served HTML on 127.0.0.1:8765; browser walk is Felipe's — [UNVERIFIED] by the executor):
   - Quota overview: present. Page heading with eyebrow "YOUR AI, AT A GLANCE", interval-select dropdown (5/10/15/30/60 min, default 15), Refresh now button, stat-pills (4 pills: tokens today/month, cost today/month), provider list with All/Subscriptions/Pay-as-you-go filters, provider cards with plan/credit/free badges and up/down reorder arrows (disabled on plan cards), toggleProviderCard chevron. Nothing lost from the old dashboard.
   - Activity: present. tab-activity panel with "Keep your work flowing" heading — renders attention items from /v1/stats.
   - Models: present. tab-models panel with table: Model | Tokens today | Tokens month | Est. cost month | Requests.
@@ -402,7 +402,7 @@ SCOPE FENCE: no API change, no firmware, no config change, go.mod byte-identical
   - Setup card: present. BLE provisioning card with scan, provision, and stop buttons.
   - Pills dropped icons: confirmed — grep data-icon within .pills = 0 in served HTML; icons only in sidebar nav and settings-card headings.
 
-(b) ADVISE AGREEMENT:
+(b) ADVISE AGREEMENT [TEST + UNVERIFIED]:
   - curl -s 127.0.0.1:8765/v1/advise → winner: codex (score 18.68, headroom 68%, binding 7d) [REAL]
   - render.js:78 — card winner derived from `outcome.winner` (same endpoint response) [TEST — verified by js test harness #7 "unavailable advice clears both displayed and retained winner" and #13 "exhausted advice has no fabricated alternative"]
   - Card winner rendering [UNVERIFIED] by executor — requires a browser to observe the painted h2. Source code guarantees agreement: both derive from the same /v1/advise JSON.
