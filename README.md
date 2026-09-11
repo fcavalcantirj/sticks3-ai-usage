@@ -220,33 +220,54 @@ launchctl bootout gui/$(id -u)/com.fcavalcanti.ai-usage
 rm -f ~/Library/LaunchAgents/com.fcavalcanti.ai-usage.plist ~/.local/bin/ai-usage
 ```
 
-## Status line
+## Status line — your quotas on every prompt
 
-The repo also ships a Claude Code **status line**, so the same numbers sit at the
-bottom of every prompt:
+The repo ships a Claude Code **status line** and a **skill**, so the same numbers
+sit at the bottom of every prompt and answer questions on demand.
 
 <p align="center">
-  <img src="docs/img/statusline.png" width="100%" alt="Claude Code status line showing the model, the project, a context gauge, and Claude 5h/7d and GPT 5h/7d quota bars coloured green, amber and red">
+  <img src="docs/img/statusline.png" width="100%" alt="Claude Code status line: the model name, the project, a context gauge at 64%, Claude 5h at 3% and 7d at 89%, and GPT 5h at 100% and 7d at 31%, each with a coloured bar">
 </p>
+
+**Install it once:**
 
 ```sh
 bash skills/ai-usage/scripts/install.sh
 ```
 
-It backs up `~/.claude/settings.json` first and points `statusLine` at the gauge.
-`uninstall.sh` puts it back.
+That backs up `~/.claude/settings.json` and points `statusLine` at the gauge with a
+60-second refresh. `uninstall.sh` puts it back and keeps a backup. Never hand-edit
+`settings.json` for this.
 
-The bar **makes no network call when it renders.** It reads the state file the
-daemon already writes (`~/.local/state/ai-usage/state.json`), so it costs nothing
-per prompt and keeps working while the daemon is between polls. Claude's own 5h
-and 7d figures come from Claude Code's status-line input, which is authoritative
-during a session; everything else comes from the file. Green under 50%, amber to
-79%, red at 80% and above. `AI_USAGE_COMPACT=1` drops the bars for a narrower
-terminal; `AI_USAGE_BAR=12` widens them.
+**Reading it:** model · project · context used · Claude 5h and 7d · ChatGPT 5h and
+7d. Green under 50%, amber to 79%, red at 80% and above. `AI_USAGE_COMPACT=1` drops
+the bars for a narrow terminal; `AI_USAGE_BAR=12` widens them.
 
-If the daemon is not running the bar says so, and if the snapshot is older than
-45 minutes it says `stale Nm` rather than showing numbers as though they were
-current.
+**It makes no network call when it renders.** It reads the state file the daemon
+already writes (`~/.local/state/ai-usage/state.json`), so it costs nothing per
+prompt and keeps working between polls. Claude's own 5h/7d come from Claude Code's
+status-line input, which is authoritative during a session. If the daemon is not
+running the bar says `ai-usage: not running`, and a snapshot older than 45 minutes
+reads `stale Nm` rather than passing off old numbers as current.
+
+### The `/ai-usage` skill
+
+The same directory is a skill, so inside Claude Code you can just ask. Type
+`/ai-usage` for the current line plus the full table, or use one of:
+
+| ask | what it does |
+|---|---|
+| `/ai-usage` | the status line, and the six-provider table with reset times |
+| `/ai-usage dashboard` | checks the daemon answers, prints the snapshot age, opens <http://127.0.0.1:8765> and prints the LAN URL for a phone |
+| `/ai-usage refresh` | polls every provider now instead of waiting for the 15-minute tick |
+| `/ai-usage table` | just the table (`GET /v1/usage.txt`) |
+| `/ai-usage install` / `uninstall` | wires or unwires the status line |
+
+It is also matched by plain questions — *"how much quota is left"*, *"am I rate
+limited"*, *"what is my weekly limit"* — so you rarely need the slash command.
+
+The skill never reads, prints or refreshes an OAuth token: it consumes percentages
+only, and the daemon reads the Keychain and `~/.codex/auth.json` read-only.
 
 <sub>Screenshot rendered from the repository's demo fixtures, not a real account.</sub>
 
