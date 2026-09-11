@@ -311,3 +311,38 @@ test('production source does not import or activate sample adapters', () => {
   assert.doesNotMatch(source, /preview\/adapter|__PREVIEW_DATA__/);
   assert.doesNotMatch(html, /src=["']https:\/\//);
 });
+
+// TASK 116. GET /v1/device answers exactly {"state":"unknown"} until the first
+// check-in — the state of every fresh install, and of every daemon restart
+// until the stick next polls (up to 12 h on battery). That object is truthy, so
+// it sailed past the `if (!ds)` guard and the card rendered "undefineds ago",
+// "200:undefined 304:undefined", and a confident "OTA: disarmed (USB only)"
+// about a device the daemon had never heard from. The payload below is the
+// VERBATIM body a live daemon returns in that state.
+test('device card claims nothing about a device it has never heard from', () => {
+  const { context } = harness();
+  const html = context.deviceCard(JSON.parse('{"state":"unknown"}'));
+
+  assert.match(html, /Waiting for first check-in/);
+  assert.doesNotMatch(html, /undefined/);
+  assert.doesNotMatch(html, /disarmed/);
+});
+
+// The device reports its own OTA state on every fetch, so false IS a
+// measurement — but undefined is not one, and must not be rendered as disarmed.
+test('OTA state is a tri-state, not a falsy check', () => {
+  const { context } = harness();
+  const base = { last_seen: 1789087018, seconds_since: 12, interval_sec: 300,
+                 count_200: 4, count_304: 0, state: 'connected', addr: '192.168.0.194' };
+
+  const armed = context.deviceCard({ ...base, ota_armed: true });
+  assert.doesNotMatch(armed, /disarmed|not reported/);
+
+  const disarmed = context.deviceCard({ ...base, ota_armed: false });
+  assert.match(disarmed, /OTA: disarmed \(USB only\)/);
+
+  // Never reported: a browser, or firmware older than task 115.
+  const silent = context.deviceCard(base);
+  assert.match(silent, /OTA: not reported/);
+  assert.doesNotMatch(silent, /disarmed/);
+});

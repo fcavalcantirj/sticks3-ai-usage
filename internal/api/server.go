@@ -258,7 +258,8 @@ func (s *Server) handleUsage(w http.ResponseWriter, r *http.Request) {
 	// (task 115): the firmware appends ?ota_armed=1 or ?ota_armed=0 to every
 	// /v1/usage GET.  This is the device's own measured state — its g_otaPass
 	// byte — not the daemon's config.  Browsers/curl do not send it.
-	otaArmed := r.URL.Query().Get("ota_armed") == "1"
+	// Absent means NOT REPORTED, not disarmed (task 116).
+	otaArmed := parseOtaArmed(r)
 
 	// Record the request and log access (never logs the device token).
 	s.tracker.record(peer, ua, now, status, otaArmed)

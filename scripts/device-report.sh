@@ -50,7 +50,18 @@ for d in recs:
     else:
         drs = "-"
     build = (d.get("user_agent") or "").split("/", 1)[-1]
-    ota = "OTA armed" if d.get("ota_armed") else "OTA DISARMED (USB only)"
+    # TRI-STATE (task 116). Since task 116 the daemon logs ota_armed as
+    # "armed" / "disarmed" / "unknown"; log lines written before it carry a
+    # bare boolean, so both shapes are read here. A row that reports NOTHING
+    # must not print DISARMED: that claim is what sent a reader down a
+    # forty-minute dead end about a stick that was in fact armed.
+    raw = d.get("ota_armed")
+    if raw is True or raw == "armed":
+        ota = "OTA armed"
+    elif raw is False or raw == "disarmed":
+        ota = "OTA DISARMED (USB only)"
+    else:
+        ota = "OTA not reported"
     print(f"{t}  {d.get('status'):>4}  {str(dev):>8}  {str(srv):>8}  {drs:>7}  {gap:>7}  {build}  {ota}")
 print()
 compared = sum(1 for d in recs if isinstance(d.get("drift_s"), (int, float)))

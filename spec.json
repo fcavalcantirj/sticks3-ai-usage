@@ -1559,6 +1559,23 @@
     "passes": true
   },
   {
+    "category": "host",
+    "description": "THE DASHBOARD CLAIMS 'OTA: disarmed (USB only)' ABOUT A DEVICE IT HAS NEVER HEARD FROM: absence of a measurement is rendered as a confident negative, on every fresh install",
+    "steps": [
+      "Context (repeat in your head; the loop starts you with no memory): this repo is ai-usage at /Users/fcavalcanti/dev/m5/sticks3-ai-usage. Task 114 removed a false OTA claim that came from the daemon's own config. This is the SAME falsehood surviving in a narrower window, found while verifying 114.",
+      "THE LANE — non-negotiable: `make verify`, `make build`, `cp bin/ai-usage ~/.local/bin/ai-usage`, `codesign --force --sign - ~/.local/bin/ai-usage`, `launchctl kickstart -k gui/$(id -u)/com.fcavalcanti.ai-usage`, then `lsof -nP -iTCP:8765 -sTCP:LISTEN` showing launchd's pid. NEVER hand-start the daemon on 8765. internal/web/ is go:embed — nothing is live until you rebuild AND restart.",
+      "MEASURED, not inferred: a daemon with no device check-in answers GET /v1/device with the entire body {\"state\":\"unknown\"} — ota_armed is OMITTED, not false. Reproduce on a scratch port, never on 8765: `bin/ai-usage serve --listen 127.0.0.1:18770 --state /tmp/scratch.json &` then `curl -s 127.0.0.1:18770/v1/device`.",
+      "MEASURED by running the real dashboard code in node against that exact body: the card rendered `last seen — · undefineds ago · 200:undefined 304:undefined · state: unknown · OTA: disarmed (USB only)`. internal/web/render.js deviceCard's early return guards only `if (!ds)`, and {\"state\":\"unknown\"} is TRUTHY, so it sails past; then `if (!ds.ota_armed)` treats undefined as false.",
+      "WHY IT MATTERS: that is the state of every brand-new install before the first check-in, and of every daemon restart until the stick next polls — up to 12h on battery, since the tracker is in-memory (internal/api/accesslog.go clientTracker). It is the first screen a new user sees, and it lies to them about OTA.",
+      "PART 1 — the daemon must distinguish 'reported disarmed' from 'never reported'. ?ota_armed= absent is NOT false: a browser, a loopback curl, and any firmware older than task 115 all send nothing. Make the stored and serialised state a tri-state (nil/absent, armed, disarmed) so the wire carries the distinction, and make the access log say armed/disarmed/unknown instead of a bare boolean.",
+      "PART 2 — the dashboard must claim nothing it has not been told. Render the existing 'Waiting for first check-in' card when there is no measurement, and only say 'disarmed (USB only)' when the device actually reported disarmed.",
+      "PART 3 — scripts/device-report.sh has the same binary ternary at the ota column. Give it the same three outcomes, and keep it able to read log lines written before this task (bare booleans).",
+      "Do NOT reverse task 113's disarm policy and do NOT arm OTA without a password. This task is about what the software CLAIMS, never about what it arms."
+    ],
+    "verify": "[TEST] `make verify` exits 0, and the JS suite includes a test that renders deviceCard against the verbatim body {\"state\":\"unknown\"} and asserts the output contains no 'undefined' and no 'disarmed'; confirm it FAILS against the pre-fix render.js. [REAL] Run THE LANE, then `curl -s 127.0.0.1:8765/v1/device` and paste it. NOTE: the tracker is in-memory, so a kickstart legitimately returns {\"state\":\"unknown\"} until the stick's next poll — that is the state under test, not a failure. Paste the deviceCard output for whatever body you got: 'unknown' must render 'Waiting for first check-in' with no OTA claim, and once the device polls again the same card must show ota_armed true. [REAL] Also run a scratch daemon on 127.0.0.1:18770 with a fresh state file (NEVER 8765) and paste its /v1/device body beside the card it produces.",
+    "passes": true
+  },
+  {
     "category": "release",
     "description": "BUMP TO 0.3.0 — only after Felipe confirms the manual test passed",
     "steps": [

@@ -356,7 +356,14 @@ function heatmapHtml(src, srcName) {
 // on 304). When no device has checked in, the card shows a neutral "no data"
 // state rather than an error — "waiting" is a valid state, not a failure.
 function deviceCard(ds) {
-  if (!ds) {
+  // GET /v1/device answers {"state":"unknown"} — and nothing else — until the
+  // first check-in, which is the state of every fresh install and of every
+  // daemon restart until the stick next polls (up to 12 h on battery). That
+  // object is TRUTHY, so it used to sail past this guard and render "last seen
+  // —", "undefineds ago", "200:undefined 304:undefined" and, worst of all, a
+  // confident "OTA: disarmed (USB only)" about a device the daemon had never
+  // heard from. Absence of a measurement is not a measurement (task 116).
+  if (!ds || !ds.last_seen) {
     return '<div class="device-accent">' +
       attentionItem("Device", "No data", "chip-stale",
         "Waiting for first check-in from StickS3") +
@@ -391,7 +398,12 @@ function deviceCard(ds) {
   if (ds.interval_sec > 0) parts.push("~" + ds.interval_sec + "s poll");
   parts.push("200:" + ds.count_200 + " 304:" + ds.count_304);
   parts.push("state: " + (ds.state || "unknown"));
-  if (!ds.ota_armed) parts.push("OTA: disarmed (USB only)");
+  // Tri-state, deliberately: the device reports its own OTA state on every
+  // fetch, so false is a real measurement, but undefined means it has never
+  // said — a browser, or firmware older than task 115 — and claiming "disarmed"
+  // there is the same falsehood in a narrower window.
+  if (ds.ota_armed === false) parts.push("OTA: disarmed (USB only)");
+  else if (ds.ota_armed === undefined) parts.push("OTA: not reported");
 
   return '<div class="device-accent">' +
     attentionItem(title, chipText, chipClass, parts.join(" \u00b7 ")) +

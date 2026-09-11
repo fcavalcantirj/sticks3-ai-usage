@@ -22,7 +22,7 @@ type clientEntry struct {
 	addr       string // client IP address (without port)
 	userAgent  string // last User-Agent seen from this client
 	isDevice   bool   // re-evaluated from userAgent on every request (ORDER #65)
-	otaArmed   bool   // device-reported OTA armed state (from ?ota_armed= query param, task 115)
+	otaArmed   *bool  // device-reported OTA armed state (?ota_armed=), nil = never reported (task 116)
 }
 
 // clientTracker records per-client /v1/usage request metadata so the system
@@ -53,11 +53,14 @@ func newClientTracker(nowFn func() time.Time) *clientTracker {
 // the given HTTP status (200 or 304).  userAgent is the request's User-Agent
 // header value, and otaArmed is the device-reported OTA state parsed from the
 // ?ota_armed= query parameter (task 115) — true means the device has an OTA
-// password stored and ArduinoOTA.begin() was called.  The client is marked as a
+// password stored and ArduinoOTA.begin() was called.  It is NIL when the
+// request carried no ?ota_armed= at all (a browser, a curl, or firmware older
+// than task 115), which means NOT REPORTED and must never be shown as
+// "disarmed" (task 116).  The client is marked as a
 // device (isDevice) when its User-Agent starts with "sticks3-usage/" — the
 // firmware identifies itself that way, while a browser or loopback curl never
 // does (ORDER #63 task 64).
-func (t *clientTracker) record(clientKey, userAgent string, now time.Time, status int, otaArmed bool) {
+func (t *clientTracker) record(clientKey, userAgent string, now time.Time, status int, otaArmed *bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -87,7 +90,12 @@ func (t *clientTracker) record(clientKey, userAgent string, now time.Time, statu
 	// do NOT latch it.  A prior device-UA request must not keep the flag if a
 	// later request from the same IP uses a different UA (ORDER #65).
 	entry.isDevice = isDeviceUserAgent(userAgent)
-	entry.otaArmed = otaArmed
+	// Only a request that actually carried ?ota_armed= updates the stored
+	// state.  A browser hitting /v1/usage from the same IP reports nothing and
+	// must not blank out what the device last told us (task 116).
+	if otaArmed != nil {
+		entry.otaArmed = otaArmed
+	}
 	if status == http.StatusOK {
 		entry.count200++
 	} else if status == http.StatusNotModified {
@@ -153,15 +161,15 @@ func (t *clientTracker) entryToState(e *clientEntry) *deviceState {
 // deviceState is the per-client device state exposed on /v1/usage. It does NOT
 // participate in the ETag/rev hash and never appears in a 304 body.
 type deviceState struct {
-	LastSeen     int64  `json:"last_seen"`      // unix s of the latest request
-	SecondsSince int64  `json:"seconds_since"`  // seconds elapsed since lastSeen
-	IntervalSec  int64  `json:"interval_sec"`   // seconds between the last two requests
-	Count200     int    `json:"count_200"`      // 200 OK responses observed
-	Count304     int    `json:"count_304"`      // 304 Not Modified responses observed
-	LastStatus   int    `json:"last_status"`    // 200 or 304
-	State        string `json:"state"`          // "connected", "absent", or "unknown"
-	ClientAddr   string `json:"addr,omitempty"` // IP of the client this state describes
-	OtaArmed     bool   `json:"ota_armed"`      // whether the daemon provisioned with an OTA password
+	LastSeen     int64  `json:"last_seen"`           // unix s of the latest request
+	SecondsSince int64  `json:"seconds_since"`       // seconds elapsed since lastSeen
+	IntervalSec  int64  `json:"interval_sec"`        // seconds between the last two requests
+	Count200     int    `json:"count_200"`           // 200 OK responses observed
+	Count304     int    `json:"count_304"`           // 304 Not Modified responses observed
+	LastStatus   int    `json:"last_status"`         // 200 or 304
+	State        string `json:"state"`               // "connected", "absent", or "unknown"
+	ClientAddr   string `json:"addr,omitempty"`      // IP of the client this state describes
+	OtaArmed     *bool  `json:"ota_armed,omitempty"` // DEVICE-reported OTA state; omitted = never reported
 }
 
 // computeDeviceState returns an explicit presence state from the observed
@@ -226,6 +234,33 @@ func isDeviceUserAgent(ua string) bool {
 // carrying it.  The User-Agent is logged so isDevice classification can be
 // debugged on the wire (ORDER #65: addHeader("User-Agent") is silently
 // dropped by the Arduino HTTPClient core, so the log is the only proof).
+// parseOtaArmed reads the device's own OTA state from the ?ota_armed= query
+// parameter.  ABSENT IS NOT FALSE: a browser, a loopback curl, or firmware
+// older than task 115 sends nothing, and reporting that as "disarmed" is the
+// exact falsehood task 114 removed from the daemon's config inference — it must
+// not come back through a missing query parameter (task 116).
+func parseOtaArmed(r *http.Request) *bool {
+	v := r.URL.Query().Get("ota_armed")
+	if v == "" {
+		return nil
+	}
+	b := v == "1"
+	return &b
+}
+
+// otaArmedLogValue renders the same tri-state for the access log, where a bare
+// "false" beside a device that is in fact armed has already misled one reader.
+func otaArmedLogValue(r *http.Request) string {
+	switch b := parseOtaArmed(r); {
+	case b == nil:
+		return "unknown"
+	case *b:
+		return "armed"
+	default:
+		return "disarmed"
+	}
+}
+
 func (s *Server) logAccess(r *http.Request, status int) {
 	s.logger.Info("access",
 		"path", "/v1/usage",
@@ -234,7 +269,7 @@ func (s *Server) logAccess(r *http.Request, status int) {
 		"user_agent", r.Header.Get("User-Agent"),
 		"status", status,
 		"if_none_match", r.Header.Get("If-None-Match"),
-		"ota_armed", r.URL.Query().Get("ota_armed") == "1",
+		"ota_armed", otaArmedLogValue(r),
 	)
 }
 
@@ -261,7 +296,7 @@ func (s *Server) logAccessWithAge(r *http.Request, status int, ageS string, serv
 		"if_none_match", r.Header.Get("If-None-Match"),
 		"age_s", ageS,
 		"server_age_s", serverAgeSec,
-		"ota_armed", r.URL.Query().Get("ota_armed") == "1",
+		"ota_armed", otaArmedLogValue(r),
 	}
 	// drift_s = what the device believes minus what the server knows. Only
 	// computable when the device sent a parseable number; a malformed value is
