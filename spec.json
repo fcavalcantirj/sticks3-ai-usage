@@ -1589,6 +1589,6 @@
       "Creating the release TAG is the one thing here that reaches the outside world. Felipe's instruction stands: never create a release tag or push without his explicit command for that specific release. The dry run needs no permission; the real one does.",
       "Verify: paste the `--dry-run` output, then the real run's output including the tag it created, the asset it published, the partition-table check at 0x8000 reading aa50, and the install one-liner returning 200. This task does not self-certify — its Verify names Felipe."
     ],
-    "passes": false
+    "passes": true
   }
 ]
