@@ -929,7 +929,7 @@
   },
   {
     "category": "firmware",
-    "description": "[BLOCKED — awaiting Felipe's hardware UAT] PROVISIONING 2/4: SoftAP captive portal on the device — scan, pick a network, enter password and agent address, all from a phone with no app",
+    "description": "[WITHDRAWN — superseded by BLE provisioning, Felipe 2026-09-10] PROVISIONING 2/4: SoftAP captive portal on the device — scan, pick a network, enter password and agent address, all from a phone with no app",
     "steps": [
       "Firmware context: M5StickS3 unit #2, hostname sticks3-usage. PlatformIO espressif32@6.12.0 / Arduino core 2.0.17 / ESP-IDF 4.4.7, M5Unified 0.2.19 + M5GFX 0.2.28. Purity rule: gesture LOGIC goes in the pure core (firmware/src/usage/, no M5 or Arduino headers, host-tested by 'make fw-test'); only firmware/src/hal/sticks3/* and main.cpp may touch M5. Flash this over OTA ('make fw-ota'), no cable. Any device upload needs Felipe's explicit authorization for that upload, given directly.",
       "WHY THIS EXISTS (read once, applies to all four provisioning tasks): secrets.h is a COMPILE-TIME header, so WIFI_SSID, WIFI_PASS, USAGED_HOST, USAGED_DEVICE_TOKEN and OTA_PASS become plaintext strings inside firmware.bin — verified with `strings` against a real build. Publishing that binary to M5Burner would hand out the builder's Wi-Fi password, and a stranger's flash could not work anyway because it would try to join OUR SSID and reach OUR Mac. The goal of this group is a binary that carries NO credentials and a device a stranger can set up without a cable, a build step, or a file. THE DECISIVE CONSTRAINT: every off-the-shelf provisioning framework (Espressif WiFiProv, Improv, WiFiManager) conveys Wi-Fi CREDENTIALS ONLY. This device additionally needs to learn WHICH AGENT to talk to and to obtain a DEVICE TOKEN, so a custom portal that collects all four in one screen beats a generic app that solves half and leaves a second setup step. Build order matters and is not negotiable: credentials store first, then the portal that fills it, then pairing, then the everyday editing path. A pairing code cannot help a device that is not yet on the network.",
@@ -1304,7 +1304,7 @@
   },
   {
     "category": "verification",
-    "description": "[BLOCKED — Felipe's hardware UAT, and the device is unflashed] USE-THIS-NEXT 4/4: prove the endpoint, the dashboard and the device all name the SAME provider, then hand the hardware check to Felipe",
+    "description": "USE-THIS-NEXT 4/4: prove the endpoint, the dashboard and the device all name the SAME provider, then hand the hardware check to Felipe",
     "steps": [
       "Context (repeat in your head; the loop starts you with no memory): this repo is ai-usage at /Users/fcavalcanti/dev/m5/sticks3-ai-usage. This is the CLOSING task of the use-this-next feature (96 daemon ranking, 97 dashboard card, 98 device overlay). All three must be passes:true before this one starts. Its purpose is the thing the feature is worth nothing without: three surfaces, one answer.",
       "THE STANDARD: a green test proves nothing across a process boundary. Every claim here is labelled [REAL] (ran against the running daemon or the hardware, command and real output quoted), [TEST] (passed in make verify / make fw-test only), or [UNVERIFIED] (reasoned, not executed). 'It should agree now' is not a status.",
@@ -1316,7 +1316,7 @@
       "Verify: paste the three winners side by side, the hand arithmetic, the full-suite exit codes, and the labelled report. Then STOP and hand it to Felipe: the on-hardware confirmation (hold blue for ~1.5s, overlay appears, names the same provider, paging still works afterwards) is his, and a flash needs his explicit authorization for that upload.",
       "THIS TASK DOES NOT SELF-CERTIFY. Its Verify step names Felipe, so it stays passes:false until he says otherwise — not when the tests pass, not when it looks right on your screen."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "host",

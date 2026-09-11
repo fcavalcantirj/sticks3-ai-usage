@@ -773,3 +773,5 @@ internal/api/server.go, internal/api/accesslog_test.go.
 Claimed: task 115 (index 113 in spec.json)
 Committed: sha=aaf8130 (task 115: OTA indicator reports device state via ?ota_armed= query param)
 Released: claim released (passes = true)
+
+2026-09-11T00:37:01Z TASK 99 CLOSED by Felipe 2026-09-10: three-surface agreement confirmed on hardware — device overlay read "use: ChatGPT, headroom 48%" while GET /v1/advise returned winner codex at 48%, same provider same number. Gesture regression confirmed by him too: single-click blue still pages, double-click still enters brightness, after the 600ms->1500ms hold threshold change. Task 77 WITHDRAWN the same day: the SoftAP captive portal is a recovery fallback (portalBegin is only reached from raiseSetupPortal when the stored record is empty or partial); BLE is the real provisioning path — internal/api/setup.go drives bleprov, and "portal" appears twice on the daemon side, both in comments.
