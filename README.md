@@ -15,6 +15,34 @@ mirrors them.
 <p align="center"><em>Left: subscription quotas and when each resets. Right: pay-as-you-go
 balances. BtnA cycles pages; the bar across the bottom is an alert.</em></p>
 
+## The dashboard
+
+<p align="center">
+  <img src="docs/img/dashboard-quota.png" width="100%" alt="Quota overview: a 'Use OpenCode Go next' recommendation with pace, headroom and score per provider, token and cost tiles, and a card per provider showing each window with its reset time">
+</p>
+
+<p align="center"><em>One answer to “which provider should I use next?”, then every window
+with the time it resets. Served from <code>127.0.0.1:8765</code> — no account, and your
+data stays on the machine.</em></p>
+
+<p align="center">
+  <img src="docs/img/dashboard-activity.png" width="100%" alt="Activity page: token heatmaps for Claude Code and Codex across six months, with per-tool monthly totals and active-day counts">
+</p>
+
+<p align="center"><em>Activity is read from the transcripts already on your disk — six months
+of tokens per tool, and a day you can click into.</em></p>
+
+<p align="center">
+  <img src="docs/img/dashboard-settings.png" width="100%" alt="Settings page: alert thresholds, and provider configuration showing for each provider where its key comes from — Claude Code, the Keychain, ~/.codex/auth.json or an environment variable — never the value">
+</p>
+
+<p align="center"><em>Settings says where each key comes from — the Keychain, the Claude Code
+or Codex login, an environment variable — and never shows the value.</em></p>
+
+<sub>Dashboard screenshots are rendered from the repository's demo fixtures
+(<code>--scenario stats-demo</code>), not from a real account. Plan prices are the vendors'
+published list prices, built in.</sub>
+
 ## What's new in v0.3.0
 
 **"Use this next."** The dashboard and the stick now answer the question you
