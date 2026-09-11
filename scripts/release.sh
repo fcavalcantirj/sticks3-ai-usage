@@ -95,7 +95,12 @@ PIO_PY="$(ls "$HOME"/.platformio/penv/bin/python 2>/dev/null || command -v pytho
 # does NOT tell them apart. The partition table at 0x8000 does: 0xAA50.
 PT_MAGIC=$(xxd -s 0x8000 -l 2 -p "$ASSET")
 [ "$PT_MAGIC" = "aa50" ] || die "the asset has no partition table at 0x8000 (got $PT_MAGIC) — it is not bootable at 0x0"
-strings "$ASSET" | grep -qxF "$BARE" || die "the firmware asset does not contain the version string $BARE"
+# `strings … | grep -q` races the pipe buffer exactly like scripts/smoke.sh:165:
+# grep matches a few KB in and exits, strings dies with EPIPE, and `set -o
+# pipefail` turns that 141 into "the asset has no version string". It refused
+# EVERY release, not just a mismatched one — v0.2.0 and v0.3.0 both died here
+# with the string present. Drain the whole stream instead of exiting early.
+strings "$ASSET" | grep -xF "$BARE" >/dev/null || die "the firmware asset does not contain the version string $BARE"
 echo "   firmware asset: bootable (partition table at 0x8000), reports $BARE, $(wc -c < "$ASSET" | tr -d ' ') bytes"
 
 step "6/8  package"
