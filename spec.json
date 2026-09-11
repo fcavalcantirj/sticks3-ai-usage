@@ -1605,5 +1605,21 @@
     ],
     "verify": "[TEST] `bash scripts/statusline.test.sh` passes, and `make verify` exits 0 with it wired in. Confirm the test FAILS against the pre-fix script (`git show HEAD:skills/ai-usage/scripts/statusline.sh`) — a test that cannot fail proves nothing. [REAL] `bash skills/ai-usage/scripts/statusline.sh < /dev/null` with NO USAGED_STATE override prints live percentages and does not contain 'not running'; paste it. [REAL] — FELIPE'S, and the one that closes it: his own status line, at the bottom of his own terminal, must show the gauge instead of 'usaged: not running'. It re-renders on a 60 s interval, so no restart should be needed.",
     "passes": false
+  },
+  {
+    "category": "host",
+    "description": "THE INSTALLER MINTS AN OTA PASSWORD ONE BYTE OVER THE WIRE LIMIT, SO NO DEVICE CAN BE SET UP OVER BLUETOOTH: 24 random bytes are rendered as 48 hex characters and then base64'd as text, producing 64 against a limit of 63 — every BLE setup on v0.3.0 fails while the dashboard tells the owner to press a button on a device that was never contacted",
+    "steps": [
+      "Context (repeat in your head; the loop starts you with no memory): this repo is ai-usage at /Users/fcavalcanti/dev/m5/sticks3-ai-usage. v0.3.0 was released, Felipe installed it from GitHub, and every Bluetooth setup failed six times across an hour.",
+      "MEASURED, only after adding a debug hatch: `ble setup: raw provisioning error err=\"ota_password: field too long\"`. Encode() rejects the record LOCALLY, before any radio traffic — which is why each run died in ~0.4s with steps:[], stage:\"\" and device_code:0.",
+      "THE ARITHMETIC: scripts/install-release.sh minted `od -An -N24 -tx1 /dev/urandom | tr -d ' \\n' | base64`. od -tx1 emits 24 bytes as 48 hex CHARACTERS; base64 then encoded that TEXT, not the bytes: 64 characters. The limit is 63 on both sides (bleprov.MaxOtaPass, kMaxOtaPass). The generator's own comment claimed '~32 chars' and nobody measured it.",
+      "PART 1 — generate 48 hex characters directly, no second encoding, keeping the documented SIGPIPE-safe pattern (never `head -c`).",
+      "PART 2 — SELF-HEAL, because Felipe's instruction was 'code must work': the installer reused any non-empty stored password, which would preserve the broken value through every reinstall. Validate it (non-empty, printable, <= 63) and regenerate when it fails, saying so.",
+      "PART 3 — the daemon must not sit silently unusable: drop an over-long password at wiring time with a loud log (device is provisioned OTA-disarmed, which is the documented default) rather than failing every setup. Never truncate — the Mac and the device would then hold different passwords and OTA would break a second, quieter way.",
+      "PART 4 — the dashboard blamed the device for a record that never left the Mac. *bleprov.FieldError exists precisely so local and remote refusals share one switch, and bleStageFor dropped it into default. Map it to its device code.",
+      "PART 5 — keep the USAGED_BLE_DEBUG escape hatch that found this. The error value was discarded one line before it could be printed; without it the bug was invisible."
+    ],
+    "verify": "[TEST] `make verify` exits 0 with scripts/install-release.test.sh wired in; confirm it FAILS against the v0.3.0 generator ('generated 64 chars, limit 63'). [REAL] Run the installer on a machine holding the 64-char value: it must report replacing it, and the file and plist must agree at <= 63. [REAL] — FELIPE'S, and the one that closed it: a real StickS3 provisioned over Bluetooth end to end.",
+    "passes": true
   }
 ]

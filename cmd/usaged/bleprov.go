@@ -36,6 +36,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -85,10 +86,29 @@ func newBLEProvisioner(cfg config.Config, logger *slog.Logger) *bleProvisioner {
 	if logger == nil {
 		logger = slog.Default()
 	}
+	// AN UNUSABLE OTA PASSWORD MUST NOT COST THE OWNER THE WHOLE SETUP.
+	//
+	// The BLE record caps this field at bleprov.MaxOtaPass bytes, and Encode()
+	// rejects a longer one before any radio traffic — so a single over-long
+	// value made EVERY Bluetooth setup fail on v0.3.0 while the dashboard
+	// blamed the device. The installer minted 64 characters against a limit of
+	// 63 for months of that release's life.
+	//
+	// Dropping the field is strictly better than sending it: the device is
+	// provisioned and works, merely OTA-disarmed (USB-only), which is the
+	// documented default for an unset password anyway. Truncating would be
+	// worse than either — the Mac would keep a password the device never got,
+	// and OTA would then fail for a second, quieter reason.
+	otaPass := cfg.DeviceOTAPass
+	if len(otaPass) > bleprov.MaxOtaPass {
+		logger.Error("ble setup: the configured device OTA password is too long to provision — dropping it; devices set up now will be OTA-disarmed (USB-only). Shorten USAGED_DEVICE_OTA_PASS, or re-run the installer, which replaces an unusable one.",
+			"len", len(otaPass), "limit", bleprov.MaxOtaPass)
+		otaPass = ""
+	}
 	return &bleProvisioner{
 		central:  bleprov.NewCentral(logger),
 		gatherer: bleprov.NewGatherer(cfg.Listen, logger),
-		otaPass:  cfg.DeviceOTAPass,
+		otaPass:  otaPass,
 		logger:   logger,
 	}
 }
@@ -220,6 +240,20 @@ func (p *bleProvisioner) ProvisionProgress(ctx context.Context, addr string, rep
 		}
 	})
 	if err != nil {
+		// DIAGNOSTIC ESCAPE HATCH, off unless USAGED_BLE_DEBUG=1.
+		//
+		// This package deliberately never logs a provisioner's error VALUE, and
+		// the dashboard shows only a classification. That is right for privacy
+		// and useless when a run dies for a reason nothing maps: on 2026-09-11
+		// three setups in a row failed with stage "" and device_code 0, and no
+		// log line anywhere said which of connect, discover, read-info,
+		// subscribe or write had failed. A CoreBluetooth transport error
+		// carries no credential — the record is wiped separately — so making it
+		// readable on request costs nothing and is the difference between
+		// fixing this and guessing at it.
+		if os.Getenv("USAGED_BLE_DEBUG") == "1" {
+			p.logger.Warn("ble setup: raw provisioning error (USAGED_BLE_DEBUG)", "err", err.Error())
+		}
 		return bleStageFor(err)
 	}
 	p.logger.Info("ble setup: device applied the record",
@@ -302,6 +336,19 @@ func bleStageFor(err error) error {
 	case errors.Is(err, bleprov.ErrPanicked):
 		return &api.ProvisionFailure{Stage: api.StageConnect}
 	default:
+		// A LOCAL REFUSAL IS STILL A REFUSAL WITH A REASON.
+		//
+		// *bleprov.FieldError carries the exact code the firmware would have
+		// answered with — that is what its doc comment promises, so the
+		// dashboard can use one switch for local and remote refusals. It was
+		// never mapped, so it fell through here and rendered the generic
+		// "press the blue button" sentence. On v0.3.0 that hid an over-long
+		// OTA password behind six identical failures and an hour of chasing
+		// Bluetooth ghosts.
+		var fe *bleprov.FieldError
+		if errors.As(err, &fe) {
+			return &api.ProvisionFailure{DeviceCode: int(fe.Code)}
+		}
 		// Includes *bleprov.DeviceError, which api classifies by its own code.
 		return err
 	}

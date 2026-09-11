@@ -1,7 +1,7 @@
 VERSION ?= dev
 PIO_ENV ?= m5stack-sticks3
 
-.PHONY: fw-auto build dist fmt vet lint test test-js test-statusline verify clean smoke install uninstall fw-test fw-build fw-check-secrets verify-all fw-ota fw-build-ota fw-upload-ota
+.PHONY: fw-auto build dist fmt vet lint test test-js test-statusline test-install verify clean smoke install uninstall fw-test fw-build fw-check-secrets verify-all fw-ota fw-build-ota fw-upload-ota
 
 build:
 	@commit=$$(git rev-parse --short HEAD 2>/dev/null || echo none); \
@@ -32,7 +32,12 @@ sync-prices:
 test:
 	go test -count=1 ./...
 
-verify: fmt vet lint test test-js test-statusline build
+verify: fmt vet lint test test-js test-statusline test-install build
+
+test-install:
+	@# v0.3.0 minted a 64-char OTA password against a 63-byte wire limit, so no
+	@# device could be set up over Bluetooth at all. Nothing measured it.
+	@bash scripts/install-release.test.sh
 
 test-statusline:
 	@# The status line is a shipped surface. It reported the daemon as down for

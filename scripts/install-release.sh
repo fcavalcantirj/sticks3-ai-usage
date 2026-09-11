@@ -111,6 +111,10 @@ else
     # installer after the binary is already copied — which is exactly how this
     # went out broken the first time.
     TOKEN="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+    # The same 63/64-byte wire limits that broke the OTA password apply here
+    # (bleprov.MaxToken is 64). 32 hex chars is well inside it — assert rather
+    # than assume, because that assumption is exactly what shipped broken.
+    [ "${#TOKEN}" -le 64 ] || { echo "FAILED to generate a usable device token" >&2; exit 1; }
     ( umask 077; printf '%s' "$TOKEN" > "$TOKEN_FILE" )
     echo "-- generated a device token (${TOKEN_FILE})"
 fi
@@ -124,12 +128,47 @@ fi
 # the device token above. They never need to see it: it is passed to the daemon
 # over the environment, which sends it to the device over Bluetooth.
 OTA_PASS_FILE="${CONFIG_DIR}/device-ota-pass"
-if [ -s "$OTA_PASS_FILE" ]; then
-    OTA_PASS="$(cat "$OTA_PASS_FILE")"
+
+# THE LIMIT IS 63 AND IT IS NOT NEGOTIABLE. The BLE provisioning record caps
+# this field at 63 bytes on both sides — bleprov.MaxOtaPass in Go and
+# kMaxOtaPass in firmware/src/usage/provision.h. A longer value is rejected by
+# Encode() before a single byte reaches the radio, so EVERY Bluetooth setup
+# fails while the dashboard blames the device and tells the owner to press a
+# button that cannot help.
+#
+# That shipped in v0.3.0. The generator below used to read
+#
+#     od -An -N24 -tx1 /dev/urandom | tr -d ' \n' | base64
+#
+# whose own comment claimed "~32 chars" — but `od -tx1` emits 24 bytes as 48 hex
+# CHARACTERS, and base64 then encoded that text rather than the bytes: 64
+# characters, one over the limit. Hex is enough entropy on its own (48 chars =
+# 192 bits) and needs no second encoding.
+OTA_PASS_MAX=63
+ota_pass_usable() { # value -> 0 when it can actually be provisioned
+    case "$1" in
+        "" | *[![:graph:]]*) return 1 ;;   # empty, or carries space/newline
+    esac
+    [ "${#1}" -le "$OTA_PASS_MAX" ]
+}
+
+OTA_PASS=""
+[ -s "$OTA_PASS_FILE" ] && OTA_PASS="$(cat "$OTA_PASS_FILE")"
+if ota_pass_usable "$OTA_PASS"; then
     echo "-- reusing the existing OTA password"
 else
-    # 24 random bytes as base64, ~32 chars. Same SIGPIPE-safe pattern as above.
-    OTA_PASS="$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n' | base64)"
+    # SELF-HEALING, and deliberately so: a reinstall is how someone recovers
+    # from the v0.3.0 value without being told to go and edit a dotfile. The
+    # old one is replaced, never repaired — truncating it would leave the Mac
+    # and the device holding different passwords and break OTA a second,
+    # quieter way.
+    if [ -n "$OTA_PASS" ]; then
+        echo "-- the stored OTA password is unusable (${#OTA_PASS} chars, limit ${OTA_PASS_MAX}) — generating a new one"
+    fi
+    # 24 random bytes as 48 hex chars. Same SIGPIPE-safe pattern as the token
+    # above: NOT `tr -dc ... | head -c N`.
+    OTA_PASS="$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')"
+    ota_pass_usable "$OTA_PASS" || { echo "FAILED to generate a usable OTA password" >&2; exit 1; }
     ( umask 077; printf '%s' "$OTA_PASS" > "$OTA_PASS_FILE" )
     echo "-- generated an OTA password (${OTA_PASS_FILE})"
 fi
