@@ -15,6 +15,44 @@ mirrors them.
 <p align="center"><em>Left: subscription quotas and when each resets. Right: pay-as-you-go
 balances. BtnA cycles pages; the bar across the bottom is an alert.</em></p>
 
+## What's new in v0.3.0
+
+**"Use this next."** The dashboard and the stick now answer the question you
+actually have at the start of a session: which provider should I use? One
+provider, one reason, over a fixed four-hour horizon. Hold the blue button on
+the device for the same answer on its screen.
+
+The ranking is deliberately simple — **whichever plan has the most room left
+wins**, so your subscriptions get spent evenly instead of one being exhausted
+while another sits idle. Pace is still shown, because it is worth seeing, but it
+no longer overrides a provider with twice the headroom. A provider whose window
+is spent right now cannot be recommended, however much quota it has later.
+
+**A rebuilt dashboard.** Sidebar navigation across Quota overview, Activity,
+Models, Needs attention and Settings, with the recommendation at the top of the
+page and the refresh controls always in the header. Still one self-contained
+HTML document served by the daemon — no build step, no package manager, no
+external requests.
+
+**Cost means what you pay.** The cost tile is now the sum of your configured
+plan prices, shown in your own currency, not an estimate. The equivalent API
+value — what those tokens would have cost at pay-per-token rates — is still
+there as a separate figure, and it says so when part of it is unpriced instead
+of quietly under-reporting.
+
+**Providers are ordered by kind, then by rank:** subscriptions first, then
+pay-as-you-go, then free. The plans reorder themselves as your usage moves.
+
+**Over-the-air updates actually work.** `make fw-ota` builds, finds the device
+by asking the daemon where it last connected from, and uploads — one command, no
+cable. A device provisioned without an OTA password used to fail silently with
+"No response from the ESP"; the daemon now reports the device's own OTA state,
+and the installer generates a password so new devices are never stranded on USB.
+
+**Also:** OpenCode Go is a first-class subscription with its own plan cost, the
+device overlay is readable at arm's length, and the dashboard sends
+`X-Content-Type-Options` and `Referrer-Policy`.
+
 ## Install (macOS)
 
 **Have an AI agent do it.** Paste [this prompt](docs/AGENT_PROMPT.md) into Claude
