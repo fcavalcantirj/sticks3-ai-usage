@@ -63,6 +63,26 @@ TAG_IS_TEMP=1
 cleanup_tag() { [ "${TAG_IS_TEMP:-0}" = 1 ] && git tag -d "$VERSION" >/dev/null 2>&1 || true; }
 trap cleanup_tag EXIT INT TERM
 git tag -a "$VERSION" -m "$VERSION" >/dev/null
+# BUILD THE IMAGE WE ACTUALLY SHIP, WITH NO secrets.h PRESENT.
+#
+# THIS IS THE BUG THAT LEAKED A WI-FI PASSWORD. Step 4 above proves a
+# SECRETS-FREE build is clean and then puts secrets.h back. This line used to
+# rebuild with it present — so the script validated one binary and published a
+# different one, and the v0.3.0 and v0.3.1 firmware assets went to GitHub (and
+# to M5Burner) carrying the builder's WIFI_SSID, WIFI_PASS, USAGED_HOST,
+# USAGED_DEVICE_TOKEN and OTA_PASS as plaintext strings. Verified after the
+# fact with `strings`: one occurrence of each.
+#
+# The asset must be built the same way it was checked. secrets.h is moved aside
+# for the build and restored on EXIT whatever happens.
+SECRETS="firmware/include/secrets.h"
+SECRETS_STASH="$SECRETS.release"
+restore_secrets() { [ -f "$SECRETS_STASH" ] && mv -f "$SECRETS_STASH" "$SECRETS" || true; }
+cleanup_all() { restore_secrets; cleanup_tag; }
+trap cleanup_all EXIT INT TERM HUP
+# `[ -f x ] && mv` as a bare statement returns 1 when the file is absent, and
+# `set -e` would kill the release there. Guard it.
+if [ -f "$SECRETS" ]; then mv "$SECRETS" "$SECRETS_STASH"; fi
 ( cd firmware && platformio run -e m5stack-sticks3 ) >/tmp/rel-fw.log 2>&1 \
     || die "firmware rebuild failed — see /tmp/rel-fw.log"
 FW_REPORTED=$(grep -o 'USAGED_FW_VERSION=[^ ]*' /tmp/rel-fw.log | tail -1 | cut -d= -f2)
@@ -101,6 +121,14 @@ PT_MAGIC=$(xxd -s 0x8000 -l 2 -p "$ASSET")
 # EVERY release, not just a mismatched one — v0.2.0 and v0.3.0 both died here
 # with the string present. Drain the whole stream instead of exiting early.
 strings "$ASSET" | grep -xF "$BARE" >/dev/null || die "the firmware asset does not contain the version string $BARE"
+
+# CHECK THE ARTIFACT THAT IS ABOUT TO BE UPLOADED, not one built like it.
+# Step 4 checks firmware.bin; this checks the merged image byte-for-byte, so a
+# future reordering cannot reintroduce the leak silently.
+restore_secrets
+sh firmware/scripts/check_no_secrets.sh "$ASSET" >/tmp/rel-asset-check.log 2>&1 \
+    || { cat /tmp/rel-asset-check.log >&2; die "THE PUBLISHED ASSET CONTAINS A CREDENTIAL — refusing to release"; }
+echo "   asset re-checked against secrets.h: none of the five values are present"
 echo "   firmware asset: bootable (partition table at 0x8000), reports $BARE, $(wc -c < "$ASSET" | tr -d ' ') bytes"
 
 step "6/8  package"

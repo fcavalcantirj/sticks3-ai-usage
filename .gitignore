@@ -15,3 +15,5 @@ firmware/include/secrets.h
 *.log
 state.json
 dist/
+firmware/include/secrets.h.release
+firmware/include/secrets.h.publishcheck
