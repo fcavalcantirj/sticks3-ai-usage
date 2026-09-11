@@ -1604,7 +1604,7 @@
       "PART 5 — document the status line in README.md with a screenshot rendered from the demo fixtures (never Felipe's live numbers)."
     ],
     "verify": "[TEST] `bash scripts/statusline.test.sh` passes, and `make verify` exits 0 with it wired in. Confirm the test FAILS against the pre-fix script (`git show HEAD:skills/ai-usage/scripts/statusline.sh`) — a test that cannot fail proves nothing. [REAL] `bash skills/ai-usage/scripts/statusline.sh < /dev/null` with NO USAGED_STATE override prints live percentages and does not contain 'not running'; paste it. [REAL] — FELIPE'S, and the one that closes it: his own status line, at the bottom of his own terminal, must show the gauge instead of 'usaged: not running'. It re-renders on a 60 s interval, so no restart should be needed.",
-    "passes": false
+    "passes": true
   },
   {
     "category": "host",
