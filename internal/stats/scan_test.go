@@ -871,3 +871,68 @@ func TestScanCodexLongLine(t *testing.T) {
 		t.Fatal("the token_count AFTER a 3 MiB line was dropped — the scanner is truncating files again")
 	}
 }
+
+// TestScanCodexIncrementalCarriesModel pins the carry-forward across a resumed
+// read.
+//
+// A Codex scan resumes by SEEKING to the previous file size, so an appended
+// chunk starts mid-session and the turn_context naming the model is in the
+// chunk before. currentModel used to start empty on every incremental read, so
+// each token_count up to the next turn_context was filed as "<unknown>" — a
+// bucket that can never be priced, and which then survives in the cache.
+// Measured on a live session 2026-09-11: 4,181,625 tokens misfiled that way,
+// and the dashboard read "partial: <unknown>" because of it.
+func TestScanCodexIncrementalCarriesModel(t *testing.T) {
+	codexDir := filepath.Join(fixtureDir(t), "test_incr_model")
+	if err := os.MkdirAll(codexDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(codexDir) })
+	dst := filepath.Join(codexDir, "live.jsonl")
+
+	first := `{"type":"turn_context","timestamp":"2026-09-03T10:00:00Z","payload":{"model":"gpt-4o"}}` + "\n" +
+		`{"type":"event_msg","timestamp":"2026-09-03T10:01:00Z","payload":{"type":"token_count","info":{"model":"unknown","last_token_usage":{"input_tokens":100,"cached_input_tokens":0,"output_tokens":50,"reasoning_output_tokens":0}}}}` + "\n"
+	if err := os.WriteFile(dst, []byte(first), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	s := NewScanner(testTZ)
+	s.Clock = func() time.Time { return fixedScanNow }
+	cfg := ScanConfig{TZ: testTZ, CodexDir: codexDir}
+
+	_, idx1, err := s.Scan(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatalf("first scan: %v", err)
+	}
+
+	// The session continues: more usage, and NO new turn_context — exactly what
+	// an appended chunk of a running session looks like.
+	appended := first + `{"type":"event_msg","timestamp":"2026-09-03T10:02:00Z","payload":{"type":"token_count","info":{"model":"unknown","last_token_usage":{"input_tokens":700,"cached_input_tokens":0,"output_tokens":300,"reasoning_output_tokens":0}}}}` + "\n"
+	if err := os.WriteFile(dst, []byte(appended), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	report2, _, err := s.Scan(context.Background(), cfg, idx1)
+	if err != nil {
+		t.Fatalf("second scan: %v", err)
+	}
+	src := report2.Sources["codex"]
+
+	for _, m := range src.Models {
+		if m.Model == "<unknown>" {
+			t.Fatalf("appended usage was filed as <unknown> (%+v) — the model did not carry across the resume", m.Tokens)
+		}
+	}
+	var got Tokens
+	for _, m := range src.Models {
+		if m.Model == "gpt-4o" {
+			got = m.Tokens
+		}
+	}
+	if got.Input != 800 || got.Output != 350 {
+		t.Errorf("gpt-4o tokens = %+v, want input 800 / output 350 (both chunks)", got)
+	}
+	if len(src.UnpricedModels) != 0 {
+		t.Errorf("unpriced = %v, want none", src.UnpricedModels)
+	}
+}

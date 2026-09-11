@@ -547,14 +547,21 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 
 		sc := bufio.NewScanner(f)
 		sc.Buffer(make([]byte, 0, 256*1024), maxScanLine)
-		currentModel := ""
+		// RESUME THE CARRY-FORWARD STATE, or an appended chunk starts blind.
+		//
+		// This scan seeks to the previous file size, so the bytes read here
+		// begin mid-session and the turn_context that names the model was in
+		// the chunk before. Starting empty filed every token_count up to the
+		// next turn_context as "<unknown>" — 4,181,625 tokens of one live
+		// session on 2026-09-11, misfiled and unpriceable.
+		currentModel := fi.LastModel
 		// BUG 49 fix: the token_count event's timestamp reflects when the
 		// response was logged (often "now" due to replay), not when the
 		// request was made. Track the day key from the most recent
 		// turn_context / thread_settings_applied event (the request time)
 		// and use it for day bucketing of token_count events. Fall back to
 		// the token_count line's own timestamp if no context was seen.
-		currentDayKey := ""
+		currentDayKey := fi.LastDayKey
 		for sc.Scan() {
 			lineNum++
 			var line codexEventLine
@@ -676,6 +683,9 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 			Mtime:  info.ModTime().Unix(),
 			Lines:  lineNum,
 			Result: fr,
+			// Hand the carry-forward state to the next incremental read.
+			LastModel:  currentModel,
+			LastDayKey: currentDayKey,
 		}
 		return nil
 	})

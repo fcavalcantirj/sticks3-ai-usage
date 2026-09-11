@@ -1636,5 +1636,18 @@
     ],
     "verify": "[REAL] `sh scripts/release.sh vX.Y.Z --dry-run` prints 'asset re-checked against secrets.h: none of the five values are present', and an INDEPENDENT `strings` of the produced asset returns 0 occurrences for all five values. [REAL] After publishing, DOWNLOAD the asset from GitHub and run the same check on the downloaded bytes — the artifact that matters is the one a stranger gets, not the one on your disk. [REAL] — FELIPE'S: the leaking image is removed from M5Burner and replaced, and the Wi-Fi password is rotated.",
     "passes": false
+  },
+  {
+    "category": "host",
+    "description": "AN INCREMENTAL SCAN RESUMES BLIND: the Codex scan seeks to the previous file size, so an appended chunk starts mid-session with no model in hand and every token_count before the next turn_context is filed as <unknown> — unpriceable, and then cached",
+    "steps": [
+      "Context (repeat in your head; the loop starts you with no memory): this repo is ai-usage. A previous fix (task 118 era) bumped indexSchemaVersion to discard an ancient cache that held <unknown>. This is a DIFFERENT cause with the same symptom, and it reappears on every live session.",
+      "MEASURED 2026-09-11: 4,181,625 tokens of a running session filed under <unknown>, and the live daemon 2.7M short of an independent parse of the same transcripts.",
+      "ROOT CAUSE: scan.go seeks to fi.Size and parses only appended bytes (the incremental contract TestScanIncrementalAppendOnly pins). currentModel and currentDayKey started empty on every resumed read, so the model declared by a turn_context in the PREVIOUS chunk was lost.",
+      "FIX: carry the state across in the index — FileIndex.LastModel / LastDayKey, written after each parse and read back as the starting value. The cache-hit branch copies the whole entry, so it survives an unchanged file too.",
+      "DO NOT remove the cached-result merge in the changed-file path: the parse is a seek-resume, not a full re-read, and dropping the merge loses everything before the resume point. That was tried and TestScanIncrementalAppendOnly caught it immediately."
+    ],
+    "verify": "[TEST] `make verify` exits 0; TestScanCodexIncrementalCarriesModel appends a chunk with no turn_context and asserts it is attributed to the carried model — confirm it FAILS with currentModel starting empty. [REAL] With a Codex session actively running, /v1/stats codex today must equal an independent parse of ~/.codex/sessions: same total, same request count, same per-model split, and no <unknown>.",
+    "passes": true
   }
 ]

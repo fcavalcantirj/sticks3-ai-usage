@@ -62,6 +62,15 @@ or Codex login, an environment variable — and never shows the value.</em></p>
 (<code>--scenario stats-demo</code>), not from a real account. Plan prices are the vendors'
 published list prices, built in.</sub>
 
+## What's new in v0.3.4
+
+**`<unknown>` in the cost tiles, for real this time.** Scanning resumes by seeking
+to where it left off, so an appended chunk of a running session began with no
+model in hand and everything up to the next model declaration was filed as
+`<unknown>` — unpriceable, and then cached. The scanner now carries that state
+across the resume. Verified against an independent parse of the same transcripts:
+identical totals, request counts and per-model split.
+
 ## What's new in v0.3.3
 
 **Your usage numbers were far too low, and now they are right.** Transcripts were

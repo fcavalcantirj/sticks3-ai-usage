@@ -175,6 +175,20 @@ type FileIndex struct {
 	Mtime  int64       `json:"mtime"`  // last scanned modification time (unix s)
 	Lines  int         `json:"lines"`  // lines processed so far
 	Result *FileResult `json:"result"` // cached per-file aggregate (nil if not cached)
+
+	// LastModel is the model in effect at the END of the bytes scanned so far.
+	//
+	// A Codex scan resumes by SEEKING to the previous file size, so an
+	// appended chunk begins mid-session — and the model is declared on
+	// turn_context lines that were in the PREVIOUS chunk. Without carrying it
+	// across, every token_count before the next turn_context was filed as
+	// "<unknown>": measured 2026-09-11, 4,181,625 tokens of a live session.
+	// It is the model id only, never a credential.
+	LastModel string `json:"last_model,omitempty"`
+	// LastDayKey is the day bucket in effect at that same point, carried for
+	// the same reason — a resumed chunk would otherwise date its first rows
+	// from the token_count line rather than the turn that produced them.
+	LastDayKey string `json:"last_day_key,omitempty"`
 }
 
 // Index maps file paths to their scan metadata.
