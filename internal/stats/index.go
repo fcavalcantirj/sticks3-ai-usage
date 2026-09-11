@@ -11,7 +11,22 @@ import (
 // way that could invalidate cached FileResults.  When a saved index has a
 // different version, LoadIndex discards the entire cache so the next scan
 // re-parses from scratch.
-const indexSchemaVersion = 3
+//
+// A CACHED RESULT IS IMMORTAL UNTIL THIS MOVES, and 3 proved it. The Codex
+// scanner gained turn_context / thread_settings_applied handling without a
+// bump, so 20 files parsed by the older logic kept their answer forever: the
+// index skips any file whose size and mtime still match, and they never
+// change again. Measured 2026-09-11 on
+// rollout-2026-09-09T12-37-12-…jsonl — identical size (4083109) and mtime
+// (1788971066) on disk, the cache insisting on "<unknown>" with 1,527,432
+// input tokens while a fresh parse of the same bytes reads gpt-5.6-sol. The
+// dashboard showed "partial: <unknown>" and, worse, left ~4.9M tokens out of
+// the API-equivalent cost because an unknown model cannot be priced.
+//
+// So: change how a transcript is READ, bump this. The cost of being wrong is
+// silent, permanent and invisible in every test, because the tests parse
+// fixtures rather than the cache.
+const indexSchemaVersion = 4
 
 // indexVersionKey is a sentinel entry stored under this key in the Index map
 // to record the schema version.  It is never a real file path.

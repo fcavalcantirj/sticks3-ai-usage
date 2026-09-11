@@ -811,3 +811,63 @@ func TestScanModelWindowedVsLifetime(t *testing.T) {
 		t.Error("lifetime cost == month cost — windowing not working for this model")
 	}
 }
+
+// TestScanCodexLongLine pins the 64 KiB cliff.
+//
+// bufio.Scanner's DEFAULT maximum token size is 64 KiB. A longer line makes
+// Scan() stop and report ErrTooLong through sc.Err() only — which nothing
+// checked — so the remainder of the file was silently discarded and cached as
+// if complete. Measured on real data 2026-09-11: 76 of 141 Codex transcripts
+// carried a line over 64 KiB (longest 9,906,699 bytes), and the dashboard
+// reported "Codex today: 21,993 tokens" for a day holding 24,378,806 input
+// tokens. Cost is derived from these numbers, so the money was wrong too.
+//
+// A session_meta line carrying Codex's full system prompt is the usual
+// culprit, which is why the fixture puts the long line FIRST.
+func TestScanCodexLongLine(t *testing.T) {
+	codexDir := filepath.Join(fixtureDir(t), "test_longline")
+	if err := os.MkdirAll(codexDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(codexDir) })
+
+	// Comfortably past the default cap, and past a naive 1 MiB bump too.
+	huge := strings.Repeat("x", 3*1024*1024)
+	lines := []string{
+		`{"type":"session_meta","timestamp":"2026-09-03T09:59:00Z","payload":{"type":"session_meta","base_instructions":{"text":"` + huge + `"}}}`,
+		`{"type":"event_msg","timestamp":"2026-09-03T10:01:00Z","payload":{"type":"turn_context","model":"gpt-4o"}}`,
+		`{"type":"event_msg","timestamp":"2026-09-03T10:01:00Z","payload":{"type":"token_count","info":{"model":"unknown","last_token_usage":{"input_tokens":100,"cached_input_tokens":0,"output_tokens":50,"reasoning_output_tokens":0}}}}`,
+	}
+	dst := filepath.Join(codexDir, "longline.jsonl")
+	if err := os.WriteFile(dst, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	s := NewScanner(testTZ)
+	s.Clock = func() time.Time { return fixedScanNow }
+	report, _, err := s.Scan(context.Background(), ScanConfig{TZ: testTZ, CodexDir: codexDir}, nil)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	src, ok := report.Sources["codex"]
+	if !ok {
+		t.Fatal("missing codex source")
+	}
+
+	// Everything after the long line must still be counted.
+	var found bool
+	for _, m := range src.Models {
+		if m.Model == "gpt-4o" {
+			found = true
+			if m.Tokens.Input != 100 || m.Tokens.Output != 50 {
+				t.Errorf("gpt-4o tokens = %+v, want input 100 / output 50", m.Tokens)
+			}
+			if m.Requests != 1 {
+				t.Errorf("gpt-4o requests = %d, want 1", m.Requests)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("the token_count AFTER a 3 MiB line was dropped — the scanner is truncating files again")
+	}
+}

@@ -3,6 +3,7 @@ package stats
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 )
 
@@ -87,5 +88,56 @@ func TestIndexMissingVersionDiscarded(t *testing.T) {
 	if len(loaded) != 0 {
 		t.Errorf("expected empty index when version is missing, got %d entries",
 			len(loaded))
+	}
+}
+
+// TestIndexSchemaVersionTripwire fails when the Codex parser changes without
+// the cache being invalidated.
+//
+// WHY THIS EXISTS. A cached FileResult is immortal: the scanner skips any file
+// whose size and mtime still match the index, and a finished transcript never
+// changes again. So when the parser gained turn_context /
+// thread_settings_applied handling without bumping indexSchemaVersion, 20
+// files kept the answer the OLD parser gave them — "<unknown>" — forever. The
+// dashboard showed "partial: <unknown>" and silently left ~4.9M tokens out of
+// the API-equivalent cost, because an unknown model cannot be priced.
+//
+// No test caught it, and no test could: every test parses fixtures, and the
+// fixtures were always read by the current parser. The only durable guard is
+// to make a parser change LOUD at review time.
+//
+// If this test fails: you changed how a transcript is read. Bump
+// indexSchemaVersion so every cached result is discarded, then update the
+// constants here.
+func TestIndexSchemaVersionTripwire(t *testing.T) {
+	const wantVersion = 4
+
+	if indexSchemaVersion != wantVersion {
+		t.Fatalf("indexSchemaVersion = %d, this tripwire knows %d — if you bumped it on purpose, update wantVersion and the payload list below",
+			indexSchemaVersion, wantVersion)
+	}
+
+	// The payload types the Codex scanner acts on. Adding, removing or
+	// renaming one changes what a cached result would have contained.
+	want := []string{"turn_context", "thread_settings_applied", "token_count"}
+	src, err := os.ReadFile("scan.go")
+	if err != nil {
+		t.Fatalf("read scan.go: %v", err)
+	}
+	got := regexp.MustCompile(`Payload\.Type [!=]= "([a-z_]+)"`).FindAllStringSubmatch(string(src), -1)
+	seen := make(map[string]bool, len(got))
+	for _, m := range got {
+		seen[m[1]] = true
+	}
+	for _, w := range want {
+		if !seen[w] {
+			t.Errorf("scan.go no longer handles payload type %q — the parser changed; bump indexSchemaVersion (currently %d) so stale caches are discarded, then update this test",
+				w, indexSchemaVersion)
+		}
+		delete(seen, w)
+	}
+	for extra := range seen {
+		t.Errorf("scan.go handles a new payload type %q — the parser changed; bump indexSchemaVersion (currently %d) so stale caches are discarded, then add it here",
+			extra, indexSchemaVersion)
 	}
 }

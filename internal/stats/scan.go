@@ -182,6 +182,10 @@ func (s *Scanner) scanClaudeCode(ctx context.Context, dir string, index Index, n
 
 	newIdx := make(Index)
 	maxAge := now.Add(-MaxAge)
+	// Files whose lines exceeded maxScanLine. A non-zero count means the
+	// numbers below are incomplete, and the source says so rather than
+	// quietly under-reporting — the failure mode this whole guard exists for.
+	truncatedFiles := 0
 	todayBoundary := dayBoundary(now, s.TZ)
 	monthBoundary := monthBoundary(now, s.TZ)
 
@@ -236,6 +240,7 @@ func (s *Scanner) scanClaudeCode(ctx context.Context, dir string, index Index, n
 		}
 
 		sc := bufio.NewScanner(f)
+		sc.Buffer(make([]byte, 0, 256*1024), maxScanLine)
 		seen := make(map[string]bool)
 		for sc.Scan() {
 			lineNum++
@@ -273,6 +278,19 @@ func (s *Scanner) scanClaudeCode(ctx context.Context, dir string, index Index, n
 				fileDayModels[dayKey] = make(map[string]Tokens)
 			}
 			fileDayModels[dayKey][model] = fileDayModels[dayKey][model].Add(tokens)
+		}
+
+		// A TRUNCATED FILE MUST NEVER BE CACHED AS IF IT WERE COMPLETE.
+		// sc.Err() is the only place bufio reports a line it could not hold;
+		// ignoring it is what let 54% of these transcripts be read in part and
+		// stored in the index as the whole truth.
+		if err := sc.Err(); err != nil {
+			// Skip the file rather than abort the whole scan, and DO NOT write
+			// an index entry: a truncated result must not be cached as the
+			// whole truth, and the next scan must retry this file.
+			f.Close()
+			truncatedFiles++
+			return nil
 		}
 
 		// Build FileResult from the per-file aggregates.
@@ -343,7 +361,14 @@ func (s *Scanner) scanClaudeCode(ctx context.Context, dir string, index Index, n
 	// Build models list (exclude <synthetic>, track unpriced), now with
 	// per-model today/month windowed tokens accumulated in the post-walk pass.
 	var unpricedModels map[string]bool
-	src.Models, unpricedModels = buildModelsList(modelOrder, modelAgg, todayModelAgg, monthModelAgg, modelReqs, s.priceOf)
+	var unpricedToday, unpricedMonth map[string]bool
+	src.Models, unpricedModels, unpricedToday, unpricedMonth = buildModelsList(modelOrder, modelAgg, todayModelAgg, monthModelAgg, modelReqs, s.priceOf)
+	src.UnpricedToday = sortedKeys(unpricedToday)
+	src.UnpricedMonth = sortedKeys(unpricedMonth)
+
+	if truncatedFiles > 0 {
+		src.Partial = true
+	}
 
 	// Record unpriced models for the caller to warn loudly.
 	if len(unpricedModels) > 0 {
@@ -395,6 +420,20 @@ func (s *Scanner) scanClaudeCode(ctx context.Context, dir string, index Index, n
 
 	return src, newIdx, nil
 }
+
+// maxScanLine is the largest JSONL line a transcript may carry.
+//
+// bufio.Scanner's DEFAULT cap is 64 KiB, and exceeding it makes Scan() stop
+// with ErrTooLong — silently, because the error only surfaces via sc.Err(),
+// which nothing checked. Measured 2026-09-11 on this machine: 76 of 141 Codex
+// transcripts contain a line over 64 KiB and the longest is 9,906,699 bytes,
+// so MORE THAN HALF of every session was discarded from the first long line
+// onward. The dashboard read "Codex today: 21,993 tokens" while the same
+// transcripts, parsed without a line limit, held 24,378,806 input tokens.
+//
+// Cost is computed from these numbers, so the money figures were understated
+// by three orders of magnitude with no error anywhere.
+const maxScanLine = 32 * 1024 * 1024
 
 // --- Codex ---
 
@@ -449,6 +488,10 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 
 	newIdx := make(Index)
 	maxAge := now.Add(-MaxAge)
+	// Files whose lines exceeded maxScanLine. A non-zero count means the
+	// numbers below are incomplete, and the source says so rather than
+	// quietly under-reporting — the failure mode this whole guard exists for.
+	truncatedFiles := 0
 	todayBoundary := dayBoundary(now, s.TZ)
 	monthBoundary := monthBoundary(now, s.TZ)
 
@@ -503,6 +546,7 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 		}
 
 		sc := bufio.NewScanner(f)
+		sc.Buffer(make([]byte, 0, 256*1024), maxScanLine)
 		currentModel := ""
 		// BUG 49 fix: the token_count event's timestamp reflects when the
 		// response was logged (often "now" due to replay), not when the
@@ -590,6 +634,19 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 			fileDayModels[dayKey][model] = fileDayModels[dayKey][model].Add(tokens)
 		}
 
+		// A TRUNCATED FILE MUST NEVER BE CACHED AS IF IT WERE COMPLETE.
+		// sc.Err() is the only place bufio reports a line it could not hold;
+		// ignoring it is what let 54% of these transcripts be read in part and
+		// stored in the index as the whole truth.
+		if err := sc.Err(); err != nil {
+			// Skip the file rather than abort the whole scan, and DO NOT write
+			// an index entry: a truncated result must not be cached as the
+			// whole truth, and the next scan must retry this file.
+			f.Close()
+			truncatedFiles++
+			return nil
+		}
+
 		// Build FileResult from the per-file aggregates.
 		fr := &FileResult{
 			Models: make(map[string]ModelAgg, len(fileModels)),
@@ -658,7 +715,14 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 	// Build models list (exclude <synthetic>, track unpriced), now with
 	// per-model today/month windowed tokens accumulated in the post-walk pass.
 	var unpricedModels map[string]bool
-	src.Models, unpricedModels = buildModelsList(modelOrder, modelAgg, todayModelAgg, monthModelAgg, modelReqs, s.priceOf)
+	var unpricedToday, unpricedMonth map[string]bool
+	src.Models, unpricedModels, unpricedToday, unpricedMonth = buildModelsList(modelOrder, modelAgg, todayModelAgg, monthModelAgg, modelReqs, s.priceOf)
+	src.UnpricedToday = sortedKeys(unpricedToday)
+	src.UnpricedMonth = sortedKeys(unpricedMonth)
+
+	if truncatedFiles > 0 {
+		src.Partial = true
+	}
 
 	// Record unpriced models for the caller to warn loudly.
 	if len(unpricedModels) > 0 {
@@ -728,15 +792,28 @@ func (s *Scanner) scanCodex(ctx context.Context, dir string, index Index, now ti
 //   - monthModelAgg: month-windowed token totals per model
 //   - modelReqs: request counts per model
 //   - priceOf: function to resolve a model's price for cost calculation
-func buildModelsList(modelOrder []string, modelAgg, todayModelAgg, monthModelAgg map[string]Tokens, modelReqs map[string]int, priceOf func(string) (Price, bool)) ([]Model, map[string]bool) {
+func buildModelsList(modelOrder []string, modelAgg, todayModelAgg, monthModelAgg map[string]Tokens, modelReqs map[string]int, priceOf func(string) (Price, bool)) ([]Model, map[string]bool, map[string]bool, map[string]bool) {
 	models := []Model{}
 	unpriced := make(map[string]bool)
+	// PER WINDOW, because a tile must only name what it is actually missing.
+	// The lifetime union was rendered under BOTH "Cost today" and "Cost this
+	// month": on 2026-09-11 the today tile read "(partial: …, fugu)" while fugu
+	// had 0 tokens today and 1,142,586 that month. The warning was true of the
+	// month and false of the day it was printed under.
+	unpricedToday := make(map[string]bool)
+	unpricedMonth := make(map[string]bool)
 	for _, model := range modelOrder {
 		if model == "<synthetic>" {
 			continue
 		}
 		if _, ok := priceOf(model); !ok {
 			unpriced[model] = true
+			if !todayModelAgg[model].IsZero() {
+				unpricedToday[model] = true
+			}
+			if !monthModelAgg[model].IsZero() {
+				unpricedMonth[model] = true
+			}
 		}
 		m := Model{
 			Model:       model,
@@ -751,7 +828,22 @@ func buildModelsList(modelOrder []string, modelAgg, todayModelAgg, monthModelAgg
 		}
 		models = append(models, m)
 	}
-	return models, unpriced
+	return models, unpriced, unpricedToday, unpricedMonth
+}
+
+// sortedKeys renders a set as a stable, sorted slice — nil when empty, so the
+// JSON field is omitted rather than sent as an empty array that a reader could
+// mistake for "checked, nothing missing".
+func sortedKeys(set map[string]bool) []string {
+	if len(set) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(set))
+	for k := range set {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 type dayAccum struct {

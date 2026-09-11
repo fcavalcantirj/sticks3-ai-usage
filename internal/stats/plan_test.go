@@ -2,6 +2,7 @@ package stats
 
 import (
 	"math"
+	"strings"
 	"testing"
 )
 
@@ -516,5 +517,58 @@ func TestComputePlanCost_TodayAndMonthSame(t *testing.T) {
 	}
 	if pc.APICostMonth != 459.93 {
 		t.Errorf("APICostMonth = %.2f, want 459.93", pc.APICostMonth)
+	}
+}
+
+// TestComputePlanCost_WindowedUnpriced pins the per-window disclosure.
+//
+// Both cost tiles used to be handed the same lifetime union, so "Cost today"
+// named models that contributed nothing today. Measured on the live daemon
+// 2026-09-11: fugu, 0 input tokens today and 1,142,586 that month, printed
+// under the today tile.
+func TestComputePlanCost_WindowedUnpriced(t *testing.T) {
+	plans := map[string]PlanParams{
+		"codex": {Cost: 110, Currency: "BRL", CostUSD: 20, HasCostUSD: true, Label: "Plus"},
+	}
+	report := &Report{
+		Sources: map[string]Source{
+			"codex": {
+				Today:          Totals{Cost: 5},
+				Month:          Totals{Cost: 100},
+				Partial:        true,
+				UnpricedModels: []string{"codex-auto-review", "fugu"},
+				// fugu ran this month but not today.
+				UnpricedToday: []string{"codex-auto-review"},
+				UnpricedMonth: []string{"codex-auto-review", "fugu"},
+			},
+		},
+	}
+
+	pc := ComputePlanCost(plans, report)
+	if pc == nil {
+		t.Fatal("PlanCost should not be nil")
+	}
+	if got, want := strings.Join(pc.APIUnpricedToday, ","), "codex-auto-review"; got != want {
+		t.Errorf("APIUnpricedToday = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(pc.APIUnpricedMonth, ","), "codex-auto-review,fugu"; got != want {
+		t.Errorf("APIUnpricedMonth = %q, want %q", got, want)
+	}
+	if !pc.APIPartialToday || !pc.APIPartialMonth {
+		t.Errorf("partial flags = %v/%v, want both true", pc.APIPartialToday, pc.APIPartialMonth)
+	}
+
+	// A source whose windows are fully priced must not claim to be partial in
+	// them, even when its lifetime total is partial.
+	report.Sources["codex"] = Source{
+		Today: Totals{Cost: 5}, Month: Totals{Cost: 100},
+		Partial: true, UnpricedModels: []string{"an-old-model"},
+	}
+	pc = ComputePlanCost(plans, report)
+	if pc.APIPartialToday || pc.APIPartialMonth {
+		t.Errorf("windows flagged partial with no windowed gaps: %v/%v", pc.APIPartialToday, pc.APIPartialMonth)
+	}
+	if !pc.APIPartial {
+		t.Error("the lifetime flag should still be true")
 	}
 }

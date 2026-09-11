@@ -386,3 +386,27 @@ test('the sidebar version comes from /healthz, never from a literal', () => {
   context.updateVersion(null);
   assert.equal(node('sidebar-version').textContent, '');
 });
+
+// Both cost tiles were handed the SAME lifetime union of unpriced models, so
+// "Cost today" named models that contributed nothing today — measured live on
+// 2026-09-11: fugu, 0 tokens today, 1,142,586 that month, printed under today.
+test('each cost tile names only the models it is actually missing', () => {
+  const { context } = harness();
+  const today = context.formatApiEquiv(5.67, true, ['codex-auto-review']);
+  const month = context.formatApiEquiv(862.5, true, ['codex-auto-review', 'fugu']);
+
+  assert.match(today, /partial: codex-auto-review\)/);
+  assert.doesNotMatch(today, /fugu/, 'today names a model with no tokens today');
+  assert.match(month, /partial: codex-auto-review, fugu\)/);
+
+  // A window with nothing unpriced says nothing at all.
+  assert.doesNotMatch(context.formatApiEquiv(5.67, false, []), /partial/);
+
+  // And the wiring, not just the formatter: the today tile must read the
+  // today fields and the month tile the month fields. Asserting the formatter
+  // alone would pass even if both tiles were still fed the lifetime union.
+  assert.match(source, /api_unpriced_today/);
+  assert.match(source, /api_unpriced_month/);
+  assert.match(source, /api_partial_today/);
+  assert.match(source, /api_partial_month/);
+});

@@ -1,6 +1,9 @@
 package stats
 
-import "math"
+import (
+	"math"
+	"sort"
+)
 
 // rateTolerance is the maximum fractional deviation allowed between plan-pair
 // exchange rates before conversion is suppressed (1%).
@@ -176,7 +179,7 @@ func ComputePlanCost(plans map[string]PlanParams, report *Report) *PlanCost {
 	// API-equivalent costs from scanned sources (today vs month).
 	apiCostToday := 0.0
 	apiCostMonth := 0.0
-	var apiUnpricedModels []string
+	var apiUnpricedModels, apiUnpricedToday, apiUnpricedMonth []string
 	apiPartial := false
 	if report != nil {
 		for _, src := range report.Sources {
@@ -186,8 +189,14 @@ func ComputePlanCost(plans map[string]PlanParams, report *Report) *PlanCost {
 				apiPartial = true
 				apiUnpricedModels = append(apiUnpricedModels, src.UnpricedModels...)
 			}
+			// Windowed, and independent of src.Partial: a source can be partial
+			// over its lifetime while a given window is fully priced.
+			apiUnpricedToday = append(apiUnpricedToday, src.UnpricedToday...)
+			apiUnpricedMonth = append(apiUnpricedMonth, src.UnpricedMonth...)
 		}
 	}
+	sort.Strings(apiUnpricedToday)
+	sort.Strings(apiUnpricedMonth)
 
 	pc := &PlanCost{
 		PrimaryCurrency:   primaryCurrency,
@@ -196,6 +205,10 @@ func ComputePlanCost(plans map[string]PlanParams, report *Report) *PlanCost {
 		APICostMonth:      apiCostMonth,
 		APIPartial:        apiPartial,
 		APIUnpricedModels: apiUnpricedModels,
+		APIUnpricedToday:  apiUnpricedToday,
+		APIUnpricedMonth:  apiUnpricedMonth,
+		APIPartialToday:   len(apiUnpricedToday) > 0,
+		APIPartialMonth:   len(apiUnpricedMonth) > 0,
 	}
 
 	if canConvert {

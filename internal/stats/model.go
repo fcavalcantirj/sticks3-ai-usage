@@ -16,6 +16,11 @@ type Tokens struct {
 	CacheWrite int64 `json:"cache_write"` // fresh cache put (billed at input rate)
 }
 
+// IsZero reports whether no tokens of any kind were recorded.
+func (t Tokens) IsZero() bool {
+	return t.Input == 0 && t.Output == 0 && t.CacheRead == 0 && t.CacheWrite == 0
+}
+
 // Add accumulates b into a, returning the sum.
 func (a Tokens) Add(b Tokens) Tokens {
 	return Tokens{
@@ -72,8 +77,13 @@ type Source struct {
 	Days           []Day    `json:"days"`   // last 182 days, oldest first
 	ActiveDays     int      `json:"active_days"`
 	Peak           Peak     `json:"peak"`
-	UnpricedModels []string `json:"unpriced_models,omitempty"` // model IDs with unknown prices
+	UnpricedModels []string `json:"unpriced_models,omitempty"` // model IDs with unknown prices (lifetime)
 	Partial        bool     `json:"partial,omitempty"`         // true if any model is unpriced
+	// Windowed: the unpriced models that actually carry tokens in that window.
+	// A tile must name only what IT is missing — the lifetime union was once
+	// printed under "Cost today" naming a model with zero tokens today.
+	UnpricedToday []string `json:"unpriced_today,omitempty"`
+	UnpricedMonth []string `json:"unpriced_month,omitempty"`
 
 	// Billed indicates whether the source's cost is a real per-token charge
 	// (true) or a subscription-equivalent estimate (false). Cliques on a
@@ -135,7 +145,12 @@ type PlanCost struct {
 	APICostToday      float64  `json:"api_cost_today"`                // equivalent-API estimate for today (USD)
 	APICostMonth      float64  `json:"api_cost_month"`                // equivalent-API estimate for month (USD)
 	APIPartial        bool     `json:"api_partial,omitempty"`         // true when any scanned source has unpriced models
-	APIUnpricedModels []string `json:"api_unpriced_models,omitempty"` // model IDs with unknown prices
+	APIUnpricedModels []string `json:"api_unpriced_models,omitempty"` // model IDs with unknown prices (lifetime)
+	// Per-window, so each cost tile annotates itself with its own gaps.
+	APIUnpricedToday []string `json:"api_unpriced_today,omitempty"`
+	APIUnpricedMonth []string `json:"api_unpriced_month,omitempty"`
+	APIPartialToday  bool     `json:"api_partial_today,omitempty"`
+	APIPartialMonth  bool     `json:"api_partial_month,omitempty"`
 }
 
 // Report is the top-level stats report returned by Scan and served at

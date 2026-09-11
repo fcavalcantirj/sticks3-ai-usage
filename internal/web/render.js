@@ -252,8 +252,17 @@ function renderStats(report) {
 
     // Equivalent-API disclosure (old estimate from scanned sources), with
     // partial flag surface when applicable.
-    todayApiEl.textContent = formatApiEquiv(pc.api_cost_today, pc.api_partial, pc.api_unpriced_models);
-    monthApiEl.textContent = formatApiEquiv(pc.api_cost_month, pc.api_partial, pc.api_unpriced_models);
+    // EACH TILE NAMES ONLY WHAT IT IS MISSING. Both lines used to be handed
+    // the lifetime union (pc.api_partial / pc.api_unpriced_models), so "Cost
+    // today" once read "(partial: …, fugu)" while fugu had zero tokens today
+    // and over a million that month. Fall back to the lifetime fields for a
+    // daemon too old to send the windowed ones.
+    todayApiEl.textContent = formatApiEquiv(pc.api_cost_today,
+      pc.api_partial_today !== undefined ? pc.api_partial_today : pc.api_partial,
+      pc.api_unpriced_today !== undefined ? pc.api_unpriced_today : pc.api_unpriced_models);
+    monthApiEl.textContent = formatApiEquiv(pc.api_cost_month,
+      pc.api_partial_month !== undefined ? pc.api_partial_month : pc.api_partial,
+      pc.api_unpriced_month !== undefined ? pc.api_unpriced_month : pc.api_unpriced_models);
   } else {
     todayCostEl.textContent = "$—";
     monthCostEl.textContent = "$—";
