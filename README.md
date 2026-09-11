@@ -166,6 +166,36 @@ launchctl bootout gui/$(id -u)/com.fcavalcanti.ai-usage
 rm -f ~/Library/LaunchAgents/com.fcavalcanti.ai-usage.plist ~/.local/bin/ai-usage
 ```
 
+## Status line
+
+The repo also ships a Claude Code **status line**, so the same numbers sit at the
+bottom of every prompt:
+
+<p align="center">
+  <img src="docs/img/statusline.png" width="100%" alt="Claude Code status line showing the model, the project, a context gauge, and Claude 5h/7d and GPT 5h/7d quota bars coloured green, amber and red">
+</p>
+
+```sh
+bash skills/ai-usage/scripts/install.sh
+```
+
+It backs up `~/.claude/settings.json` first and points `statusLine` at the gauge.
+`uninstall.sh` puts it back.
+
+The bar **makes no network call when it renders.** It reads the state file the
+daemon already writes (`~/.local/state/ai-usage/state.json`), so it costs nothing
+per prompt and keeps working while the daemon is between polls. Claude's own 5h
+and 7d figures come from Claude Code's status-line input, which is authoritative
+during a session; everything else comes from the file. Green under 50%, amber to
+79%, red at 80% and above. `AI_USAGE_COMPACT=1` drops the bars for a narrower
+terminal; `AI_USAGE_BAR=12` widens them.
+
+If the daemon is not running the bar says so, and if the snapshot is older than
+45 minutes it says `stale Nm` rather than showing numbers as though they were
+current.
+
+<sub>Screenshot rendered from the repository's demo fixtures, not a real account.</sub>
+
 ## Where the numbers come from
 
 `ai-usage` does not ask you for a password and cannot log in on your behalf. It

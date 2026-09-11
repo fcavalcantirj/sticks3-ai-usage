@@ -3,23 +3,40 @@
 #
 # Sources (no network, no API calls per render):
 #   - Claude 5h/7d: Claude Code's own statusline stdin `rate_limits` (official; present on Pro/Max).
-#     Fallback: usaged state file (claude provider rows).
-#   - ChatGPT/Codex 5h/7d: usaged state file written by the LaunchAgent
-#     ($HOME/.local/state/usaged/state.json, override with USAGED_STATE).
+#     Fallback: the ai-usage state file (claude provider rows).
+#   - ChatGPT/Codex 5h/7d: the state file written by the LaunchAgent
+#     ($HOME/.local/state/ai-usage/state.json, override with USAGED_STATE).
 #   - ctx: stdin context_window.used_percentage.
 # Env: AI_USAGE_COMPACT=1 drops the bars; AI_USAGE_BAR=N sets bar width (default 8).
 set -u
 input=$(cat 2>/dev/null || true)
-STATE="${USAGED_STATE:-$HOME/.local/state/usaged/state.json}"
+# The project was called `usaged` until 2026-09 and the state file moved with the
+# rename.  Defaulting to the old path is what made this bar report "not running"
+# on every prompt for days while the daemon was perfectly healthy — the message
+# described the reader's path, not the service's state.  Prefer the real
+# location, fall back to the pre-rename one so an old install keeps working.
+STATE="${USAGED_STATE:-}"
+if [ -z "$STATE" ]; then
+    STATE="$HOME/.local/state/ai-usage/state.json"
+    [ -f "$STATE" ] || STATE="$HOME/.local/state/usaged/state.json"
+fi
 W="${AI_USAGE_BAR:-8}"
 
-# One jq pass over stdin → TSV: model, dir, ctx, c5, c7
+# One jq pass over stdin → TSV: model, dir, ctx, c5, c7.
+#
+# EVERY FIELD MUST BE NON-EMPTY.  Tab is an IFS *whitespace* character, so bash
+# collapses a run of them: an absent workspace.current_dir emitted as "" turns
+# "Opus\t\t12\t3\t4" into four fields, and every value lands one slot to the
+# left — the 5h number renders as ctx, the 7d number renders as 5h.  Silently
+# wrong numbers are worse than no numbers, so jq emits "-" and the placeholder
+# is unwound below.
 IFS=$'\t' read -r model dir ctx c5 c7 < <(printf '%s' "$input" | jq -r '
   [ (.model.display_name // "Claude"),
-    (.workspace.current_dir // ""),
+    (.workspace.current_dir // "-"),
     (.context_window.used_percentage // "-"),
     (.rate_limits.five_hour.used_percentage // "-"),
-    (.rate_limits.seven_day.used_percentage // "-") ] | @tsv' 2>/dev/null || printf 'Claude\t\t-\t-\t-\n')
+    (.rate_limits.seven_day.used_percentage // "-") ] | @tsv' 2>/dev/null || printf 'Claude\t-\t-\t-\t-\n')
+[ "${dir:-}" = "-" ] && dir=""
 
 g5="-"; g7="-"; s5="-"; s7="-"; age="-"
 if [ -f "$STATE" ]; then
@@ -56,6 +73,6 @@ line="\033[1m${model}\033[0m${sep}${proj}"
 [ "$ctx" != "-" ] && line+="${sep}ctx $(bar "$ctx")"
 line+="${sep}Claude 5h $(bar "$c5") 7d $(plain "$c7")"
 line+="${sep}GPT 5h $(bar "$g5") 7d $(plain "$g7")"
-if [ ! -f "$STATE" ]; then line+="${sep}\033[90musaged: not running\033[0m"
+if [ ! -f "$STATE" ]; then line+="${sep}\033[90mai-usage: not running\033[0m"
 elif [ "$age" != "-" ] && [ "$age" -gt 45 ] 2>/dev/null; then line+="${sep}\033[33mstale ${age}m\033[0m"; fi
 printf '%b\n' "$line"

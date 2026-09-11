@@ -1,7 +1,7 @@
 VERSION ?= dev
 PIO_ENV ?= m5stack-sticks3
 
-.PHONY: fw-auto build dist fmt vet lint test test-js verify clean smoke install uninstall fw-test fw-build fw-check-secrets verify-all fw-ota fw-build-ota fw-upload-ota
+.PHONY: fw-auto build dist fmt vet lint test test-js test-statusline verify clean smoke install uninstall fw-test fw-build fw-check-secrets verify-all fw-ota fw-build-ota fw-upload-ota
 
 build:
 	@commit=$$(git rev-parse --short HEAD 2>/dev/null || echo none); \
@@ -32,7 +32,12 @@ sync-prices:
 test:
 	go test -count=1 ./...
 
-verify: fmt vet lint test test-js build
+verify: fmt vet lint test test-js test-statusline build
+
+test-statusline:
+	@# The status line is a shipped surface. It reported the daemon as down for
+	@# days after the usaged->ai-usage rename because nothing executed it.
+	@bash scripts/statusline.test.sh
 
 test-js:
 	@if ! command -v node >/dev/null 2>&1; then \

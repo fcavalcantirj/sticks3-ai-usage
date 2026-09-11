@@ -1590,5 +1590,20 @@
       "Verify: paste the `--dry-run` output, then the real run's output including the tag it created, the asset it published, the partition-table check at 0x8000 reading aa50, and the install one-liner returning 200. This task does not self-certify — its Verify names Felipe."
     ],
     "passes": true
+  },
+  {
+    "category": "host",
+    "description": "THE STATUS LINE HAS REPORTED THE DAEMON AS DOWN SINCE THE RENAME: statusline.sh defaults to ~/.local/state/usaged/state.json, a path that stopped existing when the project became ai-usage, so every prompt printed 'usaged: not running' while the daemon was healthy and serving",
+    "steps": [
+      "Context (repeat in your head; the loop starts you with no memory): this repo is ai-usage at /Users/fcavalcanti/dev/m5/sticks3-ai-usage. The Claude Code status-line skill lives IN THIS REPO at skills/ai-usage/, and ~/.claude/skills/ai-usage is a symlink to it — editing the repo copy edits the live skill.",
+      "MEASURED: skills/ai-usage/scripts/statusline.sh line 13 read `STATE=\"${USAGED_STATE:-$HOME/.local/state/usaged/state.json}\"`. That file does not exist; the daemon writes $HOME/.local/state/ai-usage/state.json. Line 59 turns a missing file into the words 'usaged: not running', so the bar accused a healthy daemon of being down on every prompt for days.",
+      "PART 1 — default to the real path, and fall back to the pre-rename one so an old install still works. Rename the message to name the service that is actually down (ai-usage, not usaged).",
+      "PART 2 — a SECOND defect, found by the test rather than by reading: the jq emitted \"\" for an absent workspace.current_dir, and tab is an IFS *whitespace* character, so bash collapsed the empty field and every value shifted one slot left — the 5h number rendered as ctx and the 7d number as 5h. Wrong numbers in the right-looking places is worse than no numbers. Emit a placeholder instead of an empty field.",
+      "PART 3 — the same rename left stale facts in skills/ai-usage/SKILL.md and webui.sh: the LaunchAgent is com.fcavalcanti.ai-usage and the log is ~/Library/Logs/ai-usage/ai-usage.err.log. webui.sh told the reader to kickstart a service that does not exist.",
+      "PART 4 — WRITE THE TEST THAT WOULD HAVE CAUGHT THIS and wire it into `make verify`. The status line is a shipped surface and nothing in the suite ever executed it, which is exactly why a rename could break it silently for days. Cover: renders from a state file; a genuinely missing file still says 'not running'; the DEFAULT path resolves to the ai-usage location; the legacy path still works; stdin rate_limits win over the file.",
+      "PART 5 — document the status line in README.md with a screenshot rendered from the demo fixtures (never Felipe's live numbers)."
+    ],
+    "verify": "[TEST] `bash scripts/statusline.test.sh` passes, and `make verify` exits 0 with it wired in. Confirm the test FAILS against the pre-fix script (`git show HEAD:skills/ai-usage/scripts/statusline.sh`) — a test that cannot fail proves nothing. [REAL] `bash skills/ai-usage/scripts/statusline.sh < /dev/null` with NO USAGED_STATE override prints live percentages and does not contain 'not running'; paste it. [REAL] — FELIPE'S, and the one that closes it: his own status line, at the bottom of his own terminal, must show the gauge instead of 'usaged: not running'. It re-renders on a 60 s interval, so no restart should be needed.",
+    "passes": false
   }
 ]
