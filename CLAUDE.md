@@ -1,34 +1,48 @@
 # usaged — AI usage monitor (M5StickS3 + Mac agent)
 
-**Status: SHIPPED, plus one open feature. v0.2.1 is released and confirmed working end to end; task 96 is the next build.**
+**Status: SHIPPED. v0.3.0 is released; v0.3.1 is pending (the BLE setup fix below). Zero-config Bluetooth provisioning completed on real hardware for the first time on 2026-09-11.**
 
-99 tasks, 91 passing. **Tasks 96-99** — a 4-hour "use this next" provider recommendation, split into the daemon ranking, the dashboard card, the device overlay on the reserved BtnA HOLD gesture, and a closing agreement check — are the buildable work. `spec.json` is both the acceptance ledger and the
+118 tasks, 114 passing. `spec.json` is both the acceptance ledger and the
 executable build order: take the first entry with `passes: false` whose
-description is not prefixed `[WITHDRAWN]`, `[DEFERRED]` or `[BLOCKED`.
+description is not prefixed `[WITHDRAWN]`, `[DEFERRED]` or `[BLOCKED`. **There is
+currently no buildable work** — every open entry is parked or blocked.
 
-The 2026-09-07 prod-readiness group (tasks 85-93) is **done and approved**:
-OpenCode Go as a sixth provider, working alert thresholds, user-chosen provider
-order, honest Models-tab columns, the `/v1/netcfg` and pair-window removals, and
-the firmware provider-array clamp. Everything it fixed came from
-`docs/handovers/2026-09-07-prod-readiness/` — `AUDIT.md` there still holds the
-reproduction command behind each finding.
+The 2026-09-07 prod-readiness group (tasks 85-93) is **done and approved**, and
+so is the 2026-09-10/11 run: the "use this next" recommendation ranked by
+headroom (96-101), the redesigned dashboard (103-110), working OTA (113), honest
+OTA reporting (114-115), the 0.3.0 release (116), the status-line fix (117) and
+the BLE setup fix (118).
 
-**Confirmed on hardware 2026-09-08**: flashed from M5Burner through the normal
-user path, booted, fetched, and rendered six providers across four pages.
+**Confirmed on hardware:** six providers across four pages from an M5Burner flash
+(2026-09-08); the advise overlay agreeing with `/v1/advise` (2026-09-10); and
+**zero-config Bluetooth provisioning, end to end, for the first time
+(2026-09-11)** — `state: applied` in 21 s, device fetching from the LAN.
 
 ### What is left, and none of it is a coding task
 
 | task | state |
 |---|---|
-| 77 | `[BLOCKED]` — needs Felipe's hardware UAT of the captive portal from a phone |
+| 77 | `[WITHDRAWN]` — SoftAP captive portal, superseded by BLE provisioning (Felipe, 2026-09-10) |
 | 83 | `[DEFERRED]` — task-hub rows, parked by his decision |
 | 94 | `[BLOCKED]` — OpenCode Zen credit provider; **no balance API exists** (~45 paths probed; the console value comes from a session-authenticated server function, and a cookie scraper is forbidden) |
 | 95 | the closing sweep — **Felipe's to close**, never self-certified |
 
-Two loose ends outside the ledger: **`OTA_PASS` in `secrets.h` should be
-rotated** (it was leaked into a transcript by passing `-d` to `espota.py`), and
-**Groq reads `off`** because `GROQ_API_KEY` lives only in `.env` — see the
-Keychain fact below.
+Loose ends outside the ledger:
+
+- **Rotate `OTA_PASS` in `secrets.h`** — leaked into a transcript via
+  `espota.py -d`. The **device token** was leaked the same way on 2026-09-11
+  (`webui.sh` prints the LAN URL with it); both are LAN-only and touch no
+  provider account, but neither string should be trusted. The daemon's
+  `device-ota-pass` was already replaced by the self-healing installer.
+- **Groq reads `off`** because `GROQ_API_KEY` lives only in `.env` — see the
+  Keychain fact below.
+- **The `Blocked — frees in` badge renders with no duration** when
+  `blocked_for_sec` is 0: `render.js:84` concatenates
+  `formatShortDuration(0)`, which returns `""`, while the Go side honestly
+  prints "frees in unknown". Not spec'd — Felipe's call.
+- **The device may not run what you published.** On 2026-09-11 the stick
+  reported `9ca5636+dirty` (a v0.2.x commit, dirty tree) after a v0.3.0 M5Burner
+  upload. Read the User-Agent in the access log before assuming.
 
 ## Releasing — use the script, never by hand
 
@@ -103,6 +117,23 @@ log, the wire. Not a fake, not a unit test, not a green build. Every task in
 85-95 carries a `Verify:` step naming the live command and its expected output
 for exactly that reason — a green `make verify` never satisfies one on its own.
 
+## `make verify` now guards three surfaces, not one
+
+`verify: fmt vet lint test test-js test-statusline test-install build`. The two
+shell suites exist because both surfaces shipped broken while every Go test
+stayed green:
+
+- **`scripts/statusline.test.sh`** — the status line defaulted to the
+  pre-rename state path (`~/.local/state/usaged/`) and told Felipe the daemon was
+  dead on every prompt for days. It also caught a second defect: tab is an IFS
+  *whitespace* character, so an empty field from `jq` collapsed and every value
+  in the bar shifted one slot left.
+- **`scripts/install-release.test.sh`** — runs the installer's real generator
+  lines and measures them against the wire limits.
+
+Both were confirmed to FAIL against the pre-fix code before being trusted. A test
+that has never failed has proved nothing.
+
 ## Read these first, in this order
 
 | file | what it is |
@@ -113,6 +144,60 @@ for exactly that reason — a green `make verify` never satisfies one on its own
 | `BACKLOG.md` | what was deliberately not built |
 | `docs/DEVICES.md` | hardware facts, the button map, and the reserved gestures |
 | `docs/SOURCES.md` | every provider endpoint, official or not, and its traps |
+
+## BLE provisioning: what 2026-09-11 cost, and the rule it produced
+
+Zero-config setup **completed on real hardware for the first time on 2026-09-11**
+(`state: applied`, 21 s, device on the LAN at .195). Getting there burned an hour
+on a one-character bug, and the way it hid is more important than the bug.
+
+**THE FAILURE NAMED ITSELF NOWHERE.** Three layers each dropped the reason:
+
+- the dashboard rendered *"Setup did not finish. Press the blue button"* — about
+  a device that was never contacted;
+- the log recorded `stage:"" device_code:0`, which is the shape of "we have no
+  idea";
+- and `cmd/usaged/bleprov.go` **discarded the error value one line before it
+  could be printed**, because this package deliberately never logs a
+  provisioner's error.
+
+The cause was `install-release.sh` minting a 64-character OTA password against a
+63-byte limit (`bleprov.MaxOtaPass`, `kMaxOtaPass`): `od -tx1` renders 24 bytes
+as **48 hex characters**, and `base64` then encoded that *text*, not the bytes.
+`Encode()` refused the record locally — no radio traffic at all, which is why
+every run died in ~0.4 s with `steps: []`.
+
+**`USAGED_BLE_DEBUG=1` is the only reason this was ever found.** It logs the raw
+provisioning error (a CoreBluetooth transport error carries no credential). Set
+it with `launchctl setenv USAGED_BLE_DEBUG 1` and kickstart. **Use it first, not
+last, on any setup failure** — every minute spent theorising before reading that
+line was wasted, and two of the theories (a stale macOS bond, the 10-minute
+advertising window) were confidently wrong.
+
+Facts worth keeping from the same session:
+
+- **The BLE window is 10 minutes and does not reopen.** `main.cpp:218`
+  `kBleWindowMs`; after it, `bleProvEnd(true)` releases the BT controller memory
+  irreversibly — *"once BT memory is released, the process cannot be reversed"* —
+  and the portal takes over. **Only a power cycle brings BLE back.** A scan
+  finding nothing usually means the window closed, not that anything is broken.
+- **Reflashing a device invalidates the macOS bond.** The stick comes back with
+  fresh pairing keys while macOS keeps the old bond; `central.go` catches one
+  variant (`Connect` returning a zero device → `ErrBondLost`) but not all. If
+  pairing misbehaves after a flash, forget the device in System Settings first.
+- **Burning the merged image erases NVS.** `0x9000-0xe000` is inside the merged
+  artifact as `0xFF`, so a burn wipes the stored credentials and the device comes
+  back unprovisioned. That is why a flash forces a re-pair.
+- **A device's reported build is not the release you tagged.** The stick that
+  paired reported `9ca5636+dirty` — a v0.2.x commit built from a dirty tree —
+  even though v0.3.0 had been uploaded to M5Burner. Read the User-Agent in the
+  access log before believing a device runs what you published.
+
+**The rule:** a credential this project generates must be checked against the
+wire limit *by a test*, not by a comment. The broken generator's own comment said
+"~32 chars" while it produced 64. `scripts/install-release.test.sh` now runs the
+real generator lines out of the installer and measures them, and
+`make verify` runs it.
 
 ## Hard-won facts that cost a day each to find
 
