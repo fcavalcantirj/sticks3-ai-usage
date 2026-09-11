@@ -19,7 +19,11 @@ its own Wi-Fi network — see [Setting up the stick](#setting-up-the-stick).)
 <p align="center"><em>The whole of device setup, on the Settings page. There is no field
 for a Wi-Fi password here, because you never type one.</em></p>
 
-![status](https://img.shields.io/badge/platform-macOS-lightgrey) ![license](https://img.shields.io/badge/license-MIT-blue)
+[![release](https://img.shields.io/github/v/release/fcavalcantirj/sticks3-ai-usage)](https://github.com/fcavalcantirj/sticks3-ai-usage/releases/latest)
+[![downloads](https://img.shields.io/github/downloads/fcavalcantirj/sticks3-ai-usage/total)](https://github.com/fcavalcantirj/sticks3-ai-usage/releases)
+[![license](https://img.shields.io/github/license/fcavalcantirj/sticks3-ai-usage)](LICENSE)
+![platform](https://img.shields.io/badge/platform-macOS-lightgrey)
+![device](https://img.shields.io/badge/device-M5StickS3-0a7cff)
 
 <p align="center">
   <img src="docs/img/plans.jpeg" width="46%" alt="Plans page: Claude 5h and 7d, Fable 7d, GPT 5h and 7d, each with a bar, a percentage and a reset time">
