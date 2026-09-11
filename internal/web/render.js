@@ -158,7 +158,25 @@ function updateFooter(snap) {
   el.textContent = parts.join(" \u00b7 ");
 }
 
+// updateVersion writes the build the daemon reports into the sidebar footer.
+//
+// That slot held a hardcoded "v1" through every release up to v0.3.2 — not the
+// daemon version, not the API version, not the snapshot schema: a literal that
+// could not change and could therefore only misidentify the build someone was
+// debugging. /healthz now reports the real one (injected at link time from the
+// git tag), and OMITS the field when a build carries none.
+//
+// When nothing is reported, show NOTHING. An invented version is exactly the
+// kind of confident falsehood this dashboard spent a day removing.
+function updateVersion(h) {
+  var el = document.getElementById("sidebar-version");
+  if (!el) return;
+  el.textContent = h && h.version ? h.version : "";
+  if (h && h.commit) el.title = h.version + " (" + h.commit + ")";
+}
+
 function updateFooterChecked(h) {
+  updateVersion(h);
   var el = document.getElementById("footer-text");
   var parts = el.textContent.split(" \u00b7 ");
   if (parts.length >= 4) {

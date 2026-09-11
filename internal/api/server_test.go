@@ -1969,3 +1969,67 @@ func TestAdviseCacheControl(t *testing.T) {
 		t.Errorf("ETag = %q, want empty on repeat", etag)
 	}
 }
+
+// TestHealthzVersion pins the source of the dashboard's version label.
+//
+// The sidebar footer read a hardcoded "v1" through every release up to and
+// including v0.3.2 — a string that could not change and could therefore only
+// misidentify the build someone was debugging. The version now travels from
+// -ldflags through WithVersion to /healthz, and the field is OMITTED rather
+// than sent empty so a reader can tell "this build does not say" from a real
+// answer.
+func TestHealthzVersion(t *testing.T) {
+	dir := setupFixtures(t)
+	cfg := config.Config{Listen: "127.0.0.1:0", Interval: 900 * time.Second, TZ: testLoc, DeviceToken: "x"}
+
+	build := func(opts ...Option) []byte {
+		t.Helper()
+		client := &httpx.Client{HTTP: &http.Client{Transport: httpx.NewFixtureTransport(dir)}}
+		fetchers := []providers.Fetcher{
+			providers.NewCodex(client, filepath.Join(dir, "codex_auth.json"), testLoc, format.DefaultAlerts()),
+		}
+		logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+		s := sched.NewScheduler(fetchers, cfg.Interval, "", func() time.Time { return fixedNow }, logger)
+		s.PollOnce(context.Background())
+		srv, err := New(s, cfg, "", logger, opts...)
+		if err != nil {
+			t.Fatalf("New: %v", err)
+		}
+		ts := httptest.NewServer(srv.Handler)
+		defer ts.Close()
+		resp, err := http.Get(ts.URL + "/healthz")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return body
+	}
+
+	t.Run("reported when injected", func(t *testing.T) {
+		var got struct {
+			Version string `json:"version"`
+			Commit  string `json:"commit"`
+		}
+		body := build(WithVersion("v1.2.3", "deadbee"))
+		if err := json.Unmarshal(body, &got); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if got.Version != "v1.2.3" || got.Commit != "deadbee" {
+			t.Errorf("version/commit = %q/%q, want v1.2.3/deadbee — body: %s", got.Version, got.Commit, body)
+		}
+	})
+
+	t.Run("absent when not injected", func(t *testing.T) {
+		body := build()
+		// ABSENT ON THE WIRE, not an empty string: the dashboard renders
+		// nothing for a build that does not report, and can only do that if
+		// the two cases are distinguishable.
+		if strings.Contains(string(body), `"version"`) {
+			t.Errorf("version present with no WithVersion option: %s", body)
+		}
+	})
+}

@@ -35,7 +35,7 @@ func run(args []string, stdout io.Writer) int {
 		if err := fs.Parse(rest); err != nil {
 			return 2
 		}
-		fmt.Fprintf(stdout, "usaged %s (%s)\n", version, commit)
+		fmt.Fprintf(stdout, "ai-usage %s (%s)\n", version, commit)
 		return 0
 
 	case "serve":

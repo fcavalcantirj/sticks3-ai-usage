@@ -13,8 +13,11 @@ func TestVersion(t *testing.T) {
 		t.Fatalf("expected exit code 0, got %d", code)
 	}
 	out := buf.String()
-	if !strings.HasPrefix(out, "usaged") {
-		t.Fatalf("expected output to start with 'usaged', got: %q", out)
+	// The project renamed itself to ai-usage in September 2026; the binary,
+	// the LaunchAgent and the state directory all followed, and this line was
+	// the last user-visible place still announcing the old name.
+	if !strings.HasPrefix(out, "ai-usage") {
+		t.Fatalf("expected output to start with 'ai-usage', got: %q", out)
 	}
 	if !strings.Contains(out, "dev") {
 		t.Fatalf("expected output to contain version 'dev', got: %q", out)

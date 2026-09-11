@@ -346,3 +346,43 @@ test('OTA state is a tri-state, not a falsy check', () => {
   assert.match(silent, /OTA: not reported/);
   assert.doesNotMatch(silent, /disarmed/);
 });
+
+// The sidebar's StickS3 shortcut used to be data-view="settings" and nothing
+// else — byte-identical in behaviour to the Settings nav item, landing at the
+// top of a long page with the device card far below the fold. A shortcut that
+// names a component has to arrive at that component.
+test('the StickS3 shortcut targets the device card, not just the page', () => {
+  const shortcut = html.match(/<button class="device-shortcut"[^>]*>/);
+  assert.ok(shortcut, 'the device shortcut button is gone');
+  assert.match(shortcut[0], /data-view="settings"/);
+  assert.match(shortcut[0], /data-focus="setup-card"/);
+
+  // The id it points at must exist, or the shortcut silently does nothing.
+  assert.match(html, /id="setup-card"/);
+
+  // And the router must honour it.
+  assert.match(source, /dataset\.focus/);
+  assert.match(source, /function focusCard/);
+});
+
+// The sidebar footer carried a hardcoded "v1" through every release up to and
+// including v0.3.2 — not the daemon version, not the API version, not the
+// snapshot schema. A label that cannot change can only misidentify the build
+// someone is debugging.
+test('the sidebar version comes from /healthz, never from a literal', () => {
+  const foot = html.match(/<div class="sidebar-foot">[\s\S]*?<\/div>/);
+  assert.ok(foot, 'the sidebar footer is gone');
+  assert.doesNotMatch(foot[0], />v1</, 'the hardcoded version is back');
+  assert.match(foot[0], /id="sidebar-version"/);
+
+  const { context, node } = harness();
+  context.updateVersion({ version: 'v9.9.9', commit: 'abc1234' });
+  assert.equal(node('sidebar-version').textContent, 'v9.9.9');
+  assert.match(node('sidebar-version').title, /abc1234/);
+
+  // A build that reports no version must render nothing at all.
+  context.updateVersion({});
+  assert.equal(node('sidebar-version').textContent, '');
+  context.updateVersion(null);
+  assert.equal(node('sidebar-version').textContent, '');
+});

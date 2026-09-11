@@ -38,6 +38,8 @@ type Server struct {
 	setup          *setup                                  // one-click BLE device setup (setup.go)
 	provisioner    Provisioner                             // BLE central for device setup; nil disables it
 	logger         *slog.Logger
+	version        string // build version, empty when not injected at link time
+	commit         string // short commit, empty when not injected at link time
 	start          time.Time
 	tracker        *clientTracker // per-client /v1/usage access log (ORDER #58 task 61)
 }
@@ -50,6 +52,18 @@ type Option func(*Server)
 // store. Tests inject a FakeKeyStore.
 func WithKeyStore(ks creds.KeyStore) Option {
 	return func(s *Server) { s.keystore = ks }
+}
+
+// WithVersion tells the server which build it is, so /healthz can report it and
+// the dashboard can stop claiming to be "v1".
+//
+// The sidebar footer carried a hardcoded "v1" through every release up to and
+// including v0.3.2 — a label that could not change and therefore could only
+// mislead whoever was debugging a build. Both values come from -ldflags
+// (cmd/usaged/main.go) and are LEFT EMPTY when they were never injected, so a
+// reader can tell "this build does not say" from a real answer.
+func WithVersion(version, commit string) Option {
+	return func(s *Server) { s.version, s.commit = version, commit }
 }
 
 // WithGetenv injects the getenv function used for env-var key resolution.
@@ -202,6 +216,8 @@ func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 		Rev:       snap.Rev,
 		CheckedAt: snap.CheckedAt,
 		UptimeSec: int(time.Since(s.start).Seconds()),
+		Version:   s.version,
+		Commit:    s.commit,
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -1055,6 +1071,10 @@ type healthzResponse struct {
 	Rev       string `json:"rev"`
 	CheckedAt int64  `json:"checked_at"`
 	UptimeSec int    `json:"uptime_sec"`
+	// Version and Commit are omitted rather than sent empty, so a consumer can
+	// distinguish "this build does not report a version" from one that does.
+	Version string `json:"version,omitempty"`
+	Commit  string `json:"commit,omitempty"`
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

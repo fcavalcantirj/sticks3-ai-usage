@@ -122,6 +122,20 @@ function setupTabs() {
   });
 }
 
+// focusCard scrolls a card on the just-shown page into view and marks it
+// briefly, so the eye lands where the click promised. Safe when the id is
+// absent — the shortcut still navigates.
+function focusCard(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  el.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'center' });
+  el.classList.remove('card-focus');
+  void el.offsetWidth;   // restart the animation when the same button is clicked twice
+  el.classList.add('card-focus');
+  setTimeout(function() { el.classList.remove('card-focus'); }, 2200);
+}
+
 function showTab(panelId) {
   var view = panelId.replace('tab-', '');
   if (!pageNames[view]) return;
@@ -245,7 +259,17 @@ function init() {
   document.getElementById('settings-form').addEventListener('input', markSettingsDirty);
   document.getElementById('settings-form').addEventListener('change', markSettingsDirty);
   document.querySelectorAll('[data-filter]').forEach(function(btn) { btn.addEventListener('click', function() { applyProviderFilter(btn.dataset.filter); }); });
-  document.querySelectorAll('[data-view]').forEach(function(btn) { btn.addEventListener('click', function() { showTab('tab-' + btn.dataset.view); }); });
+  document.querySelectorAll('[data-view]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      showTab('tab-' + btn.dataset.view);
+      // A shortcut that names a component must ARRIVE at that component.
+      // The sidebar's StickS3 button used to be data-view="settings" and
+      // nothing else, so it was indistinguishable from the Settings nav item:
+      // same destination, top of a long page, with the device card far below
+      // the fold.
+      if (btn.dataset.focus) focusCard(btn.dataset.focus);
+    });
+  });
   document.getElementById('menu-toggle').addEventListener('click', function() {
     var opened = document.body.classList.toggle('nav-open');
     this.setAttribute('aria-expanded', String(opened));

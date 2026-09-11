@@ -124,6 +124,9 @@ func runServe(args []string, stdout io.Writer) int {
 	// Constructing the adapter itself touches no radio.
 	apiOpts := []api.Option{
 		api.WithKeyStore(creds.NewKeyStore()),
+		// So /healthz — and therefore the dashboard footer — reports the build
+		// actually running, instead of a literal nobody could update.
+		api.WithVersion(version, commit),
 		api.WithFetcherBuilder(func(cfg config.Config) []providers.Fetcher {
 			return buildFetchers(cfg, creds.NewKeyStore())
 		}),
