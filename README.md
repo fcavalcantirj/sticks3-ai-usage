@@ -62,6 +62,22 @@ or Codex login, an environment variable — and never shows the value.</em></p>
 (<code>--scenario stats-demo</code>), not from a real account. Plan prices are the vendors'
 published list prices, built in.</sub>
 
+## What's new in v0.3.3
+
+**Your usage numbers were far too low, and now they are right.** Transcripts were
+read with a 64 KiB line limit and no error check, so any session containing a
+longer line — 76 of 141 on the machine where this was found, the longest 9.9 MB —
+was silently discarded from that point on and cached as if complete. One day read
+16,879 tokens where the transcripts held 24,378,806. Every cost derived from those
+numbers was understated with it.
+
+Also fixed: the scanner's cache is invalidated when the parser changes, so a model
+that an older parser could not identify is no longer remembered as `<unknown>`
+forever; each cost tile now names only the unpriced models that appear in *its own*
+window, instead of both tiles sharing one lifetime list; the sidebar shows the real
+version instead of a hardcoded `v1`; and the StickS3 shortcut scrolls to the device
+card rather than simply opening Settings.
+
 ## What's new in v0.3.2
 
 **A security fix, and a withdrawal.** The firmware images published with v0.3.0
