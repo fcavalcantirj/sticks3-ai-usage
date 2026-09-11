@@ -4,6 +4,21 @@ Your Claude Code and Codex quotas on an M5StickS3, and in a local dashboard.
 A small Go daemon runs on your Mac, reads the usage numbers, and the stick
 mirrors them.
 
+**Setting it up is one click, over Bluetooth.** No hotspot to join, no captive
+portal, no config file, nothing to type — the stick advertises itself, you press
+**Set it up** in the dashboard's Settings page, and the Mac hands over the Wi-Fi
+name and password, its own address and port, and a device token it mints for
+that stick. The only thing you may type is six digits, and the stick puts those
+on its own screen. (If the Mac has no Bluetooth, the stick falls back to raising
+its own Wi-Fi network — see [Setting up the stick](#setting-up-the-stick).)
+
+<p align="center">
+  <img src="docs/img/dashboard-setup.png" width="100%" alt="The device card on the Settings page, badged BLUETOOTH: 'A small display. The whole picture. Connect a StickS3 to keep your quotas right on your desk.' with a 'Look for a device' button and a 'Set it up' button">
+</p>
+
+<p align="center"><em>The whole of device setup, on the Settings page. There is no field
+for a Wi-Fi password here, because you never type one.</em></p>
+
 ![status](https://img.shields.io/badge/platform-macOS-lightgrey) ![license](https://img.shields.io/badge/license-MIT-blue)
 
 <p align="center">
