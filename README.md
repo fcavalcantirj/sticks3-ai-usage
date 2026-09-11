@@ -62,6 +62,21 @@ or Codex login, an environment variable — and never shows the value.</em></p>
 (<code>--scenario stats-demo</code>), not from a real account. Plan prices are the vendors'
 published list prices, built in.</sub>
 
+## What's new in v0.3.1
+
+**Setting up a device over Bluetooth works.** v0.3.0's installer generated an OTA
+password one byte over the provisioning record's limit, so the record was
+rejected before it ever reached the radio and every setup failed with a message
+that blamed the device. The installer now generates a valid one — and repairs an
+existing bad one, so re-running it is the fix. The daemon no longer lets an
+unusable password cost you the whole setup, and the dashboard names the real
+refusal instead of telling you to press a button.
+
+Also in this release: the Claude Code status line reads the right state file
+again (it had reported the daemon as down since the project was renamed), and
+`make verify` now exercises both shell surfaces that shipped broken while every
+Go test stayed green.
+
 ## What's new in v0.3.0
 
 **"Use this next."** The dashboard and the stick now answer the question you
