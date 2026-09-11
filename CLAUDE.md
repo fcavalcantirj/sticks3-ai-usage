@@ -2,7 +2,7 @@
 
 **Status: SHIPPED. v0.3.0 is released; v0.3.1 is pending (the BLE setup fix below). Zero-config Bluetooth provisioning completed on real hardware for the first time on 2026-09-11.**
 
-118 tasks, 114 passing. `spec.json` is both the acceptance ledger and the
+118 tasks, 113 passing. `spec.json` is both the acceptance ledger and the
 executable build order: take the first entry with `passes: false` whose
 description is not prefixed `[WITHDRAWN]`, `[DEFERRED]` or `[BLOCKED`. **There is
 currently no buildable work** — every open entry is parked or blocked.
