@@ -277,7 +277,16 @@ with a local `secrets.h` must never be published; it would hand out the network
 password of whoever built it, and a stranger's flash could not work anyway,
 since it would try to join our SSID and reach our Mac at a fixed address.
 
-**The published image is built without `secrets.h`.** Runtime provisioning —
+**The published image is built without `secrets.h` — but for two releases it was
+NOT, and that shipped a Wi-Fi password.** On 2026-09-11 the v0.3.0 and v0.3.1
+firmware assets were found to contain one occurrence each of all five values.
+`fw-publish-check` moved `secrets.h` aside, proved a build was clean, printed
+`PUBLISHABLE` and then **restored the header**; step 5 rebuilt with it present to
+stamp the version and merged THAT binary into the asset. The check was real and
+pointed at a file nobody shipped. `release.sh` now moves `secrets.h` aside for
+the build that becomes the asset AND re-runs `check_no_secrets.sh` against the
+merged artifact itself. **Verify the bytes you are about to upload, never a
+sibling build — and after publishing, download the asset and check it again.** Runtime provisioning —
 the NVS credential store and state machine (`firmware/src/usage/provision.cpp`),
 the captive portal (`portal.cpp`) and the BLE protocol (`bleprov.cpp`) — lets
 a device collect its own credentials on first boot. `make fw-publish-check`

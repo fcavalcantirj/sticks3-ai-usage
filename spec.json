@@ -1621,5 +1621,20 @@
     ],
     "verify": "[TEST] `make verify` exits 0 with scripts/install-release.test.sh wired in; confirm it FAILS against the v0.3.0 generator ('generated 64 chars, limit 63'). [REAL] Run the installer on a machine holding the 64-char value: it must report replacing it, and the file and plist must agree at <= 63. [REAL] — FELIPE'S, and the one that closed it: a real StickS3 provisioned over Bluetooth end to end.",
     "passes": true
+  },
+  {
+    "category": "release",
+    "description": "THE RELEASE SCRIPT VALIDATED ONE FIRMWARE IMAGE AND PUBLISHED ANOTHER: fw-publish-check proved a secrets-free build was clean and then RESTORED secrets.h, after which step 5 rebuilt WITH it and merged that binary into the asset — so v0.3.0 and v0.3.1 shipped the builder's Wi-Fi password, device token and OTA password to GitHub and M5Burner",
+    "steps": [
+      "Context (repeat in your head; the loop starts you with no memory): this repo is ai-usage at /Users/fcavalcanti/dev/m5/sticks3-ai-usage. secrets.h is a COMPILE-TIME header, so every value in it becomes a plaintext string inside firmware.bin. That was always known and documented; the release script was built specifically to prevent publishing such a build.",
+      "MEASURED 2026-09-11, after v0.3.1 was already public: `strings dist/ai-usage-firmware-v0.3.1-m5sticks3.bin | grep -cF <value>` returned 1 for EACH of WIFI_SSID, WIFI_PASS, USAGED_HOST, USAGED_DEVICE_TOKEN and OTA_PASS. The same held for the v0.3.0 asset, which had already been uploaded to M5Burner.",
+      "ROOT CAUSE: scripts/release.sh step 4 runs `make fw-publish-check`, which moves secrets.h aside, rebuilds, verifies the image is clean, prints PUBLISHABLE, and RESTORES secrets.h. Step 5 then rebuilds with secrets.h present (to stamp the version from the git tag) and merges THAT binary into $ASSET. The check was rigorous and pointed at a file nobody shipped. CLAUDE.md's claim that 'the published image is built without secrets.h' had been false since the mechanism was written.",
+      "PART 1 — build the image that BECOMES the asset with secrets.h moved aside, restoring it on an EXIT/INT/TERM/HUP trap. The version still comes from the git tag via build_id.py, which does not need the header.",
+      "PART 2 — after merge_bin, re-run firmware/scripts/check_no_secrets.sh against THE MERGED ARTIFACT ITSELF and refuse to publish if it finds anything. Checking a sibling build is what failed; check the bytes that are about to be uploaded.",
+      "PART 3 — gitignore both stash names (secrets.h.release, secrets.h.publishcheck). Neither was ignored, and either could be committed by a careless `git add .`.",
+      "PART 4 — withdraw the leaked assets and reissue. The daemon tarballs are unaffected."
+    ],
+    "verify": "[REAL] `sh scripts/release.sh vX.Y.Z --dry-run` prints 'asset re-checked against secrets.h: none of the five values are present', and an INDEPENDENT `strings` of the produced asset returns 0 occurrences for all five values. [REAL] After publishing, DOWNLOAD the asset from GitHub and run the same check on the downloaded bytes — the artifact that matters is the one a stranger gets, not the one on your disk. [REAL] — FELIPE'S: the leaking image is removed from M5Burner and replaced, and the Wi-Fi password is rotated.",
+    "passes": false
   }
 ]

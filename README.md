@@ -62,6 +62,20 @@ or Codex login, an environment variable — and never shows the value.</em></p>
 (<code>--scenario stats-demo</code>), not from a real account. Plan prices are the vendors'
 published list prices, built in.</sub>
 
+## What's new in v0.3.2
+
+**A security fix, and a withdrawal.** The firmware images published with v0.3.0
+and v0.3.1 were built with the maintainer's local `secrets.h` still in place, so
+they carried a Wi-Fi SSID and password, a host address and two tokens as
+plaintext strings. **Both firmware assets have been removed from those
+releases.** If you downloaded and flashed one, it joined someone else's network,
+not yours, and you should reflash from this release.
+
+The release script validated a credential-free build and then published a
+different one. It now builds the artifact it ships with `secrets.h` moved aside
+and re-checks **the merged image itself** before upload, refusing to publish if
+any value is found.
+
 ## What's new in v0.3.1
 
 **Setting up a device over Bluetooth works.** v0.3.0's installer generated an OTA
